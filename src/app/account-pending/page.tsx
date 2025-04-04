@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 export default function AccountPending() {
     return (
         <div className="flex items-center justify-center h-screen bg-gray-100">

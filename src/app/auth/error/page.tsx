@@ -1,7 +1,9 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
+import SearchParamsProvider from '@/components/SearchParamsProvider';
 
 const ERROR_MESSAGES = {
     // PKCE Flow Errors
@@ -24,34 +26,39 @@ const ERROR_MESSAGES = {
 
 type ErrorCode = keyof typeof ERROR_MESSAGES;
 
-export default function AuthError() {
-    const searchParams = useSearchParams();
-    const errorCode = searchParams.get('message') as ErrorCode;
-    
-    const getErrorMessage = (code: string) => {
-        return ERROR_MESSAGES[code as ErrorCode] || ERROR_MESSAGES['AUTH.DEFAULT'];
-    };
+function getErrorMessage(code: string) {
+    return ERROR_MESSAGES[code as ErrorCode] || ERROR_MESSAGES['AUTH.DEFAULT'];
+}
 
+export default function AuthError() {
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-            <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-sm">
-                <h1 className="mb-4 text-2xl font-bold text-red-600">Authentication Error</h1>
-                <p className="mb-6 text-gray-600">{getErrorMessage(errorCode)}</p>
-                <div className="space-y-4">
-                    <Link 
-                        href="/sign-in"
-                        className="block w-full rounded-md bg-blue-600 px-4 py-2 text-center text-white hover:bg-blue-700"
-                    >
-                        Return to Sign In
-                    </Link>
-                    <Link
-                        href="/sign-up"
-                        className="block w-full rounded-md border border-gray-300 px-4 py-2 text-center text-gray-700 hover:bg-gray-50"
-                    >
-                        Create an Account
-                    </Link>
-                </div>
-            </div>
-        </div>
+        <SearchParamsProvider>
+            {(searchParams) => {
+                const errorCode = searchParams.get('message') as ErrorCode;
+                
+                return (
+                    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+                        <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-sm">
+                            <h1 className="mb-4 text-2xl font-bold text-red-600">Authentication Error</h1>
+                            <p className="mb-6 text-gray-600">{getErrorMessage(errorCode)}</p>
+                            <div className="space-y-4">
+                                <Link 
+                                    href="/sign-in"
+                                    className="block w-full rounded-md bg-blue-600 px-4 py-2 text-center text-white hover:bg-blue-700"
+                                >
+                                    Return to Sign In
+                                </Link>
+                                <Link
+                                    href="/sign-up"
+                                    className="block w-full rounded-md border border-gray-300 px-4 py-2 text-center text-gray-700 hover:bg-gray-50"
+                                >
+                                    Create an Account
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }}
+        </SearchParamsProvider>
     );
 } 

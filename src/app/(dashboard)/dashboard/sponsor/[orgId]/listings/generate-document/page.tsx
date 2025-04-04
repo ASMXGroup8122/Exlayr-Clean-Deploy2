@@ -1,13 +1,16 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import { ChevronDown, Check, Send, User2, MessageSquare, Lock, Unlock, RotateCcw, Save, Search } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/supabase';
 import { DATABASE_TABLES } from '@/lib/constants/database';
 import './styles.css';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import SearchParamsProvider from '@/components/SearchParamsProvider';
 
 interface Section {
     id: string;
@@ -57,10 +60,9 @@ interface ListingDocument {
     [key: string]: string;  // Index signature for dynamic fields
 }
 
-export default function GenerateListingDocumentPage() {
+function GenerateListingDocumentContent() {
     const router = useRouter();
     const pathname = usePathname();
-    const searchParams = useSearchParams();
     const params = useParams();
     const orgId = params?.orgId as string;
     const supabase = useMemo(() => getSupabaseClient(), []);
@@ -919,102 +921,112 @@ export default function GenerateListingDocumentPage() {
     }, [selectedListing, selectedSection, sectionContent, getFieldLabel]);
 
     return (
-            <div className="h-[calc(100vh-5rem)] flex">
-                <div className="w-[300px] border-r bg-white p-6 overflow-y-auto flex flex-col animate-slide-in-right" style={{ animationDelay: '0.1s' }}>
-                    <div className="space-y-6 flex-1">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Choose an Assistant
-                            </label>
-                            <select
-                                value={selectedAssistant}
-                                onChange={(e) => setSelectedAssistant(e.target.value)}
-                                className="block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg appearance-none"
-                            >
-                                <option>Equity Listing Direct List</option>
-                            </select>
-                        </div>
+        <SearchParamsProvider>
+            {(searchParams) => (
+                <div className="h-[calc(100vh-5rem)] flex">
+                    <div className="w-[300px] border-r bg-white p-6 overflow-y-auto flex flex-col animate-slide-in-right" style={{ animationDelay: '0.1s' }}>
+                        <div className="space-y-6 flex-1">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Choose an Assistant
+                                </label>
+                                <select
+                                    value={selectedAssistant}
+                                    onChange={(e) => setSelectedAssistant(e.target.value)}
+                                    className="block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg appearance-none"
+                                >
+                                    <option>Equity Listing Direct List</option>
+                                </select>
+                            </div>
 
-                    {renderListingSelect()}
+                        {renderListingSelect()}
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Knowledge Base
-                            </label>
-                            <select
-                                value={selectedKnowledgeBase}
-                                onChange={(e) => setSelectedKnowledgeBase(e.target.value)}
-                                className="block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg appearance-none"
-                            >
-                                <option>Select knowledge base...</option>
-                            </select>
-                        </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Knowledge Base
+                                </label>
+                                <select
+                                    value={selectedKnowledgeBase}
+                                    onChange={(e) => setSelectedKnowledgeBase(e.target.value)}
+                                    className="block w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg appearance-none"
+                                >
+                                    <option>Select knowledge base...</option>
+                                </select>
+                            </div>
 
-                        {renderSectionSelect()}
+                            {renderSectionSelect()}
 
-                        {selectedListing && selectedSection && (
-                        <div className="mt-6 flex gap-2">
+                            {selectedListing && selectedSection && (
+                            <div className="mt-6 flex gap-2">
+                                    <button
+                                        onClick={() => handleGenerateSection(selectedSection)}
+                                    className="flex-1 py-2 px-3 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Send className="h-4 w-4" />
+                                    Generate
+                                </button>
                                 <button
-                                    onClick={() => handleGenerateSection(selectedSection)}
-                                className="flex-1 py-2 px-3 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <Send className="h-4 w-4" />
-                                Generate
-                            </button>
-                            <button
-                                onClick={() => selectedSection ? handleGenerateSection(selectedSection) : null}
-                                className="flex-1 py-2 px-3 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <Search className="h-4 w-4" />
-                                Check Content
-                            </button>
-                            </div>
-                        )}
-
-                        {/* Progress Section */}
-                        <div className="animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
-                            <div className="flex items-center justify-between text-sm font-medium text-gray-700 mb-2">
-                                <span>Document Sections</span>
-                            <span>{currentSectionTitles.filter(s => s.status === 'completed').length}/{currentSectionTitles.length || sections.length}</span>
-                            </div>
-                            <div className="space-y-2">
-                            {selectedSection ? (
-                                currentSectionTitles.map((section, index) => (
-                                    <div
-                                        key={`${section.id}-${section.title}`}
-                                        className="section-item flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                                        style={{ animationDelay: `${0.6 + index * 0.1}s` }}
-                                    >
-                                        <span className="section-title text-sm text-gray-700" 
-                                              style={{ animationDelay: `${0.7 + index * 0.1}s` }}>
-                                            {section.title}
-                                        </span>
-                                        {section.status === 'completed' ? (
-                                            <Check className="h-5 w-5 text-green-500 animate-scale-in" 
-                                                   style={{ animationDelay: `${0.8 + index * 0.1}s` }} />
-                                        ) : (
-                                            <button
-                                                onClick={() => handleGenerateSection(section.id)}
-                                                className="p-2 rounded-md hover:bg-gray-100"
-                                                title="Generate section"
-                                            >
-                                                <Send className="h-4 w-4" />
-                                            </button>
-                                        )}
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center text-gray-500 py-8">
-                                    Please select a section to view its fields
+                                    onClick={() => selectedSection ? handleGenerateSection(selectedSection) : null}
+                                    className="flex-1 py-2 px-3 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Search className="h-4 w-4" />
+                                    Check Content
+                                </button>
                                 </div>
                             )}
+
+                            {/* Progress Section */}
+                            <div className="animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+                                <div className="flex items-center justify-between text-sm font-medium text-gray-700 mb-2">
+                                    <span>Document Sections</span>
+                                <span>{currentSectionTitles.filter(s => s.status === 'completed').length}/{currentSectionTitles.length || sections.length}</span>
+                                </div>
+                                <div className="space-y-2">
+                                {selectedSection ? (
+                                    currentSectionTitles.map((section, index) => (
+                                        <div
+                                            key={`${section.id}-${section.title}`}
+                                            className="section-item flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                                            style={{ animationDelay: `${0.6 + index * 0.1}s` }}
+                                        >
+                                            <span className="section-title text-sm text-gray-700" 
+                                                  style={{ animationDelay: `${0.7 + index * 0.1}s` }}>
+                                                {section.title}
+                                            </span>
+                                            {section.status === 'completed' ? (
+                                                <Check className="h-5 w-5 text-green-500 animate-scale-in" 
+                                                       style={{ animationDelay: `${0.8 + index * 0.1}s` }} />
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleGenerateSection(section.id)}
+                                                    className="p-2 rounded-md hover:bg-gray-100"
+                                                    title="Generate section"
+                                                >
+                                                    <Send className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center text-gray-500 py-8">
+                                        Please select a section to view its fields
+                                    </div>
+                                )}
+                                </div>
                             </div>
                         </div>
                     </div>
+                    <div className="flex-1 p-6 overflow-y-auto">
+                        {renderSectionContent()}
+                    </div>
                 </div>
-                <div className="flex-1 p-6 overflow-y-auto">
-                    {renderSectionContent()}
-                </div>
-            </div>
-        );
+            )}
+        </SearchParamsProvider>
+    );
+}
+
+export default function GenerateListingDocumentPage() {
+    return (
+        <GenerateListingDocumentContent />
+    );
 }

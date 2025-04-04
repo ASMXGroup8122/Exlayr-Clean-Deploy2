@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Database } from '@/types/supabase';
 import { AuthError, Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import SearchParamsProvider from '@/components/SearchParamsProvider';
 
 type UserProfile = Database['public']['Tables']['users']['Row'] & {
   first_name?: string;
@@ -101,7 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
-    const searchParams = useSearchParams();
     const supabase = getSupabaseClient();
 
     const getDashboardPath = (accountType: string) => {
@@ -663,18 +663,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ 
-            user, 
-            session, 
-            loading, 
-            signOut,
-            signIn, 
-            basicSignUp,
-            completeSignUp,
-            fetchOrganizations 
-        }}>
-            {children}
-        </AuthContext.Provider>
+        <SearchParamsProvider>
+            {(searchParams) => (
+                <AuthContext.Provider value={{ 
+                    user, 
+                    session, 
+                    loading, 
+                    signOut,
+                    signIn, 
+                    basicSignUp,
+                    completeSignUp,
+                    fetchOrganizations 
+                }}>
+                    {children}
+                </AuthContext.Provider>
+            )}
+        </SearchParamsProvider>
     );
 }
 
