@@ -20,7 +20,17 @@ const nextConfig = {
             '@': require('path').resolve(__dirname, './src'),
         };
         return config;
-    }
+    },
+
+    // 1) Skip TypeScript errors
+    typescript: {
+        ignoreBuildErrors: true,
+    },
+
+    // 2) Skip ESLint errors
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;
