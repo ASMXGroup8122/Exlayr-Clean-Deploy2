@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect } from 'react';
 import { useApproval } from '@/contexts/ApprovalContext';
 import { ApprovalList } from '@/components/approvals/ApprovalList';
@@ -16,7 +18,7 @@ function ApprovalsPage() {
     await updateOrganizationStatus({
       organizationId: id,
       organizationType: type as 'sponsor' | 'issuer' | 'exchange',
-      newStatus: 'active'
+      newStatus: 'approved'
     });
     fetchPendingApprovals();
   };
@@ -25,7 +27,7 @@ function ApprovalsPage() {
     await updateOrganizationStatus({
       organizationId: id,
       organizationType: type as 'sponsor' | 'issuer' | 'exchange',
-      newStatus: 'suspended',
+      newStatus: 'rejected',
       reason: 'Rejected by admin'
     });
     fetchPendingApprovals();
