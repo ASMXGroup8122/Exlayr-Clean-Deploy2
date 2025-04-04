@@ -1,0 +1,61 @@
+/* Document List Collapsible Styles */
+
+.vertical-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  max-height: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.document-indicator {
+  transition: all 0.2s ease-in-out;
+}
+
+.document-indicator:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.document-list-collapsed {
+  min-width: 40px;
+  width: 40px;
+}
+
+.document-list-expanded {
+  min-width: 300px;
+  width: 300px;
+}
+
+@media (max-width: 768px) {
+  .document-list-expanded {
+    min-width: 250px;
+    width: 250px;
+  }
+}
+
+.toggle-button {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.toggle-button:hover {
+  background-color: #f9fafb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+} 

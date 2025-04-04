@@ -1,0 +1,156 @@
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes typewriter {
+    from {
+        width: 0;
+    }
+    to {
+        width: 100%;
+    }
+}
+
+@keyframes blinkCursor {
+    from {
+        border-right-color: rgba(59, 130, 246, 0.5);
+    }
+    to {
+        border-right-color: transparent;
+    }
+}
+
+@keyframes smoothFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-scale-in {
+    opacity: 0;
+    animation: scaleIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in-right {
+    opacity: 0;
+    animation: slideInRight 0.5s ease-out forwards;
+}
+
+.animate-typewriter {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 2px solid;
+    width: 0;
+    animation: typewriter 1s steps(40, end) forwards,
+             blinkCursor 0.75s step-end infinite;
+}
+
+.animate-typewriter-container {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.section-item {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: smoothFadeIn 0.5s ease-out forwards;
+}
+
+.section-title {
+    display: inline-block;
+    opacity: 0;
+    animation: smoothFadeIn 0.3s ease-out forwards;
+}
+
+/* Save status indicators */
+.save-status {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+}
+
+.saving-indicator,
+.saved-indicator,
+.error-indicator {
+    display: none;
+    font-size: 0.875rem;
+    padding: 0 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.saving .saving-indicator {
+    display: inline-block;
+    color: #6B7280;
+    background-color: #F3F4F6;
+}
+
+.saved .saved-indicator {
+    display: inline-block;
+    color: #059669;
+    background-color: #ECFDF5;
+}
+
+.error .error-indicator {
+    display: inline-block;
+    color: #DC2626;
+    background-color: #FEE2E2;
+}
+
+/* Animation for status changes */
+.saving-indicator,
+.saved-indicator,
+.error-indicator {
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+} 
