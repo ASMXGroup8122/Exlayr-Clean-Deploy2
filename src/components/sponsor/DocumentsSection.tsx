@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Upload, FileText, Trash2, Loader2 } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export type Document = {
     id: string;
@@ -30,7 +31,7 @@ export function DocumentsSection({
     documents = [],
     onDocumentUpdate 
 }: DocumentsSectionProps) {
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);

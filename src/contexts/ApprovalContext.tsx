@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { PendingApprovals } from '@/types/approvals';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface UpdateOrganizationParams {
   organizationId: string;
@@ -34,7 +35,7 @@ export function ApprovalProvider({ children }: { children: React.ReactNode }) {
     issuers: [],
     exchanges: [],
   });
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseClient();
 
   const updateOrganizationStatus = useCallback(async (params: UpdateOrganizationParams) => {
     setLoading(true);

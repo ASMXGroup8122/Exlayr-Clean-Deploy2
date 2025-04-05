@@ -1,6 +1,7 @@
 import { Database } from '@/lib/supabase-types';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useState } from 'react';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface RegistrationData {
     email: string;
@@ -17,14 +18,14 @@ interface RegistrationStatus {
     message: string;
 }
 
-export const useRegistration = () => {
+export function useRegistration() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [registrationStatus, setRegistrationStatus] = useState<RegistrationStatus>({
         step: 'idle',
         message: ''
     });
-
-    const supabase = createClientComponentClient();
+    const [error, setError] = useState<Error | null>(null);
+    const supabase = getSupabaseClient();
 
     const handleRegistration = async ({
         email,
@@ -190,6 +191,7 @@ export const useRegistration = () => {
     return {
         handleRegistration,
         isSubmitting,
-        registrationStatus
+        registrationStatus,
+        error
     };
-}; 
+} 

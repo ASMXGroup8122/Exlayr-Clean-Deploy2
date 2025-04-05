@@ -6,6 +6,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
 import RouteGuard from '@/components/RouteGuard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export default function ExchangeDashboardPage() {
   const params = useParams();
@@ -15,7 +17,7 @@ export default function ExchangeDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseClient();
 
   useEffect(() => {
     fetchExchangeDetails();

@@ -1,8 +1,9 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from './client';
 
 export async function fetchPendingApprovals() {
-  const supabase = createClientComponentClient<Database>();
+  const supabase = getSupabaseClient();
 
   const [sponsors, issuers, exchanges] = await Promise.all([
     supabase
@@ -42,7 +43,7 @@ export async function updateApprovalStatus({
   reason?: string;
   userId: string;
 }) {
-  const supabase = createClientComponentClient<Database>();
+  const supabase = getSupabaseClient();
   const tableName = `${type}s`;
 
   // Start transaction
@@ -65,4 +66,14 @@ export async function updateApprovalStatus({
     });
 
   if (historyError) throw historyError;
+}
+
+export async function checkOrganizationStatus(organizationId: string) {
+  const supabase = getSupabaseClient();
+  // ... existing code ...
+}
+
+export async function checkUserStatus(userId: string) {
+  const supabase = getSupabaseClient();
+  // ... existing code ...
 } 

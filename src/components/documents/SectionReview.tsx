@@ -14,6 +14,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Interaction } from './InteractionTimeline';
 import { useDocumentAnalysis } from '@/contexts/DocumentAnalysisContext';
 import { cn } from '@/lib/utils';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface SectionReviewProps {
   documentId: string;
@@ -40,7 +41,7 @@ export default function SectionReview({
   const [isLoading, setIsLoading] = useState(false);
   const [sectionStatus, setSectionStatus] = useState<'pending' | 'in_progress' | 'completed'>('pending');
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseClient();
 
   // Get interactions for this section from context
   const sectionInteractions = state.interactions[sectionId] || [];

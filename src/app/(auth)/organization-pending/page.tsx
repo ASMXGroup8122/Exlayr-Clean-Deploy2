@@ -4,14 +4,15 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import type { Database } from '@/lib/supabase-types';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export default function OrganizationPending() {
     const { user, loading, signOut } = useAuth();
     const router = useRouter();
     const [orgName, setOrgName] = useState<string>('');
     const [orgType, setOrgType] = useState<'issuer' | 'exchange_sponsor' | 'exchange' | null>(null);
-    const supabase = createClientComponentClient<Database>();
+    const supabase = getSupabaseClient();
 
     useEffect(() => {
         const checkAuth = async () => {

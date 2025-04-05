@@ -1,13 +1,16 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { Database } from '@/types/supabase';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
-        const cookieStore = cookies(); // Keep this as is
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore }); // This line is correct
+        const cookieStore = await cookies();
+        const supabase = createRouteHandlerClient<Database>({ 
+            cookies: () => cookieStore 
+        });
 
         // Get issuers with all fields
         const { data: issuers, error: issuersError } = await supabase

@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRegistration } from '@/hooks/useRegistration';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Building2, Mail, Phone, MapPin, Globe, FileText, Linkedin, Instagram, User as UserIcon, Shield, X, Check } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 type SponsorFormData = {
     sponsor_name: string;
@@ -22,7 +23,7 @@ type SponsorFormData = {
 };
 
 export default function CreateSponsorPage() {
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
     const [user, setUser] = useState<User | null>(null);
     const router = useRouter();
     const { handleRegistration, isSubmitting, registrationStatus } = useRegistration();

@@ -2,6 +2,7 @@ import { Database } from '@/lib/supabase-types';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { createContext, useContext, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface RegisterOrgData {
     email: string;
@@ -23,7 +24,7 @@ const RegisterOrgContext = createContext<RegisterOrgContextType | undefined>(und
 export function RegisterOrgProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-    const supabase = createClientComponentClient<Database>();
+    const supabase = getSupabaseClient();
     const router = useRouter();
 
     const registerOrg = async (data: RegisterOrgData) => {

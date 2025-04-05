@@ -1,11 +1,13 @@
 'use client';
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useApproval } from '@/contexts/ApprovalContext';
 
-export default function ApprovalsPage() {
-  const supabase = createClientComponentClient();
+export default function AdminApprovalsPage() {
+  const supabase = getSupabaseClient();
   const { toast } = useToast();
   const { fetchPendingApprovals } = useApproval();
 

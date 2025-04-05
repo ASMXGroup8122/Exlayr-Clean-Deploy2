@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Upload, FileText, Trash2, Loader2, Search, Filter, Calendar, Tag } from 'lucide-react';
-import { supabaseClient } from '@/utils/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import type { Database } from '@/types/supabase';
 import type { ExchangeDocument, DocumentMetadata } from '@/types/document';
 import { format } from 'date-fns';
@@ -80,7 +80,7 @@ export function DocumentsSection({
     documents = [],
     onDocumentUpdate 
 }: DocumentsSectionProps) {
-    const supabase = supabaseClient;
+    const supabase = getSupabaseClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);

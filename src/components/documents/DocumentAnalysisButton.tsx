@@ -104,7 +104,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
   const { state, dispatch } = useDocumentAnalysis();
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressRef = useRef<number>(0);
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseClient();
   const router = useRouter();
   const pathname = usePathname();
 

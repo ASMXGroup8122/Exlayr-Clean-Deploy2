@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter, usePathname } from 'next/navigation';
 import { Database } from '@/types/supabase';
@@ -8,6 +8,7 @@ import { AuthError, Session, User, AuthChangeEvent } from '@supabase/supabase-js
 import dynamic from 'next/dynamic';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import SearchParamsProvider from '@/components/SearchParamsProvider';
+import { isActiveAdmin, isActiveOrgAdmin, getDashboardPath } from '@/lib/auth/helpers';
 
 type UserProfile = Database['public']['Tables']['users']['Row'] & {
   first_name?: string;
@@ -58,23 +59,16 @@ interface AuthContextType {
     user: UserProfile | null;
     session: Session | null;
     loading: boolean;
+    initialized: boolean;
     signOut: () => Promise<void>;
     signIn: (email: string, password: string) => Promise<void>;
     basicSignUp: (data: BasicSignUpData) => Promise<void>;
     completeSignUp: (data: OrganizationSelectionData) => Promise<void>;
     fetchOrganizations: (accountType: string) => Promise<Organization[]>;
+    refreshSession: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-    user: null,
-    session: null,
-    loading: true,
-    signOut: async () => {},
-    signIn: async () => {},
-    basicSignUp: async () => {},
-    completeSignUp: async () => {},
-    fetchOrganizations: async () => []
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function generatePKCEVerifier() {
     const array = new Uint8Array(32);
@@ -100,9 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const [initialized, setInitialized] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
-    const supabase = getSupabaseClient();
+    const supabase = createClientComponentClient<Database>();
+    const initializationRef = useRef(false);
 
     const getDashboardPath = (accountType: string) => {
         switch (accountType) {
@@ -375,12 +371,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signOut = async () => {
         try {
             setLoading(true);
+            
+            // First clear all auth-related cookies
+            const cookiesToClear = [
+                'sb-access-token',
+                'sb-refresh-token',
+                'sb-token',
+                'auth_state',
+                'auth_transition',
+                'account_type',
+                'organization_id',
+                'user_role'
+            ];
+            
+            cookiesToClear.forEach(cookieName => {
+                document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+            });
+
+            // Clear any local storage items
+            localStorage.removeItem('supabase.auth.token');
+            localStorage.removeItem('supabase.auth.expires_at');
+            
+            // Reset state before calling signOut
+            setUser(null);
+            setSession(null);
+            
+            // Then sign out from Supabase
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             
-            // Let auth state change handle cleanup and redirect
+            // Force a hard redirect to sign-in to ensure clean state
+            window.location.href = '/sign-in';
         } catch (error) {
-            // Use standardized error handling
+            console.error('Sign out error:', error);
             if (error instanceof AuthError) {
                 router.push(`/auth/error?message=${error.message}`);
             } else {
@@ -533,148 +556,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const checkAuthState = async () => {
-        let retryCount = 0;
-        const maxRetries = 3;
-        const retryDelay = 2000; // 2 seconds between retries
+    // Refresh session helper
+    const refreshSession = useCallback(async () => {
+        try {
+            const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
+            if (error) throw error;
 
-        const tryGetSession = async (): Promise<boolean> => {
-            try {
-                // Check for auth_state cookie
-                const authStateCookie = document.cookie
-                    .split('; ')
-                    .find(row => row.startsWith('auth_state='));
-                
-                if (authStateCookie) {
-                    const authState = JSON.parse(decodeURIComponent(authStateCookie.split('=')[1]));
-                    const timeSinceRefresh = Date.now() - authState.timestamp;
-                    
-                    // If refresh was very recent, wait for the full coordination period
-                    if (timeSinceRefresh < 2000) {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                    }
+            if (refreshedSession) {
+                setSession(refreshedSession);
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', refreshedSession.user.id)
+                    .single();
+
+                if (profile) {
+                    setUser(profile);
                 }
-
-                // Get session after coordination wait
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-                
-                if (sessionError) {
-                    throw sessionError;
-                }
-
-                if (!session) {
-                    if (retryCount < maxRetries) {
-                        retryCount++;
-                        console.log(`Session not found, retry ${retryCount}/${maxRetries}`);
-                        await new Promise(resolve => setTimeout(resolve, retryDelay));
-                        return false;
-                    }
-                    setSession(null);
-                    setUser(null);
-                    return true;
-                }
-
-                // Set session first
-                setSession(session);
-                
-                // Then fetch profile
-                if (session?.user) {
-                    try {
-                        // Fix the API request format
-                        const { data: profile, error: profileError } = await supabase
-                            .from('users')
-                            .select('*')
-                            .eq('id', session.user.id)
-                            .single();
-
-                        if (profileError) {
-                            console.error('Profile fetch error:', profileError);
-                            setUser(null);
-                        } else if (profile) {
-                            setUser(profile as UserProfile);
-                        } else {
-                            console.warn('No profile found for user:', session.user.id);
-                            setUser(null);
-                        }
-                    } catch (error) {
-                        console.error('Error fetching user profile:', error);
-                        setUser(null);
-                    }
-                } else {
-                    setUser(null);
-                }
-
-                return true;
-            } catch (error) {
-                console.error('Auth state check error:', error);
-                if (retryCount < maxRetries) {
-                    retryCount++;
-                    console.log(`Error getting session, retry ${retryCount}/${maxRetries}`);
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                    return false;
-                }
-                setSession(null);
-                setUser(null);
-                return true;
             }
-        };
-
-        while (!(await tryGetSession()) && retryCount < maxRetries) {
-            // Continue retrying
+        } catch (error) {
+            console.error('Error refreshing session:', error);
+            await signOut();
         }
+    }, [supabase]);
 
-        setLoading(false);
-    };
-
+    // Initialize auth state
     useEffect(() => {
-        checkAuthState();
+        if (initializationRef.current) return;
+        initializationRef.current = true;
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            setSession(session);
-            
-            if (session?.user) {
-                try {
-                    const { data: profile, error: profileError } = await supabase
+        let mounted = true;
+        let authListener: any = null;
+
+        const initializeAuth = async () => {
+            try {
+                setLoading(true);
+                // Get initial session first
+                const { data: { session: initialSession } } = await supabase.auth.getSession();
+                
+                if (!mounted) return;
+
+                if (initialSession) {
+                    setSession(initialSession);
+                    const { data: profile } = await supabase
                         .from('users')
                         .select('*')
-                        .eq('id', session.user.id)
+                        .eq('id', initialSession.user.id)
                         .single();
 
-                    if (profileError) {
-                        console.error('Profile fetch error:', profileError);
-                        setUser(null);
-                    } else {
-                        setUser(profile as UserProfile);
+                    if (mounted && profile) {
+                        setUser(profile);
                     }
-                } catch (error) {
-                    console.error('Profile fetch error:', error);
-                    setUser(null);
                 }
-            } else {
-                setUser(null);
+
+                // Then set up auth state change listener
+                const { data: { subscription } } = supabase.auth.onAuthStateChange(
+                    async (event, currentSession) => {
+                        if (!mounted) return;
+
+                        if (event === 'SIGNED_OUT') {
+                            setUser(null);
+                            setSession(null);
+                            return;
+                        }
+
+                        if (currentSession) {
+                            setSession(currentSession);
+                            const { data: profile } = await supabase
+                                .from('users')
+                                .select('*')
+                                .eq('id', currentSession.user.id)
+                                .single();
+
+                            if (mounted && profile) {
+                                setUser(profile);
+                            }
+                        }
+                    }
+                );
+
+                authListener = subscription;
+            } catch (error) {
+                console.error('Error in auth initialization:', error);
+            } finally {
+                if (mounted) {
+                    setLoading(false);
+                    setInitialized(true);
+                }
             }
-            setLoading(false);
-        });
+        };
+
+        initializeAuth();
 
         return () => {
-            subscription.unsubscribe();
+            mounted = false;
+            if (authListener) {
+                authListener.unsubscribe();
+            }
         };
-    }, []);
+    }, [supabase]);
+
+    // Session refresh interval
+    useEffect(() => {
+        if (!initialized || !session) return;
+
+        const refreshInterval = setInterval(() => {
+            refreshSession();
+        }, 4 * 60 * 1000); // Refresh every 4 minutes
+
+        return () => clearInterval(refreshInterval);
+    }, [initialized, session, refreshSession]);
+
+    const value = {
+        user,
+        session,
+        loading,
+        initialized,
+        signOut,
+        signIn,
+        basicSignUp,
+        completeSignUp,
+        fetchOrganizations,
+        refreshSession
+    };
 
     return (
         <SearchParamsProvider>
             {(searchParams) => (
-                <AuthContext.Provider value={{ 
-                    user, 
-                    session, 
-                    loading, 
-                    signOut,
-                    signIn, 
-                    basicSignUp,
-                    completeSignUp,
-                    fetchOrganizations 
-                }}>
+                <AuthContext.Provider value={value}>
                     {children}
                 </AuthContext.Provider>
             )}
@@ -684,11 +693,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) {
+    if (context === undefined) {
         throw new Error('useAuth must be used within an AuthProvider');
     }
     return context;
 };
+
+// Export a client-only version of the provider
+export const AuthProviderClient = AuthProvider;
 
 // Export a dynamic version of the AuthProvider that only runs on the client
 export const AuthProviderDynamic = dynamic(() => Promise.resolve(AuthProvider), {

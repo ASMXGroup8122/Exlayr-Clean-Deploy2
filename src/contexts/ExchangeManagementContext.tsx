@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { ExchangeMember, PendingApproval, MemberRole } from '@/types/exchange';
 import { useAuth } from './AuthContext';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface ExchangeManagementContextType {
     members: ExchangeMember[];
@@ -25,7 +26,7 @@ export function ExchangeManagementProvider({ children }: { children: React.React
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
     
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
     const { user } = useAuth();
 
     const fetchMembers = useCallback(async (exchangeId: string) => {

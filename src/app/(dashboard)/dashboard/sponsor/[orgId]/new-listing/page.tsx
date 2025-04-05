@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Building2, Tag, BarChart4, Building, Globe, Sparkles, Calendar } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 type Issuer = {
     id: string;
@@ -51,7 +52,7 @@ export default function NewListingPage() {
     const router = useRouter();
     const params = useParams();
     const orgId = params?.orgId as string;
-    const supabase = createClientComponentClient<Database>();
+    const supabase = getSupabaseClient();
 
     const [currentStep, setCurrentStep] = useState(0);
     const [isLoading, setIsLoading] = useState(true);

@@ -6,9 +6,10 @@ import { useState } from 'react';
 import { Building2, Shield, FileText } from 'lucide-react';
 import { LogoUpload } from '@/components/LogoUpload';
 import { DocumentUpload } from '@/components/documents/DocumentUpload';
-import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 const FORM_STEPS = [
     'Company Information',
@@ -286,7 +287,7 @@ export default function CreateIssuerPage() {
     });
 
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
 
     const handleLogout = async () => {
         try {

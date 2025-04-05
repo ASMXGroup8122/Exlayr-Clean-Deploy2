@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Building2, Plus } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 type Organization = {
     id: number;
@@ -38,7 +39,7 @@ export default function ApprovalRequestPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [accountType, setAccountType] = useState<string | null>(null);
-    const supabase = createClientComponentClient<Database>();
+    const supabase = getSupabaseClient();
     const [hydrated, setHydrated] = useState(false);
 
     // This effect runs once after hydration is complete

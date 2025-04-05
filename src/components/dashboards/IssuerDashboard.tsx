@@ -9,6 +9,7 @@ import { MetricsSection } from '@/components/shared/MetricsSection';
 import { usePermissions } from '@/hooks/usePermissions';
 import { FileText, Users, BookOpen, Settings } from 'lucide-react';
 import { FeaturePermission } from '@/lib/permissions';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface IssuerStats {
     total_documents: number;
@@ -26,7 +27,7 @@ export default function IssuerDashboard() {
     });
     const [loading, setLoading] = useState(true);
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
     const { hasPermission } = usePermissions();
 
     useEffect(() => {

@@ -6,12 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/supabase';
 import Link from 'next/link';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export default function ApprovalPendingSponsor() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const [orgName, setOrgName] = useState<string>('');
-    const supabase = createClientComponentClient<Database>();
+    const supabase = getSupabaseClient();
     const [hydrated, setHydrated] = useState(false);
 
     // This effect runs once after hydration is complete

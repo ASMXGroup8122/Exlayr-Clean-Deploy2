@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export default function AddSponsorPage() {
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
     
     const [formData, setFormData] = useState({
         sponsor_name: '',

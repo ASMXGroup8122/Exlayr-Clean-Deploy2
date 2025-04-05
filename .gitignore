@@ -28,4 +28,7 @@ Thumbs.db
 
 # Typescript
 *.tsbuildinfo
-.git-old/ 
+.git-old/
+
+# Legacy code
+Legacy/ 

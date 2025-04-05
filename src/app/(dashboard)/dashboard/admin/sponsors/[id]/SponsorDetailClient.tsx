@@ -5,12 +5,13 @@ import { Building2, Mail, Phone, Globe, Briefcase, Calendar, MapPin } from 'luci
 import { DocumentsSection, Document } from '@/components/sponsor/DocumentsSection';
 import { useApproval } from '@/contexts/ApprovalContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 type SponsorDetailClientProps = {
     initialSponsor: {
@@ -42,7 +43,7 @@ export function SponsorDetailClient({ initialSponsor, initialDocuments, id }: Sp
     const { updateOrganizationStatus, loading } = useApproval();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
     const MAX_REJECTION_REASON_LENGTH = 200;
 
     const getStatusColor = (status: string) => {

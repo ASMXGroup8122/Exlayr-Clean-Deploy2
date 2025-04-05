@@ -14,6 +14,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from '@/components/ui/alert-dialog';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface IssuerDetails {
     id: string;
@@ -110,7 +112,7 @@ export function IssuerDetailClient({ initialIssuer, initialDocuments, id }: Issu
     } | null>(null);
     const { user } = useAuth();
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
 
     const getStatusColor = (status: string | undefined) => {
         if (!status) return 'bg-gray-100 text-gray-800';

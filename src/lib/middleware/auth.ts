@@ -56,7 +56,7 @@ export async function handleAuth(request: NextRequest, response: NextResponse) {
                 return redirectToSignIn(request);
             }
 
-            // Set coordination cookie with timestamp
+            // Set coordination cookie with timestamp and extended maxAge
             response.cookies.set('auth_state', JSON.stringify({
                 refreshed: true,
                 timestamp: Date.now(),
@@ -65,14 +65,26 @@ export async function handleAuth(request: NextRequest, response: NextResponse) {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
-                maxAge: 2 // 2 seconds, just long enough for coordination
+                maxAge: 30 // Increase to 30 seconds to handle slow connections
             });
 
-            // Let Supabase handle session cookie management
-            response.headers.set('x-supabase-auth', JSON.stringify({
-                access_token: refreshed.access_token,
-                refresh_token: refreshed.refresh_token
-            }));
+            // Set refresh state cookie
+            response.cookies.set('refresh_pending', 'true', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 30
+            });
+
+            // Clear any stale cookies
+            response.cookies.delete('sb-access-token');
+            response.cookies.delete('sb-refresh-token');
+            response.cookies.delete('sb-token');
+        }
+
+        // Clear refresh_pending if exists and no refresh needed
+        if (!shouldRefreshSession(session)) {
+            response.cookies.delete('refresh_pending');
         }
 
         return response;

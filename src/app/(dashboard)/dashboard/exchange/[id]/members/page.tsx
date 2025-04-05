@@ -9,6 +9,8 @@ import { Exchange } from '@/types/exchange';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import RouteGuard from '@/components/guards/RouteGuard';
+import type { Database } from '@/types/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface ExchangeMembersPageProps {
     params: {
@@ -20,7 +22,7 @@ export default function ExchangeMembersPage({ params }: ExchangeMembersPageProps
     const [exchange, setExchange] = useState<Exchange | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
-    const supabase = createClientComponentClient();
+    const supabase = getSupabaseClient();
 
     useEffect(() => {
         async function fetchExchange() {

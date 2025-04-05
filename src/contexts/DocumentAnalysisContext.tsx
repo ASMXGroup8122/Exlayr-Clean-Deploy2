@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, ReactNode, useRef, useCallback, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface AnalysisState {
   reviewCycleId: string | null;
@@ -115,7 +116,7 @@ const DocumentAnalysisContext = createContext<{
 
 export function DocumentAnalysisProvider({ children, documentId }: { children: ReactNode; documentId: string }) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseClient();
   const channelRef = useRef<any>(null);
   const reviewCycleChannelRef = useRef<any>(null);
 

@@ -1,6 +1,9 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { Database } from '@/types/supabase';
+
+export const dynamic = 'force-dynamic';
 
 export async function PUT(request: Request) {
   try {
@@ -35,9 +38,9 @@ export async function PUT(request: Request) {
       );
     }
     
-    // Create a standard Supabase client - this will use the user's permissions
-    const supabase = createRouteHandlerClient({ 
-      cookies: () => cookies()
+    const cookieStore = await cookies();
+    const supabase = createRouteHandlerClient<Database>({ 
+      cookies: () => cookieStore 
     });
     
     console.log('Using standard authenticated client for operations');
