@@ -1,304 +1,140 @@
-import { createContext, useContext, useReducer, useEffect, ReactNode, useRef, useCallback, useMemo } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { getSupabaseClient } from '@/lib/supabase/client';
+'use client';
 
-interface AnalysisState {
-  reviewCycleId: string | null;
-  interactions: Record<string, any[]>;
+import { createContext, useContext, useReducer, ReactNode } from 'react';
+
+// Define state shape
+interface DocumentAnalysisState {
   isAnalyzing: boolean;
-  pendingOperations: Record<string, boolean>;
-  hasUnfinishedOperations: boolean;
-  currentReviewCycle: string | null;
-  reviewCycleStatus: string | null;
-  progress: number;
-  currentSection: string | null;
-  analysisStage: string;
+  analysisResult: any | null;
   error: string | null;
-  lastInteractionTimestamp: number;
+  sectionStates: Record<string, {
+    isAnalyzed: boolean;
+    result?: any;
+  }>;
+  interactions: Record<string, any[]>;
+  progress: number;
+  analysisStage?: string;
+  currentSection?: string;
 }
 
-type AnalysisAction =
-  | { type: 'SET_REVIEW_CYCLE', payload: string | null }
+// Define action types
+type DocumentAnalysisAction = 
+  | { type: 'START_ANALYSIS' }
+  | { type: 'FINISH_ANALYSIS', payload: any }
+  | { type: 'SET_ERROR', payload: string | null }
+  | { type: 'SET_SECTION_RESULT', payload: { sectionId: string, result: any } }
   | { type: 'ADD_INTERACTION', payload: { sectionId: string, interaction: any } }
   | { type: 'SET_ANALYZING', payload: boolean }
-  | { type: 'SET_PENDING_OPERATION', payload: { key: string, value: boolean } }
-  | { type: 'SET_HAS_UNFINISHED_OPERATIONS', payload: boolean }
-  | { type: 'CLEAR_PENDING_OPERATIONS' }
-  | { type: 'SET_REVIEW_CYCLE_STATUS', payload: string | null }
-  | { type: 'SET_PROGRESS', payload: { progress: number, section: string | null, stage: string } }
-  | { type: 'SET_ERROR', payload: string | null }
-  | { type: 'RESET_STATE' };
+  | { type: 'SET_PROGRESS', payload: { progress: number, stage?: string, currentSection?: string } }
+  | { type: 'CLEAR_PENDING_OPERATIONS' };
 
-const initialState: AnalysisState = {
-  reviewCycleId: null,
-  interactions: {},
+// Initial state
+const initialState: DocumentAnalysisState = {
   isAnalyzing: false,
-  pendingOperations: {},
-  hasUnfinishedOperations: false,
-  currentReviewCycle: null,
-  reviewCycleStatus: null,
-  progress: 0,
-  currentSection: null,
-  analysisStage: '',
+  analysisResult: null,
   error: null,
-  lastInteractionTimestamp: 0
+  sectionStates: {},
+  interactions: {},
+  progress: 0
 };
 
-function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
+// Reducer function
+function documentAnalysisReducer(state: DocumentAnalysisState, action: DocumentAnalysisAction): DocumentAnalysisState {
   switch (action.type) {
-    case 'SET_REVIEW_CYCLE':
-      return { ...state, reviewCycleId: action.payload };
+    case 'START_ANALYSIS':
+      return {
+        ...state,
+        isAnalyzing: true,
+        error: null,
+        progress: 0
+      };
+    case 'FINISH_ANALYSIS':
+      return {
+        ...state,
+        isAnalyzing: false,
+        analysisResult: action.payload,
+        progress: 100
+      };
+    case 'SET_ERROR':
+      return {
+        ...state,
+        isAnalyzing: false,
+        error: action.payload
+      };
+    case 'SET_SECTION_RESULT':
+      return {
+        ...state,
+        sectionStates: {
+          ...state.sectionStates,
+          [action.payload.sectionId]: {
+            isAnalyzed: true,
+            result: action.payload.result
+          }
+        }
+      };
     case 'ADD_INTERACTION':
-      const sectionInteractions = state.interactions[action.payload.sectionId] || [];
+      const sectionId = action.payload.sectionId;
       return {
         ...state,
         interactions: {
           ...state.interactions,
-          [action.payload.sectionId]: [action.payload.interaction, ...sectionInteractions]
-        },
-        lastInteractionTimestamp: Date.now()
-      };
-    case 'SET_ANALYZING':
-      return { 
-        ...state, 
-        isAnalyzing: action.payload,
-        error: action.payload ? null : state.error // Clear error when starting analysis
-      };
-    case 'SET_PENDING_OPERATION':
-      return {
-        ...state,
-        pendingOperations: {
-          ...state.pendingOperations,
-          [action.payload.key]: action.payload.value
+          [sectionId]: [
+            ...(state.interactions[sectionId] || []),
+            action.payload.interaction
+          ]
         }
       };
-    case 'SET_HAS_UNFINISHED_OPERATIONS':
-      return { ...state, hasUnfinishedOperations: action.payload };
-    case 'CLEAR_PENDING_OPERATIONS':
+    case 'SET_ANALYZING':
       return {
         ...state,
-        pendingOperations: {},
-        hasUnfinishedOperations: false
-      };
-    case 'SET_REVIEW_CYCLE_STATUS':
-      return {
-        ...state,
-        reviewCycleStatus: action.payload,
-        isAnalyzing: action.payload === 'in_progress'
+        isAnalyzing: action.payload
       };
     case 'SET_PROGRESS':
       return {
         ...state,
         progress: action.payload.progress,
-        currentSection: action.payload.section || state.currentSection,
-        analysisStage: action.payload.stage || state.analysisStage
+        analysisStage: action.payload.stage,
+        currentSection: action.payload.currentSection
       };
-    case 'SET_ERROR':
+    case 'CLEAR_PENDING_OPERATIONS':
       return {
         ...state,
-        error: action.payload,
-        isAnalyzing: false // Stop analyzing on error
-      };
-    case 'RESET_STATE':
-      return {
-        ...initialState,
-        lastInteractionTimestamp: Date.now()
+        progress: 0,
+        analysisStage: undefined,
+        currentSection: undefined
       };
     default:
       return state;
   }
 }
 
-const DocumentAnalysisContext = createContext<{
-  state: AnalysisState;
-  dispatch: React.Dispatch<AnalysisAction>;
-} | null>(null);
-
-export function DocumentAnalysisProvider({ children, documentId }: { children: ReactNode; documentId: string }) {
-  const [state, dispatch] = useReducer(analysisReducer, initialState);
-  const supabase = getSupabaseClient();
-  const channelRef = useRef<any>(null);
-  const reviewCycleChannelRef = useRef<any>(null);
-
-  // Cleanup function
-  const cleanup = useCallback(async () => {
-    if (channelRef.current) {
-      await channelRef.current.unsubscribe();
-      channelRef.current = null;
-    }
-    if (reviewCycleChannelRef.current) {
-      await reviewCycleChannelRef.current.unsubscribe();
-      reviewCycleChannelRef.current = null;
-    }
-    dispatch({ type: 'RESET_STATE' });
-  }, []);
-
-  // Handle unmount cleanup
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, [cleanup]);
-
-  // Subscribe to document-level changes
-  useEffect(() => {
-    if (!documentId) return;
-
-    // console.log('Setting up document-level subscription for:', documentId);
-
-    const setupSubscriptions = async () => {
-      try {
-        // Cleanup existing subscriptions
-        await cleanup();
-
-        // Setup document interactions subscription
-        channelRef.current = supabase
-          .channel(`document_interactions:${documentId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'document_interactions',
-              filter: `document_id=eq.${documentId}`
-            },
-            (payload) => {
-              // console.log('Received interaction update:', payload);
-              
-              // Ensure we're in a stable state before processing updates
-              Promise.resolve().then(() => {
-                if (payload.eventType === 'INSERT') {
-                  // console.log('New interaction:', payload.new);
-                  
-                  dispatch({
-                    type: 'ADD_INTERACTION',
-                    payload: {
-                      sectionId: payload.new.section_id,
-                      interaction: payload.new
-                    }
-                  });
-
-                  // Force immediate UI update
-                  window.requestAnimationFrame(() => {
-                    const progress = calculateProgress(payload.new.section_id);
-                    dispatch({
-                      type: 'SET_PROGRESS',
-                      payload: {
-                        progress,
-                        section: payload.new.section_id,
-                        stage: `Processing section ${payload.new.section_id}`
-                      }
-                    });
-                  });
-                }
-              });
-            }
-          )
-          .subscribe((status) => {
-            // console.log('Interaction subscription status:', status);
-            if (status === 'SUBSCRIBED') {
-              // Don't set analyzing here - let the button component control this
-              // console.log('Successfully subscribed to interactions');
-            } else if (status === 'CHANNEL_ERROR') {
-              dispatch({ 
-                type: 'SET_ERROR', 
-                payload: 'Failed to connect to analysis updates' 
-              });
-            }
-          });
-
-        // Setup review cycle subscription
-        reviewCycleChannelRef.current = supabase
-          .channel(`document_review_cycles:${documentId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'document_review_cycles',
-              filter: `document_id=eq.${documentId}`
-            },
-            (payload) => {
-              // console.log('Review cycle update:', payload);
-              
-              // Ensure we're in a stable state before processing updates
-              Promise.resolve().then(() => {
-                if (payload.eventType === 'UPDATE') {
-                  const status = payload.new.status;
-                  dispatch({ type: 'SET_REVIEW_CYCLE_STATUS', payload: status });
-                  
-                  // Handle completion or cancellation
-                  if (['completed', 'cancelled', 'failed'].includes(status)) {
-                    dispatch({ type: 'CLEAR_PENDING_OPERATIONS' });
-                    dispatch({ type: 'SET_ANALYZING', payload: false });
-                    
-                    // Dispatch custom event for completion
-                    const event = new CustomEvent('document-analysis-complete', {
-                      detail: { results: state.interactions }
-                    });
-                    window.dispatchEvent(event);
-                  }
-                }
-              });
-            }
-          )
-          .subscribe((status) => {
-            // console.log('Review cycle subscription status:', status);
-            if (status === 'CHANNEL_ERROR') {
-              dispatch({ 
-                type: 'SET_ERROR', 
-                payload: 'Failed to connect to review cycle updates' 
-              });
-            }
-          });
-
-      } catch (error) {
-        console.error('Error setting up subscriptions:', error);
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'Failed to setup analysis monitoring' 
-        });
-      }
-    };
-
-    setupSubscriptions();
-  }, [documentId, cleanup]); // Remove state.isAnalyzing dependency
-
-  // Calculate progress based on completed sections
-  const calculateProgress = (currentSectionId: string) => {
-    const totalSections = Object.keys(state.interactions).length;
-    if (totalSections === 0) return 0;
-    
-    const completedSections = Object.values(state.interactions)
-      .filter(interactions => interactions.length > 0).length;
-    
-    return Math.round((completedSections / totalSections) * 100);
-  };
-
-  // Force immediate UI updates when pending operations change
-  useEffect(() => {
-    if (!Object.keys(state.pendingOperations).length) return;
-    
-    window.requestAnimationFrame(() => {
-      const hasUnfinished = Object.values(state.pendingOperations).some(status => !status);
-      dispatch({ type: 'SET_HAS_UNFINISHED_OPERATIONS', payload: hasUnfinished });
-    });
-  }, [state.pendingOperations]);
-
-  // Memoize the context value
-  const contextValue = useMemo(() => ({ state, dispatch }), [state]); // dispatch is stable
-
-  return (
-    <DocumentAnalysisContext.Provider value={contextValue}>
-      {children}
-    </DocumentAnalysisContext.Provider>
-  );
+// Create context with state and dispatch
+interface DocumentAnalysisContextType {
+  state: DocumentAnalysisState;
+  dispatch: React.Dispatch<DocumentAnalysisAction>;
 }
+
+const DocumentAnalysisContext = createContext<DocumentAnalysisContextType | undefined>(undefined);
 
 export function useDocumentAnalysis() {
   const context = useContext(DocumentAnalysisContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useDocumentAnalysis must be used within a DocumentAnalysisProvider');
   }
   return context;
+}
+
+interface DocumentAnalysisProviderProps {
+  children: ReactNode;
+  documentId: string;
+}
+
+export function DocumentAnalysisProvider({ children, documentId }: DocumentAnalysisProviderProps) {
+  const [state, dispatch] = useReducer(documentAnalysisReducer, initialState);
+
+  return (
+    <DocumentAnalysisContext.Provider value={{ state, dispatch }}>
+      {children}
+    </DocumentAnalysisContext.Provider>
+  );
 } 

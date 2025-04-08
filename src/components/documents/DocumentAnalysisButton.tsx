@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { clientLogger } from '@/lib/ai/clientLogger';
 import { AIAgentViewButton } from '@/components/ai-assistant/ExlayrAIAgentView';
-import { Loader2, AlertCircle, CheckCircle, Activity } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, Activity, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -80,12 +80,19 @@ interface SectionCompleteData {
 
 type StreamData = ProgressData | ResultData | ErrorData | SectionCompleteData;
 
+interface DocumentSection {
+  id: string;
+  title: string;
+  content: string;
+  status?: string;
+}
+
 interface DocumentAnalysisButtonProps {
   documentId: string;
-  sections: Section[];
+  sections: DocumentSection[];
   onAnalysisStart?: () => void;
   onReviewCycleCreated?: (cycleId: string) => void;
-  onAnalyzingChange?: (isAnalyzing: boolean) => void;
+  onAnalyzingChange?: (analyzing: boolean) => void;
   isExternallyAnalyzing?: boolean;
 }
 
@@ -100,13 +107,54 @@ interface AnalysisResultsState {
   }>;
 }
 
-export default function DocumentAnalysisButton({ documentId, sections, onAnalysisStart, onReviewCycleCreated, onAnalyzingChange, isExternallyAnalyzing }: DocumentAnalysisButtonProps) {
+export default function DocumentAnalysisButton({
+  documentId,
+  sections,
+  onAnalysisStart,
+  onReviewCycleCreated,
+  onAnalyzingChange,
+  isExternallyAnalyzing = false
+}: DocumentAnalysisButtonProps) {
   const { state, dispatch } = useDocumentAnalysis();
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressRef = useRef<number>(0);
   const supabase = getSupabaseClient();
   const router = useRouter();
   const pathname = usePathname();
+  const [buttonText, setButtonText] = useState('Analyze with AI');
+  const [internalIsAnalyzing, setInternalIsAnalyzing] = useState(false);
+  
+  // Track external analyzing state changes
+  useEffect(() => {
+    // Only update if there's an actual state change to prevent unnecessary re-renders
+    const newAnalyzingState = isExternallyAnalyzing || (state?.isAnalyzing || false);
+    
+    // Only set state if value has changed
+    if (internalIsAnalyzing !== newAnalyzingState) {
+      setInternalIsAnalyzing(newAnalyzingState);
+    }
+  }, [isExternallyAnalyzing, state?.isAnalyzing, internalIsAnalyzing]);
+  
+  // Notify parent of analyzing state changes
+  useEffect(() => {
+    if (onAnalyzingChange && state?.isAnalyzing !== undefined) {
+      // Only call when the state value actually changes
+      onAnalyzingChange(state.isAnalyzing);
+    }
+  }, [state?.isAnalyzing, onAnalyzingChange]);
+  
+  // Update button text based on analysis state
+  useEffect(() => {
+    if (state?.error) {
+      setButtonText('Retry Analysis');
+    } else if (state?.analysisResult) {
+      setButtonText('Re-analyze');
+    } else if (internalIsAnalyzing) {
+      setButtonText('Analyzing...');
+    } else {
+      setButtonText('Analyze with AI');
+    }
+  }, [internalIsAnalyzing, state?.error, state?.analysisResult]);
 
   useEffect(() => {
     if (!documentId) return;
@@ -121,7 +169,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
         filter: `document_id=eq.${documentId}`
       }, (payload) => {
         // Force UI update on new interaction
-        dispatch({ 
+        dispatch?.({ 
           type: 'ADD_INTERACTION', 
           payload: {
             sectionId: payload.new.section_id,
@@ -140,7 +188,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
   // Reset error state when unmounting
   useEffect(() => {
     return () => {
-      dispatch({ type: 'SET_ERROR', payload: null });
+      dispatch?.({ type: 'SET_ERROR', payload: null });
     };
   }, [dispatch]);
 
@@ -223,7 +271,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
       if (error) throw error;
     } catch (error) {
       console.error('Error creating interaction:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to save analysis results' });
+      dispatch?.({ type: 'SET_ERROR', payload: 'Failed to save analysis results' });
       throw error;
     }
   };
@@ -239,8 +287,8 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
         })
         .eq('id', cycleId);
 
-      dispatch({ type: 'CLEAR_PENDING_OPERATIONS' });
-      dispatch({ type: 'SET_ANALYZING', payload: false });
+      dispatch?.({ type: 'CLEAR_PENDING_OPERATIONS' });
+      dispatch?.({ type: 'SET_ANALYZING', payload: false });
       
       showToast({
         title: 'Analysis Stopped',
@@ -249,20 +297,15 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
       });
     } catch (error) {
       console.error('Error during cleanup:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to cleanup analysis properly' });
+      dispatch?.({ type: 'SET_ERROR', payload: 'Failed to cleanup analysis properly' });
     }
   };
 
   const handleAnalyze = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     
-    if (isExternallyAnalyzing) {
-      abortControllerRef.current?.abort();
-      dispatch({ type: 'SET_ANALYZING', payload: false });
-      onAnalyzingChange?.(false);
-      return;
-    }
-
+    if (internalIsAnalyzing) return;
+    
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
@@ -270,8 +313,8 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
     
     try {
       // Start the analysis
-      dispatch({ type: 'SET_ANALYZING', payload: true });
-      dispatch({ type: 'SET_ERROR', payload: null });
+      dispatch?.({ type: 'SET_ANALYZING', payload: true });
+      dispatch?.({ type: 'SET_ERROR', payload: null });
 
       // Create a new review cycle
       const cycleId = await createReviewCycle();
@@ -286,7 +329,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
       const handleStreamData = (data: StreamData) => {
         switch (data.type) {
           case 'progress':
-            dispatch({
+            dispatch?.({
               type: 'SET_PROGRESS',
               payload: {
                 progress: data.progress,
@@ -301,7 +344,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
             createInteractionFromAnalysis(sectionId, analysisResult, cycleId)
               .catch(error => {
                 console.error('Error creating interaction:', error);
-                dispatch({ type: 'SET_ERROR', payload: 'Failed to save analysis results' });
+                dispatch?.({ type: 'SET_ERROR', payload: 'Failed to save analysis results' });
               });
             break;
 
@@ -360,7 +403,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
         }
       }
 
-      dispatch({ type: 'SET_ANALYZING', payload: false });
+      dispatch?.({ type: 'SET_ANALYZING', payload: false });
       onAnalyzingChange?.(false);
       showToast({
         title: 'Analysis Complete',
@@ -369,8 +412,8 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
       });
     } catch (error) {
       console.error('Analysis error:', error);
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Unknown error' });
-      dispatch({ type: 'SET_ANALYZING', payload: false });
+      dispatch?.({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Unknown error' });
+      dispatch?.({ type: 'SET_ANALYZING', payload: false });
       onAnalyzingChange?.(false);
       showToast({
         title: 'Analysis Failed',
@@ -378,7 +421,7 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
         variant: 'destructive'
       });
     } finally {
-      if (state.isAnalyzing || isExternallyAnalyzing) {
+      if (state?.isAnalyzing || internalIsAnalyzing) {
          onAnalyzingChange?.(false);
       }
       abortControllerRef.current = null;
@@ -396,33 +439,33 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
               <Button
                 type="button"
                 onClick={handleAnalyze}
-                disabled={isExternallyAnalyzing}
+                disabled={internalIsAnalyzing}
                 variant="outline"
                 className={cn(
                   "relative w-full",
-                  isExternallyAnalyzing && "pr-8"
+                  internalIsAnalyzing && "pr-8"
                 )}
               >
-                {isExternallyAnalyzing ? (
+                {internalIsAnalyzing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Stop Analysis
+                    {buttonText}
                   </>
                 ) : (
                   <>
-                    <Activity className="mr-2 h-4 w-4" />
-                    Analyze Document
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {buttonText}
                   </>
                 )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[300px]">
-              {state.error ? (
-                <p className="text-red-500">{state.error}</p>
+              {state?.error ? (
+                <p className="text-red-500">{state?.error}</p>
               ) : (
-                isExternallyAnalyzing ? (
+                internalIsAnalyzing ? (
                   <p className="animate-pulse">
-                    {state.analysisStage || `Analyzing... ${state.progress}%`}
+                    {state?.analysisStage || `Analyzing... ${state?.progress}%`}
                   </p>
                 ) : (
                   <p>Start document analysis</p>
@@ -433,26 +476,26 @@ export default function DocumentAnalysisButton({ documentId, sections, onAnalysi
         </TooltipProvider>
 
         {/* Progress Bar */}
-        {isExternallyAnalyzing && (
+        {internalIsAnalyzing && (
           <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 relative overflow-hidden">
             <div 
               className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
-              style={{ width: `${state.progress}%` }}
+              style={{ width: `${state?.progress}%` }}
             />
           </div>
         )}
 
         {/* Current Operation */}
-        {isExternallyAnalyzing && state.currentSection && (
+        {internalIsAnalyzing && state?.currentSection && (
           <div className="text-sm text-gray-600 animate-pulse">
-            {state.analysisStage || `Analyzing section ${state.currentSection}`}
+            {state?.analysisStage || `Analyzing section ${state?.currentSection}`}
           </div>
         )}
       </div>
 
       {/* Analysis Results Display */}
       <div className="space-y-4">
-        {Object.entries(state.interactions).map(([sectionId, interactions]) => {
+        {Object.entries(state?.interactions || {}).map(([sectionId, interactions]) => {
           const aiSuggestions = interactions.filter(i => i.type === 'ai_suggestion');
           if (aiSuggestions.length === 0) return null;
 

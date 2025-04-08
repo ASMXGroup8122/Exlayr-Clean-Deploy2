@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -7,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MessageSquare, GitPullRequest, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { MessageSquare, GitPullRequest, CheckCircle, XCircle, Loader2, ChevronDown } from 'lucide-react';
 import InteractionTimeline from './InteractionTimeline';
 import { useToast } from '@/components/ui/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -16,13 +18,16 @@ import { useDocumentAnalysis } from '@/contexts/DocumentAnalysisContext';
 import { cn } from '@/lib/utils';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
+type SectionStatus = 'pending' | 'approved' | 'rejected' | 'needs_revision' | 'in_progress';
+
 interface SectionReviewProps {
   documentId: string;
   sectionId: string;
   reviewCycleId: string;
   content: string;
   version: number;
-  onStatusChange?: (status: 'pending' | 'in_progress' | 'completed') => void;
+  onStatusChange: (status: SectionStatus) => void;
+  currentStatus: SectionStatus;
 }
 
 type InteractionType = 'comment' | 'revision' | 'approval' | 'rejection';
@@ -33,32 +38,56 @@ export default function SectionReview({
   reviewCycleId,
   content,
   version,
-  onStatusChange
+  onStatusChange,
+  currentStatus
 }: SectionReviewProps) {
   const { state } = useDocumentAnalysis();
   const [comment, setComment] = useState('');
   const [interactionType, setInteractionType] = useState<InteractionType>('comment');
   const [isLoading, setIsLoading] = useState(false);
-  const [sectionStatus, setSectionStatus] = useState<'pending' | 'in_progress' | 'completed'>('pending');
   const { toast } = useToast();
   const supabase = getSupabaseClient();
+  const [isOpen, setIsOpen] = useState(false);
 
   // Get interactions for this section from context
   const sectionInteractions = state.interactions[sectionId] || [];
 
-  // Update section status when interactions change
-  useEffect(() => {
-    const newStatus = getStatusFromInteractions(sectionInteractions);
-    setSectionStatus(newStatus);
-    onStatusChange?.(newStatus);
-  }, [sectionInteractions, onStatusChange]);
+  // Memoize the status change handler
+  const handleStatusChange = useCallback((newStatus: SectionStatus) => {
+    onStatusChange(newStatus);
+    setIsOpen(false);
+  }, [onStatusChange]);
 
-  const getStatusFromInteractions = (ints: Interaction[]): 'pending' | 'in_progress' | 'completed' => {
-    if (ints.length === 0) return 'pending';
-    const lastInteraction = ints[0];
-    if (lastInteraction.type === 'approval') return 'completed';
-    if (lastInteraction.type === 'rejection') return 'completed';
-    return 'in_progress';
+  const getStatusLabel = (status: SectionStatus) => {
+    switch (status) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'needs_revision':
+        return 'Needs Revision';
+      case 'in_progress':
+        return 'In Progress';
+      case 'pending':
+      default:
+        return 'Pending Review';
+    }
+  };
+
+  const getStatusColor = (status: SectionStatus) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      case 'needs_revision':
+        return 'bg-orange-100 text-orange-800';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'pending':
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   const handleSubmit = async () => {
@@ -117,35 +146,34 @@ export default function SectionReview({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Version {version}</span>
           {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-          {sectionStatus === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
-          {sectionStatus === 'in_progress' && <GitPullRequest className="w-4 h-4 text-blue-500" />}
+          {currentStatus === 'approved' && <CheckCircle className="w-4 h-4 text-green-500" />}
+          {currentStatus === 'in_progress' && <GitPullRequest className="w-4 h-4 text-blue-500" />}
         </div>
-        <DropdownMenu>
+        <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              {interactionType === 'comment' && <MessageSquare className="w-4 h-4" />}
-              {interactionType === 'revision' && <GitPullRequest className="w-4 h-4" />}
-              {interactionType === 'approval' && <CheckCircle className="w-4 h-4" />}
-              {interactionType === 'rejection' && <XCircle className="w-4 h-4" />}
-              <span className="ml-2 capitalize">{interactionType}</span>
+            <Button
+              variant="outline"
+              className={`${getStatusColor(currentStatus)} border-0`}
+            >
+              {getStatusLabel(currentStatus)}
+              <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setInteractionType('comment')}>
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Comment
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleStatusChange('approved')}>
+              Mark as Approved
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setInteractionType('revision')}>
-              <GitPullRequest className="w-4 h-4 mr-2" />
+            <DropdownMenuItem onClick={() => handleStatusChange('needs_revision')}>
               Request Revision
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setInteractionType('approval')}>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Approve
+            <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
+              Mark In Progress
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setInteractionType('rejection')}>
-              <XCircle className="w-4 h-4 mr-2" />
-              Reject
+            <DropdownMenuItem onClick={() => handleStatusChange('rejected')}>
+              Mark as Rejected
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('pending')}>
+              Reset to Pending
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
