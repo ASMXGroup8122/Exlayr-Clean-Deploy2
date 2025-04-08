@@ -4,6 +4,7 @@ import { createContext, useContext, useReducer, ReactNode } from 'react';
 
 // Define state shape
 interface DocumentAnalysisState {
+  documentId: string;
   isAnalyzing: boolean;
   analysisResult: any | null;
   error: string | null;
@@ -30,6 +31,7 @@ type DocumentAnalysisAction =
 
 // Initial state
 const initialState: DocumentAnalysisState = {
+  documentId: '',
   isAnalyzing: false,
   analysisResult: null,
   error: null,
@@ -130,7 +132,10 @@ interface DocumentAnalysisProviderProps {
 }
 
 export function DocumentAnalysisProvider({ children, documentId }: DocumentAnalysisProviderProps) {
-  const [state, dispatch] = useReducer(documentAnalysisReducer, initialState);
+  const [state, dispatch] = useReducer(documentAnalysisReducer, {
+    ...initialState,
+    documentId
+  });
 
   return (
     <DocumentAnalysisContext.Provider value={{ state, dispatch }}>

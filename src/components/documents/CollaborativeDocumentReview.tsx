@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Menu,
@@ -62,55 +62,50 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { useDocumentAnalysis, DocumentAnalysisContextType } from '@/contexts/DocumentAnalysisContext';
+import { useDocumentAnalysis } from '@/contexts/DocumentAnalysisContext';
 import { DocumentAnalysisProvider } from '@/contexts/DocumentAnalysisContext';
 import DocumentAnalysisButton from './DocumentAnalysisButton';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 // Types
 interface Comment {
     id: string;
-    userId: string;
-    userName: string;
-    text: string;
-    timestamp: string;
-    status: 'open' | 'resolved' | 'needs clarification';
+    user_id: string;
+    comment: string;
+    created_at: string;
+    status: 'open' | 'resolved' | 'needs_clarification';
 }
 
 interface Section {
     id: string;
+    document_id: string;
     title: string;
     content: string;
-    status: 'pending' | 'approved' | 'rejected' | 'analyzing';
-    lastUpdatedBy: string;
-    lastUpdatedByName: string;
-    comments: Comment[];
+    status: 'pending' | 'approved' | 'rejected' | 'needs_revision' | 'in_progress';
+    version: number;
+    created_at: string;
+    updated_at: string;
+    group?: string;
 }
 
 interface User {
     id: string;
-    name: string;
-    initials: string;
-    avatarUrl?: string;
+    email: string;
+    full_name?: string;
 }
-
-// Mock data (replace with actual data from your backend)
-const mockUsers: User[] = [
-    { id: 'user1', name: 'Alice Smith', initials: 'AS', avatarUrl: 'https://placehold.co/40x40/000/FFF?text=AS' },
-    { id: 'user2', name: 'Bob Johnson', initials: 'BJ', avatarUrl: 'https://placehold.co/40x40/EEE/333?text=BJ' },
-    { id: 'user3', name: 'Charlie Brown', initials: 'CB', avatarUrl: 'https://placehold.co/40x40/888/FFF?text=CB' },
-    { id: 'user4', name: 'Dana White', initials: 'DW', avatarUrl: 'https://placehold.co/40x40/469990/FFF?text=DW' },
-];
 
 // Helper functions
 const getStatusColor = (status: Section['status']) => {
     switch (status) {
         case 'pending':
-            return 'bg-gray-500';
+            return 'bg-yellow-500';
         case 'approved':
             return 'bg-green-500';
         case 'rejected':
             return 'bg-red-500';
-        case 'analyzing':
+        case 'needs_revision':
+            return 'bg-orange-500';
+        case 'in_progress':
             return 'bg-blue-500';
         default:
             return 'bg-gray-500';
@@ -124,8 +119,10 @@ const getStatusIcon = (status: Section['status']) => {
         case 'approved':
             return <Check className="w-4 h-4" />;
         case 'rejected':
-            return <X className="w-4 h-4" />;
-        case 'analyzing':
+            return <XCircle className="w-4 h-4" />;
+        case 'needs_revision':
+            return <Edit className="w-4 h-4" />;
+        case 'in_progress':
             return <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />;
         default:
             return <AlertTriangle className="w-4 h-4" />;
@@ -133,25 +130,50 @@ const getStatusIcon = (status: Section['status']) => {
 };
 
 // Components
-const UserAvatar = ({ user }: { user: User | undefined }) => {
-    if (!user) {
+const UserAvatar = ({ userId }: { userId: string }) => {
+    const [user, setUser] = useState<User | null>(null);
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+                .from('users')
+                .select('id, email, full_name')
+                .eq('id', userId)
+                .single();
+            
+            if (!error && data) {
+                setUser(data);
+            }
+        };
+        
+        fetchUser();
+    }, [userId]);
+
+    if (!user?.full_name) {
         return <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">?</div>;
     }
-    if (user.avatarUrl) {
-        return <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full" />;
-    }
-    return <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">{user.initials}</div>;
+
+    const initials = user.full_name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase();
+
+    return (
+        <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+            {initials}
+        </div>
+    );
 };
 
 const CommentComponent = ({ comment }: { comment: Comment }) => {
-    const user = mockUsers.find(u => u.id === comment.userId);
-
     return (
         <div className="flex space-x-3 p-3 bg-gray-50 rounded-lg">
-            <UserAvatar user={user} />
+            <UserAvatar userId={comment.user_id} />
             <div className="flex-1">
-                <p className="text-sm text-gray-700">{comment.text}</p>
-                <span className="text-xs text-gray-500">{comment.timestamp}</span>
+                <p className="text-sm text-gray-700">{comment.comment}</p>
+                <span className="text-xs text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
             </div>
         </div>
     );
@@ -160,28 +182,75 @@ const CommentComponent = ({ comment }: { comment: Comment }) => {
 const SectionComponent = ({
     section,
     onStatusChange,
-    isEditing,
-    user,
     documentId
 }: {
     section: Section;
     onStatusChange: (id: string, status: Section['status']) => void;
-    isEditing: boolean;
-    user: User | undefined;
     documentId: string;
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [newComment, setNewComment] = useState('');
     const { state } = useDocumentAnalysis();
+    const [comments, setComments] = useState<Comment[]>([]);
+    const supabase = getSupabaseClient();
 
-    const handleStatusChange = () => {
-        onStatusChange(section.id, section.status === 'approved' ? 'rejected' : 'approved');
+    useEffect(() => {
+        const fetchComments = async () => {
+            const { data, error } = await supabase
+                .from('section_comments')
+                .select('*')
+                .eq('section_id', section.id)
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                setComments(data);
+            }
+        };
+
+        fetchComments();
+    }, [section.id]);
+
+    const handleStatusChange = async () => {
+        const newStatus = section.status === 'pending' ? 'in_progress' : 'pending';
+        const { error } = await supabase
+            .from('document_sections')
+            .update({ status: newStatus })
+            .eq('id', section.id);
+
+        if (!error) {
+            onStatusChange(section.id, newStatus);
+        }
     };
 
-    const lastUpdatedUser = mockUsers.find(u => u.id === section.lastUpdatedBy);
+    const handleAddComment = async () => {
+        if (!newComment.trim()) return;
 
-    // Get AI analysis results for this section
-    const sectionAnalysis = state?.sectionStates?.[section.id]?.result;
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user?.id) return;
+
+        const { error } = await supabase
+            .from('section_comments')
+            .insert({
+                section_id: section.id,
+                user_id: userData.user.id,
+                comment: newComment,
+                status: 'open'
+            });
+
+        if (!error) {
+            setNewComment('');
+            // Refresh comments
+            const { data: updatedComments } = await supabase
+                .from('section_comments')
+                .select('*')
+                .eq('section_id', section.id)
+                .order('created_at', { ascending: false });
+
+            if (updatedComments) {
+                setComments(updatedComments);
+            }
+        }
+    };
 
     return (
         <div className="border rounded-lg p-4 mb-4">
@@ -219,25 +288,25 @@ const SectionComponent = ({
                         exit={{ height: 0, opacity: 0 }}
                         className="mt-4"
                     >
-                        <p className="text-gray-700 mb-4">{section.content}</p>
+                        <div className="prose prose-sm max-w-none mb-4">
+                            {section.content}
+                        </div>
                         <div className="space-y-3">
-                            {section.comments.map((comment) => (
+                            {comments.map((comment) => (
                                 <CommentComponent key={comment.id} comment={comment} />
                             ))}
-                            {isEditing && user && (
-                                <div className="flex space-x-2">
-                                    <Input
-                                        value={newComment}
-                                        onChange={(e) => setNewComment(e.target.value)}
-                                        placeholder="Add a comment..."
-                                        className="flex-1"
-                                    />
-                                    <Button onClick={() => setNewComment('')}>
-                                        <MessageSquare className="w-4 h-4 mr-2" />
-                                        Comment
-                                    </Button>
-                                </div>
-                            )}
+                            <div className="flex space-x-2">
+                                <Input
+                                    value={newComment}
+                                    onChange={(e) => setNewComment(e.target.value)}
+                                    placeholder="Add a comment..."
+                                    className="flex-1"
+                                />
+                                <Button onClick={handleAddComment}>
+                                    <MessageSquare className="w-4 h-4 mr-2" />
+                                    Comment
+                                </Button>
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -258,22 +327,25 @@ const TableOfContents = ({
     return (
         <div className="w-64 border-r p-4">
             <h2 className="font-semibold mb-4">Table of Contents</h2>
-            <div className="space-y-2">
-                {sections.map((section) => (
-                    <button
-                        key={section.id}
-                        onClick={() => onSectionSelect(section.id)}
-                        className={`w-full text-left p-2 rounded hover:bg-gray-100 ${
-                            currentSection === section.id ? 'bg-gray-100' : ''
-                        }`}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm">{section.title}</span>
-                            <div className={`w-2 h-2 rounded-full ${getStatusColor(section.status)}`} />
-                        </div>
-                    </button>
-                ))}
-            </div>
+            <ScrollArea className="h-[calc(100vh-8rem)]">
+                <div className="space-y-2">
+                    {sections.map((section) => (
+                        <button
+                            key={section.id}
+                            onClick={() => onSectionSelect(section.id)}
+                            className={cn(
+                                "w-full text-left p-2 rounded hover:bg-gray-100",
+                                currentSection === section.id && "bg-gray-100"
+                            )}
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm truncate">{section.title}</span>
+                                <div className={`w-2 h-2 rounded-full ${getStatusColor(section.status)}`} />
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </ScrollArea>
         </div>
     );
 };
@@ -287,19 +359,26 @@ const ViewFullDocumentModal = ({ sections }: { sections: Section[] }) => {
                     View Full Document
                 </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[600px]">
+            <SheetContent side="right" className="w-[600px] sm:w-[800px]">
                 <SheetHeader>
                     <SheetTitle>Full Document</SheetTitle>
                 </SheetHeader>
-                <div className="mt-4 space-y-4">
-                    {sections.map((section) => (
-                        <div key={section.id} className="prose">
-                            <h3>{section.title}</h3>
-                            <p>{section.content}</p>
-                            <Separator className="my-4" />
-                        </div>
-                    ))}
-                </div>
+                <ScrollArea className="h-[calc(100vh-8rem)] mt-4">
+                    <div className="space-y-8">
+                        {sections.map((section) => (
+                            <div key={section.id}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold">{section.title}</h3>
+                                    <div className={`w-3 h-3 rounded-full ${getStatusColor(section.status)}`} />
+                                </div>
+                                <div className="prose prose-sm max-w-none">
+                                    {section.content}
+                                </div>
+                                <Separator className="mt-8" />
+                            </div>
+                        ))}
+                    </div>
+                </ScrollArea>
             </SheetContent>
         </Sheet>
     );
@@ -330,10 +409,24 @@ interface CollaborativeDocumentReviewProps {
 
 const CollaborativeDocumentReview = ({ documentId }: CollaborativeDocumentReviewProps) => {
     const [sections, setSections] = useState<Section[]>([]);
-    const [user, setUser] = useState<User | undefined>(mockUsers[0]);
-    const [isEditing, setIsEditing] = useState(true);
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
-    const { isAnalyzing, analysisResult, startAnalysis } = useDocumentAnalysis();
+    const supabase = getSupabaseClient();
+
+    const fetchSections = async () => {
+        const { data, error } = await supabase
+            .from('document_sections')
+            .select('*')
+            .eq('document_id', documentId)
+            .order('created_at');
+
+        if (!error && data) {
+            setSections(data);
+        }
+    };
+
+    useEffect(() => {
+        fetchSections();
+    }, [documentId]);
 
     const handleSectionClick = (id: string) => {
         setActiveSectionId(id);
@@ -343,40 +436,13 @@ const CollaborativeDocumentReview = ({ documentId }: CollaborativeDocumentReview
         }
     };
 
-    const handleStatusChange = (id: string, newStatus: Section['status']) => {
+    const handleStatusChange = async (id: string, newStatus: Section['status']) => {
         setSections(prevSections =>
             prevSections.map(section =>
                 section.id === id ? { ...section, status: newStatus } : section
             )
         );
     };
-
-    // Fetch initial data
-    useEffect(() => {
-        // TODO: Replace with actual API call
-        const mockSections: Section[] = [
-            {
-                id: 'section1',
-                title: 'Introduction',
-                content: 'This is the introduction section. It provides an overview of the document.',
-                status: 'pending',
-                lastUpdatedBy: 'user1',
-                lastUpdatedByName: 'Alice Smith',
-                comments: [
-                    {
-                        id: 'comment1',
-                        userId: 'user2',
-                        userName: 'Bob Johnson',
-                        text: 'Great intro!',
-                        timestamp: '2024-07-24T10:00:00Z',
-                        status: 'open'
-                    },
-                ],
-            },
-            // Add more mock sections as needed
-        ];
-        setSections(mockSections);
-    }, [documentId]);
 
     return (
         <DocumentAnalysisProvider documentId={documentId}>
@@ -400,8 +466,6 @@ const CollaborativeDocumentReview = ({ documentId }: CollaborativeDocumentReview
                                 <SectionComponent
                                     section={section}
                                     onStatusChange={handleStatusChange}
-                                    isEditing={isEditing}
-                                    user={user}
                                     documentId={documentId}
                                 />
                             </section>

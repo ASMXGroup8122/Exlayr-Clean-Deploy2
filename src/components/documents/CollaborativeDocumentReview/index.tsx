@@ -18,7 +18,11 @@ import {
     Unlock,
     List,
     ChevronDown,
-    ArrowRightCircle
+    ArrowRightCircle,
+    Share2,
+    Eye,
+    Download,
+    ArrowDownToLine
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,11 +74,13 @@ interface Section {
     id: string;
     title: string;
     content: string;
-    status: 'draft' | 'ai reviewed' | 'approved' | 'locked';
+    status: SectionStatus;
     lastUpdatedBy: string;
     lastUpdatedByName: string;
     comments: Comment[];
 }
+
+type SectionStatus = 'draft' | 'ai_reviewed' | 'approved' | 'locked';
 
 interface User {
     id: string;
@@ -107,7 +113,7 @@ const mockSections: Section[] = [
         id: 'section2',
         title: 'Background',
         content: 'This section provides the background information for the topic.',
-        status: 'ai reviewed',
+        status: 'ai_reviewed',
         lastUpdatedBy: 'user2',
         lastUpdatedByName: 'Bob Johnson',
         comments: [],
@@ -157,7 +163,7 @@ const getStatusColor = (status: Section['status']) => {
     switch (status) {
         case 'draft':
             return 'text-gray-500';
-        case 'ai reviewed':
+        case 'ai_reviewed':
             return 'text-blue-500';
         case 'approved':
             return 'text-green-500';
@@ -172,7 +178,7 @@ const getStatusIcon = (status: Section['status']) => {
     switch (status) {
         case 'draft':
             return <FileText className="w-4 h-4" />;
-        case 'ai reviewed':
+        case 'ai_reviewed':
             return <CheckCircle className="w-4 h-4 text-blue-500" />;
         case 'approved':
             return <Check className="w-4 h-4 text-green-500" />;
@@ -271,9 +277,12 @@ const SectionComponent = ({
     const handleAIAnalysis = async () => {
         setIsAILoading(true);
         await new Promise(resolve => setTimeout(resolve, 2000));
-        onUpdateSection(section.id, { status: 'ai reviewed' });
+        onUpdateSection(section.id, { status: 'ai_reviewed' as SectionStatus });
         setIsAILoading(false);
     };
+
+    const isLocked = section.status === 'locked';
+    const canEdit = isEditing && !isLocked;
 
     const handleLock = () => {
         onLockSection(section.id);
@@ -322,16 +331,19 @@ const SectionComponent = ({
                                 </Tooltip>
                             </TooltipProvider>
                         )}
-                        {isEditing && section.status !== 'locked' && (
+                        {canEdit && (
                             <>
                                 <AITooltip />
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={handleLock}
-                                    className="bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300"
+                                    className={cn(
+                                        "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300",
+                                        isLocked && "bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300"
+                                    )}
                                 >
-                                    {section.status === 'locked' ? 'Unlock' : 'Lock'}
+                                    {isLocked ? 'Unlock' : 'Lock'}
                                 </Button>
                             </>
                         )}
@@ -340,15 +352,14 @@ const SectionComponent = ({
                 <CardDescription>Edit and collaborate on this section.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isEditing && section.status !== 'locked' ? (
+                {canEdit ? (
                     <>
                         <Textarea
                             ref={textareaRef}
                             value={localContent}
                             onChange={handleContentChange}
-                            className="w-full min-h-[100px] mb-4 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                            className="w-full min-h-[100px] mb-4 bg-white text-gray-900"
                             placeholder="Start writing here..."
-                            disabled={section.status === 'locked'}
                         />
                         <Button
                             onClick={handleSave}
@@ -358,7 +369,7 @@ const SectionComponent = ({
                         </Button>
                     </>
                 ) : (
-                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{section.content}</p>
+                    <p className="text-gray-700 whitespace-pre-line">{section.content}</p>
                 )}
                 {isAILoading && (
                     <div className="flex items-center text-blue-500">
@@ -366,7 +377,7 @@ const SectionComponent = ({
                         Analyzing with AI...
                     </div>
                 )}
-                {section.status === 'ai reviewed' && (
+                {section.status === 'ai_reviewed' && (
                     <div className="mt-4 p-4 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-800 rounded-md">
                         <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">AI Feedback:</h4>
                         <p className="text-sm text-gray-700 dark:text-gray-300">
@@ -388,7 +399,7 @@ const SectionComponent = ({
                     {section.comments.map(comment => (
                         <CommentComponent key={comment.id} comment={comment} />
                     ))}
-                    {isEditing && section.status !== 'locked' && user && (
+                    {canEdit && user && (
                         <div className="mt-4 flex gap-2">
                             <Textarea
                                 value={newComment}
@@ -592,18 +603,21 @@ const CollaborativeDocumentReview = ({ documentId }: CollaborativeDocumentReview
     };
 
     const handleUpdateSection = (id: string, updates: Partial<Section>) => {
+        if (!user) return;
         setSections(prevSections =>
             prevSections.map(section =>
-                section.id === id ? { ...section, ...updates, lastUpdatedBy: user?.id, lastUpdatedByName: user?.name } : section
+                section.id === id ? { ...section, ...updates, lastUpdatedBy: user.id, lastUpdatedByName: user.name } : section
             )
         );
     };
 
     const handleLockSection = (id: string) => {
         setSections(prevSections =>
-            prevSections.map(section =>
-                section.id === id ? { ...section, status: section.status === 'locked' ? 'draft' : 'locked' } : section
-            )
+            prevSections.map(section => {
+                if (section.id !== id) return section;
+                const newStatus: SectionStatus = section.status === 'locked' ? 'draft' : 'locked';
+                return { ...section, status: newStatus };
+            })
         );
     };
 
@@ -616,56 +630,91 @@ const CollaborativeDocumentReview = ({ documentId }: CollaborativeDocumentReview
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-4">
+        <div className="min-h-screen bg-white p-4">
             <div className="container mx-auto">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                        <Users className="w-6 h-6" />
-                        Collaborative Review
-                    </h1>
-                    <div className="flex gap-2">
-                        <ViewFullDocumentModal sections={sections} />
-                        <ExportOptions />
-                        {isEditing && (
-                            <Select onValueChange={(value) => {
-                                const selectedUser = mockUsers.find((u) => u.id === value);
-                                setUser(selectedUser);
-                            }} value={user?.id}>
-                                <SelectTrigger className="w-[180px] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                                    <SelectValue placeholder="Select User" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {mockUsers.map((u) => (
-                                        <SelectItem key={u.id} value={u.id}>
-                                            {u.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold">Welcome</h1>
+                    <div className="flex gap-4">
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <ArrowDownToLine className="w-4 h-4" />
+                            Export
+                        </Button>
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <Share2 className="w-4 h-4" />
+                            Share
+                        </Button>
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <Eye className="w-4 h-4" />
+                            Preview
+                        </Button>
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            View Full Document
+                        </Button>
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-8">
-                    <TableOfContents
-                        sections={sections}
-                        onSectionClick={handleSectionClick}
-                        user={user}
-                        isEditing={isEditing}
-                    />
+                <div className="flex gap-6">
+                    {/* Table of Contents */}
+                    <div className="w-64 shrink-0">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Table of Contents</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ScrollArea className="h-[calc(100vh-200px)]">
+                                    <div className="space-y-2">
+                                        {sections.map(section => (
+                                            <div
+                                                key={section.id}
+                                                className={cn(
+                                                    "p-2 rounded-md cursor-pointer transition-colors",
+                                                    "hover:bg-gray-100",
+                                                    activeSectionId === section.id && "bg-gray-100"
+                                                )}
+                                                onClick={() => handleSectionClick(section.id)}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span>{section.title}</span>
+                                                    <span className={cn(
+                                                        "text-xs",
+                                                        getStatusColor(section.status)
+                                                    )}>
+                                                        ({section.status.charAt(0).toUpperCase() + section.status.slice(1)})
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Main Content */}
                     <div className="flex-1">
-                        {sections.map(section => (
-                            <section id={section.id} key={section.id}>
-                                <SectionComponent
-                                    section={section}
-                                    onUpdateSection={handleUpdateSection}
-                                    onLockSection={handleLockSection}
-                                    onAddComment={handleAddComment}
-                                    isEditing={isEditing}
-                                    user={user}
-                                />
-                            </section>
-                        ))}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Document Review</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-6">
+                                    {sections.map(section => (
+                                        <section id={section.id} key={section.id}>
+                                            <SectionComponent
+                                                section={section}
+                                                onUpdateSection={handleUpdateSection}
+                                                onLockSection={handleLockSection}
+                                                onAddComment={handleAddComment}
+                                                isEditing={isEditing}
+                                                user={user}
+                                            />
+                                        </section>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
                 </div>
             </div>
