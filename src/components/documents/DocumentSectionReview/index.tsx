@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Lock as LockIcon, UserCircle, MessageSquare, Bot, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Lock as LockIcon, UserCircle, MessageSquare, Bot, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Trash2 } from 'lucide-react';
 import { Editor } from '../../../components/ui/editor';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -271,126 +271,182 @@ const SectionHeader = ({ section, userName }: {
 );
 
 // Comments Section Component
-const CommentsSection = ({ subsectionId, documentId }: { subsectionId: string; documentId: string }) => {
-  const [comments, setComments] = useState<Comment[]>([]);
+const CommentsSection = ({ subsectionId, documentId, initialComments }: { 
+  subsectionId: string; 
+  documentId: string; 
+  initialComments: Comment[]; 
+}) => {
+  // Initialize state with pre-fetched comments
+  const [comments, setComments] = useState<Comment[]>(initialComments);
   const [newComment, setNewComment] = useState('');
   const supabase = getSupabaseClient();
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
 
-  // Fetch current user and comments
+  // Only fetch current user and set up subscription
   useEffect(() => {
-    const fetchData = async () => {
-      // 1. Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      // Fetch profile/name if needed - assuming a profiles table exists
-      let userName = user?.email || 'Anonymous'; // Fallback
-      if (user) {
-         const { data: profile } = await supabase
-            .from('profiles') // Adjust table name if needed
-            .select('full_name') // Adjust column name if needed
-            .eq('id', user.id)
-            .single();
-         if (profile?.full_name) {
-             userName = profile.full_name;
-         }
-      }
-      setCurrentUser(user ? { id: user.id, name: userName } : null);
-
-      // 2. Fetch comments for this specific subsection
-      if (documentId && subsectionId) {
-        const { data: fetchedComments, error } = await supabase
-          .from('document_comments')
-          // Assuming section_id in document_comments stores the subsection ID (e.g., 'sec1_generalinfo')
-          .select(`
-            *,
-            profiles ( full_name ) // Join to get user name
-          `)
-          .eq('document_id', documentId)
-          .eq('section_id', subsectionId) 
-          .order('created_at', { ascending: true });
-
-        if (error) {
-          console.error("--- Error Fetching Comments ---");
-          console.error("Subsection ID:", subsectionId);
-          console.error("Document ID:", documentId);
-          console.error("Raw Error Object:", error);
-          console.error("Error Message:", error?.message);
-          console.error("Error Details:", error?.details);
-          console.error("Error Hint:", error?.hint);
-          console.error("Error Code:", error?.code);
-          console.error("-----------------------------");
-          // Potentially set an error state here for the UI
-        } else {
-          // Map the fetched data to the Comment interface
-          const mappedComments: Comment[] = fetchedComments?.map((c: any) => ({
-            id: c.id,
-            section_id: c.section_id,
-            user_id: c.user_id,
-            user_name: c.profiles?.full_name || 'Unknown User', // Use joined name
-            content: c.content,
-            created_at: c.created_at,
-            status: 'open' // Add status logic if needed
-          })) || [];
-          setComments(mappedComments);
+    // 1. Get current user info (needed for posting)
+    let isMounted = true; // Prevent state update on unmounted component
+    const fetchCurrentUser = async () => {
+      let fetchedUserId: string | null = null;
+      let fetchedUserName: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            fetchedUserId = user.id;
+            fetchedUserName = user.email || 'Anonymous'; 
         }
+      } catch (authError) {
+           console.error("Error fetching authenticated user:", authError);
+      }
+      if (isMounted) {
+        setCurrentUser(fetchedUserId ? { id: fetchedUserId, name: fetchedUserName || 'Anonymous' } : null);
       }
     };
-    fetchData();
+    fetchCurrentUser();
 
-    // Optional: Set up real-time subscription for new comments
+    // 2. Initial comment fetch is removed - comments are passed via props
+    console.log(`[Comments] Initialized with ${initialComments.length} comments for ${subsectionId}`);
+
+    // 3. Set up subscription (remains the same)
     const channel = supabase
         .channel(`comments:${documentId}:${subsectionId}`)
-        .on(
+        .on<Comment>(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'document_comments', filter: `document_id=eq.${documentId}` },
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'document_comments',
+                filter: `document_id=eq.${documentId}&section_id=eq.${subsectionId}`,
+            },
             (payload) => {
-                // TODO: Fetch user profile for new comment and add to state
-                console.log('New comment received:', payload.new);
-                // Simplistic refetch for now:
-                fetchData(); 
+                console.log(`[Subscription] Filtered event for ${subsectionId}:`, payload.new);
+                const newCommentData = payload.new;
+
+                // Directly format using data from payload (including user_name)
+                const formattedComment: Comment = {
+                    id: newCommentData.id,
+                    section_id: newCommentData.section_id, 
+                    user_id: newCommentData.user_id,
+                    user_name: newCommentData.user_name || 'Unknown User', // Use name from payload
+                    content: newCommentData.content || '',
+                    created_at: newCommentData.created_at || new Date().toISOString(),
+                    status: 'open' as Comment['status']
+                };
+
+                console.log('[Subscription] Adding comment to state:', formattedComment);
+                setComments(prevComments => {
+                    if (prevComments.some(c => c.id === formattedComment.id)) {
+                        return prevComments;
+                    }
+                    return [...prevComments, formattedComment];
+                });
             }
         )
         .subscribe();
 
-     return () => {
+    return () => {
+        isMounted = false; // Cleanup flag
         supabase.removeChannel(channel);
-     };
+    };
 
-  }, [subsectionId, documentId, supabase]);
+    // Depend only on IDs for subscription setup, not initialComments
+  }, [subsectionId, documentId, supabase]); 
 
   const handlePostComment = async () => {
-    if (!newComment.trim() || !currentUser) return;
+    console.log("[Comments] handlePostComment called. currentUser:", currentUser);
+    if (!newComment.trim() || !currentUser) {
+       console.log("[Comments] Post cancelled: Empty comment or missing user.", { hasComment: !!newComment.trim(), hasUser: !!currentUser });
+       return;
+    }
 
+    // Include user_name in the optimistic update
+    const tempId = `temp-${Date.now()}`; 
+    const optimisticComment: Comment = {
+        id: tempId,
+        section_id: subsectionId,
+        user_id: currentUser.id,
+        user_name: currentUser.name, // Use name from currentUser state
+        content: newComment.trim(),
+        created_at: new Date().toISOString(),
+        status: 'open' as Comment['status']
+    };
+
+    setComments(prevComments => [...prevComments, optimisticComment]);
+    const originalCommentText = newComment;
+    setNewComment(''); 
+
+    // Include user_name in the actual insert object
     const commentToInsert = {
       document_id: documentId,
-      section_id: subsectionId, // Use subsectionId here
+      section_id: subsectionId,
       user_id: currentUser.id,
-      content: newComment.trim(),
+      user_name: currentUser.name, // Add the user's name here
+      content: optimisticComment.content, 
     };
+    console.log("[Comments] Attempting to insert:", commentToInsert);
 
     const { data, error } = await supabase
       .from('document_comments')
       .insert(commentToInsert)
-      .select();
+      .select()
+      .single(); 
 
     if (error) {
-      console.error("Error posting comment:", error);
-      // TODO: Add user feedback
+      console.error("[Comments] Error posting comment:", error);
+      // Revert Optimistic Update 
+      setComments(prevComments => prevComments.filter(c => c.id !== tempId));
+      setNewComment(originalCommentText); 
+      // TODO: Show user-facing error message
     } else {
-      // Comment posted successfully
-      setNewComment('');
-      // Optimistic update or rely on subscription/refetch
-      // To keep it simple, subscription above handles update via refetch
+      console.log("[Comments] Insert successful, DB Data:", data);
+      // Update Optimistic Comment with Real Data (using user_name from DB now)
+      if (data) {
+         const confirmedComment: Comment = {
+             id: data.id,
+             section_id: data.section_id,
+             user_id: data.user_id,
+             user_name: data.user_name || 'Unknown User', // Use name returned from DB
+             content: data.content,
+             created_at: data.created_at,
+             status: 'open' as Comment['status'] 
+         };
+         setComments(prevComments => prevComments.map(c => c.id === tempId ? confirmedComment : c));
+      }
+      // -------------------------------------------------------------------
+      // Input already cleared. Subscription will handle updates for others.
+    }
+  };
+
+  // Function to handle comment deletion
+  const handleDeleteComment = async (commentId: string) => {
+    // Optimistic UI Update: Remove the comment immediately
+    setComments(prevComments => prevComments.filter(comment => comment.id !== commentId));
+
+    // Attempt to delete from database
+    const { error } = await supabase
+      .from('document_comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (error) {
+      console.error("[Comments] Error deleting comment:", error);
+      // Simple revert: Refetch comments if delete fails. Could be improved.
+      // Consider adding the comment back locally or showing a specific error message.
+       alert("Failed to delete comment. Please try again."); 
+       // Refetch to revert - suboptimal but simple for now
+        const { data: fetchedComments } = await supabase
+          .from('document_comments').select('*').eq('document_id', documentId).eq('section_id', subsectionId).order('created_at', { ascending: true });
+        const mapped = fetchedComments?.map((c: any) => ({ /* ... map data ... */ id: c.id, section_id: c.section_id, user_id: c.user_id, user_name: c.user_name || 'Unknown User', content: c.content, created_at: c.created_at, status: 'open' as Comment['status'] })) || [];
+        setComments(mapped);
     }
   };
 
   return (
-    <div className="mt-4 p-3 border-t bg-white"> {/* Changed background */} 
+    <div className="mt-4 p-3 border-t bg-white">
       <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><MessageSquare className="h-4 w-4"/> Comments ({comments.length})</h4>
       <div className="space-y-3 mb-3">
-        {/* Map through comments and display them */} 
         {comments.map(comment => (
-          <div key={comment.id} className="flex gap-2 items-start text-sm">
+          <div key={comment.id} className="flex gap-2 items-start text-sm group relative"> {/* Add group relative */} 
             <Avatar className="h-6 w-6 mt-1">
               <AvatarFallback className="text-xs">{comment.user_name?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
@@ -399,9 +455,19 @@ const CommentsSection = ({ subsectionId, documentId }: { subsectionId: string; d
                 <span className="font-medium">{comment.user_name || 'User'}</span>
                 <span className="text-xs text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
               </div>
-              <p>{comment.content}</p>
-              {/* Add comment status if needed */} 
+              <p className="whitespace-pre-wrap">{comment.content}</p> {/* Added whitespace wrap */} 
             </div>
+            {/* Show Delete button if comment belongs to current user */} 
+            {currentUser && comment.user_id === currentUser.id && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" // Position and hide until hover
+                onClick={() => handleDeleteComment(comment.id)}
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            )}
           </div>
         ))}
         {comments.length === 0 && <p className="text-xs text-gray-500">No comments yet.</p>}
@@ -456,8 +522,9 @@ const AIFeedback = ({ subsectionId, documentId }: { subsectionId: string; docume
 };
 
 // Single Section Display Component
-const SectionDisplay = ({ section, onSaveChanges, userName }: {
+const SectionDisplay = ({ section, commentsBySubsection, onSaveChanges, userName }: {
   section: Section;
+  commentsBySubsection: Record<string, Comment[]>; // Receive grouped comments
   onSaveChanges: (sectionId: string) => void;
   userName: string;
 }) => (
@@ -465,26 +532,30 @@ const SectionDisplay = ({ section, onSaveChanges, userName }: {
     <SectionHeader section={section} userName={userName} />
     <div className="p-4 space-y-4">
       <p className="text-xs text-gray-500 mb-2">Review the content below.</p>
-      {section.subsections.map(subsection => (
-        <div key={subsection.id} className="p-3 border rounded bg-gray-50/50 relative group">
-          <h4 className="text-sm font-medium mb-1 text-gray-700">{subsection.title}</h4>
-          <div className="text-sm text-gray-900 whitespace-pre-wrap">
-            {subsection.content || "[No content]"}
+      {section.subsections.map(subsection => {
+        // Get comments specifically for this subsection
+        const subsectionComments = commentsBySubsection[subsection.id] || []; 
+        return (
+          <div key={subsection.id} className="p-3 border rounded bg-gray-50/50 relative group">
+            <h4 className="text-sm font-medium mb-1 text-gray-700">{subsection.title}</h4>
+            <div className="text-sm text-gray-900 whitespace-pre-wrap">
+              {subsection.content || "[No content]"}
+            </div>
+            <AIFeedback 
+              subsectionId={subsection.id} 
+              documentId={section.document_id} 
+            />
+            <div className="mt-2 border-t pt-2">
+               <CommentsSection 
+                 subsectionId={subsection.id} 
+                 documentId={section.document_id} 
+                 // Pass down the pre-fetched comments
+                 initialComments={subsectionComments} 
+               />
+            </div>
           </div>
-          {/* AI Feedback section for this subsection - MOVED ABOVE COMMENTS */}
-           <AIFeedback 
-             subsectionId={subsection.id} 
-             documentId={section.document_id} 
-           />
-           {/* Comments section for this subsection */}
-          <div className="mt-2 border-t pt-2">
-             <CommentsSection 
-               subsectionId={subsection.id} 
-               documentId={section.document_id} 
-             />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
 );
@@ -500,10 +571,11 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
   const supabase = getSupabaseClient();
   const [userName, setUserName] = useState('User'); // Placeholder for user name
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Add state for sidebar collapse
+  const [allComments, setAllComments] = useState<Record<string, Comment[]>>({}); // Store comments grouped by subsectionId
 
-  // Fetch Document Data
+  // Fetch Document Data AND All Comments
   useEffect(() => {
-    const fetchDocumentAndUser = async () => {
+    const fetchDocumentAndComments = async () => {
       if (!documentId) {
         setError('No document ID provided');
         setLoading(false);
@@ -512,11 +584,11 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
 
       setLoading(true);
       try {
-        // Fetch user data (example)
-        // const { data: { user } } = await supabase.auth.getUser();
-        // setUserName(user?.email || 'User');
+        // Fetch user data (simplified - remove if not needed for TopBar)
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserName(user?.email || 'User'); // Update TopBar user name
 
-        // Fetch document content
+        // Fetch document content (listingdocumentdirectlisting)
         const { data: documentData, error: documentError } = await supabase
           .from('listingdocumentdirectlisting')
           .select('*')
@@ -530,8 +602,37 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
           return;
         }
 
-        // TODO: Fetch section statuses from 'document_section_status'
-        // TODO: Fetch latest versions from 'section_version_history' if needed
+        // Fetch ALL comments for this document
+        console.log(`[Main] Fetching all comments for doc: ${documentId}`);
+        const { data: commentsData, error: commentsError } = await supabase
+            .from('document_comments')
+            .select('*') // Select all needed fields, including user_name
+            .eq('document_id', documentId);
+        
+        if (commentsError) {
+            console.error("--- Error Fetching ALL Comments --- ", commentsError);
+            // Proceed without comments if fetch fails, or handle error more robustly
+        }
+
+        // Group comments by section_id (subsectionId)
+        const groupedComments: Record<string, Comment[]> = {};
+        commentsData?.forEach((c: any) => {
+            const comment: Comment = {
+                id: c.id,
+                section_id: c.section_id, 
+                user_id: c.user_id,
+                user_name: c.user_name || 'Unknown User',
+                content: c.content,
+                created_at: c.created_at,
+                status: 'open' as Comment['status']
+            };
+            if (!groupedComments[comment.section_id]) {
+                groupedComments[comment.section_id] = [];
+            }
+            groupedComments[comment.section_id].push(comment);
+        });
+        setAllComments(groupedComments);
+        console.log(`[Main] Grouped ${commentsData?.length || 0} comments.`);
 
         // Define TOC structure (can be moved outside if static)
         const tocStructure = [
@@ -635,7 +736,7 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
       }
     };
 
-    fetchDocumentAndUser();
+    fetchDocumentAndComments(); // Call the updated function
   }, [documentId, supabase]);
 
   // Repurpose or remove handleSaveChanges
@@ -718,6 +819,7 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
             <SectionDisplay 
               key={section.id}
               section={section}
+              commentsBySubsection={allComments}
               onSaveChanges={handleSaveChanges}
               userName={userName}
             />
