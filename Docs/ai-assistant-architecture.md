@@ -149,3 +149,11 @@ If you're migrating from the previous architecture with Python server:
 ## Conclusion
 
 The new architecture provides a more streamlined and reliable AI Assistant experience, while maintaining all the powerful features of the previous implementation. By removing the Python server dependency, we've simplified deployment and maintenance, while improving performance and reliability. 
+
+After receiving the analysis result
+console.log("[AnalyzeBtn] Analysis result received:", result);
+// Right before dispatching SET_SECTION_RESULT
+console.log("[AnalyzeBtn] Dispatching SET_SECTION_RESULT with:", {
+  sectionId: section.id,
+  result: result
+}); 

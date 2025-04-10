@@ -16,14 +16,19 @@ interface SectionAnalysisResult {
 }
 
 interface SectionAgent {
-  analyze: (sectionTitle: string, sectionContent: string) => Promise<SectionAnalysisResult>;
+  analyze: (sectionTitle: string, sectionContent: string, documentContext?: Map<string, string>) => Promise<SectionAnalysisResult>;
 }
 
 class DocumentAnalysisAgent implements SectionAgent {
-  async analyze(sectionTitle: string, sectionContent: string): Promise<SectionAnalysisResult> {
+  async analyze(sectionTitle: string, sectionContent: string, documentContext?: Map<string, string>): Promise<SectionAnalysisResult> {
     // Get similar examples from vector search
     const searchResults = await findRelevantRules(sectionContent, 5, 'exchangedocs');
     
+    // Modify prompt to include context if provided
+    const contextString = documentContext ? 
+        `\n\nFULL DOCUMENT CONTEXT (other sections):\n${Array.from(documentContext.entries()).filter(([title]) => title !== sectionTitle).map(([title, content]) => `--- START ${title} ---\n${content}\n--- END ${title} ---`).join('\n\n')}`
+        : '';
+
     // Use GPT-4 to analyze the content against the examples
     const analysis = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
@@ -39,6 +44,7 @@ Focus on meaningful analysis, not superficial differences.`
         content: `SECTION TITLE: ${sectionTitle}
 SECTION CONTENT:
 ${sectionContent}
+${contextString}
 
 SIMILAR EXAMPLES:
 ${searchResults.matchedExample}
@@ -87,7 +93,7 @@ Analyze this section and return JSON with:
 }
 
 class RiskAnalysisAgent implements SectionAgent {
-  async analyze(sectionTitle: string, sectionContent: string): Promise<SectionAnalysisResult> {
+  async analyze(sectionTitle: string, sectionContent: string, documentContext?: Map<string, string>): Promise<SectionAnalysisResult> {
     if (!sectionTitle.toLowerCase().includes('risk')) {
       return {
         isCompliant: false,
@@ -461,7 +467,7 @@ class RiskAnalysisAgent implements SectionAgent {
     for (const sentence of sentences) {
       if (sentence.toLowerCase().includes('risk') || 
           sentence.toLowerCase().includes('could') ||
-          sentence.toLowerCase().includes('may')) {
+          sentence.includes('may')) {
         return sentence.trim();
       }
     }
@@ -756,7 +762,7 @@ class RiskAnalysisAgent implements SectionAgent {
 }
 
 class FinancialAnalysisAgent implements SectionAgent {
-  async analyze(sectionTitle: string, sectionContent: string): Promise<SectionAnalysisResult> {
+  async analyze(sectionTitle: string, sectionContent: string, documentContext?: Map<string, string>): Promise<SectionAnalysisResult> {
     aiLogger.logActivity('analysis', `Financial Analysis Agent analyzing section: ${sectionTitle}`);
     
     // Check if section title contains financial-related keywords
@@ -828,7 +834,7 @@ class FinancialAnalysisAgent implements SectionAgent {
 }
 
 class GovernanceAnalysisAgent implements SectionAgent {
-  async analyze(sectionTitle: string, sectionContent: string): Promise<SectionAnalysisResult> {
+  async analyze(sectionTitle: string, sectionContent: string, documentContext?: Map<string, string>): Promise<SectionAnalysisResult> {
     aiLogger.logActivity('analysis', `Governance Analysis Agent analyzing section: ${sectionTitle}`);
     
     // Check if section title contains governance-related keywords
@@ -899,85 +905,98 @@ class GovernanceAnalysisAgent implements SectionAgent {
 }
 
 class GeneralAnalysisAgent implements SectionAgent {
-  private documentContext: Map<string, string> = new Map();
+  // Helper to classify subsection type based on title/id
+  private getSubsectionType(title: string, id: string): string {
+      const lowerTitle = title.toLowerCase();
+      const lowerId = id.toLowerCase();
+      if (lowerTitle.includes('warning')) return 'warning';
+      if (lowerTitle.includes('overview') || lowerTitle.includes('introduction') || lowerTitle.includes('summary')) return 'introductory';
+      if (lowerId.startsWith('sec4_')) return 'detailed_risk'; // Assuming sec4 is always risk
+      if (lowerId.startsWith('sec3_') && (lowerId.includes('finan') || lowerId.includes('statements'))) return 'detailed_financial';
+      // Add more classifications as needed
+      return 'general_detail'; // Default
+  }
 
-  async analyze(sectionTitle: string, sectionContent: string): Promise<SectionAnalysisResult> {
-    // Store this section's content in the document context
-    this.documentContext.set(sectionTitle, sectionContent);
-
-    // Get similar examples from vector search
-    const searchResults = await findRelevantRules(sectionContent, 5, 'exchangedocs');
+  async analyze(sectionTitle: string, sectionContent: string, documentContext?: Map<string, string>): Promise<SectionAnalysisResult> {
+    const searchResults = await findRelevantRules(sectionContent, 3, 'exchangedocs');
     
-    // Use GPT-4 to analyze the content with document context
+    // Correctly Prepare context string (still useful for checking if info exists elsewhere)
+    const contextString = documentContext ? 
+        `\n\nFULL DOCUMENT CONTEXT (other sections - for reference only):\n${Array.from(documentContext.entries())
+            .filter(([title]) => title !== sectionTitle)
+            .map(([title, content]) => `--- START ${title} ---\n${content.substring(0, 150)}...\n--- END ${title} ---`)
+            .join('\n\n')}`
+        : '';
+    
+    // Determine subsection type (Pass ID if available - Requires updating analyze call)
+    // For now, using title - adjust if ID is passed separately
+    const subsectionId = sectionTitle; // Placeholder: Assume title is unique enough for now
+    const subsectionType = this.getSubsectionType(sectionTitle, subsectionId);
+    
+    // Construct System Prompt based on type
+    let systemPrompt = `You are an expert Stock Exchange Listing Reviewer evaluating a subsection titled "${sectionTitle}" (Type: ${subsectionType}).
+Your primary task is to assess compliance by comparing the SECTION CONTENT *directly* against the structure, detail, and information in the provided SIMILAR EXAMPLES (which represent compliant documents).
+Use the SIMILAR EXAMPLES as the sole basis for determining what constitutes a compliant standard for this section type.
+Identify specific deviations, omissions, or lack of clarity in the SECTION CONTENT when compared ONLY to these benchmarks.
+Check the FULL DOCUMENT CONTEXT only to verify if information seemingly missing from the SECTION CONTENT is present elsewhere. If it is, do NOT critique the current section for that omission unless its absence here makes this section misleading or unclear.
+Phrase feedback as very concise (1-2 sentences max), actionable critique points directed at the author, citing deviations from *standard requirements* or *patterns observed in compliant documents*. Limit critique to 2-3 most important points.
+**CRITICAL: Do NOT use the words 'example', 'examples', or 'benchmark' in your response's critiquePoints.** Instead of saying "Lacks X shown in examples", say "Lacks the standard breakdown for X typically found in compliant documents" or "Does not specify Y, a standard requirement for this section." Do not mention the comparison process.`;
+
+    console.log(`[Agent ${sectionTitle}] Calling OpenAI with type-specific prompt (${subsectionType})...`);
     const analysis = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
       messages: [{
         role: "system",
-        content: `You are an expert compliance officer analyzing financial document sections. Your task is to:
-
-1. First understand the full document context by reviewing all sections
-2. Then analyze each section in isolation, but with that full context in mind
-3. For each section:
-   - If it's a general/introductory section: Accept cross-references as sufficient
-   - If it's a specific/detailed section: Require complete information, even if some details exist elsewhere
-4. Only suggest improvements that would actually help investors understand the section better
-5. Never suggest repeating information that's already well-covered in other sections
-
-Return your analysis as JSON with:
-- isCompliant (boolean)
-- score (0-100)
-- contextualFeedback (object with compliant and nonCompliant arrays)
-- suggestions (array of specific improvements if needed)
-- crossReferences (array of sections that contain related information)
-- sectionType (string: "general" or "specific")`
+        content: systemPrompt // Use the constructed prompt
       }, {
         role: "user",
         content: `SECTION TITLE: ${sectionTitle}
 SECTION CONTENT:
 ${sectionContent}
+${contextString}
 
-DOCUMENT CONTEXT:
-${Array.from(this.documentContext.entries())
-  .filter(([title]) => title !== sectionTitle)
-  .map(([title, content]) => `${title}:\n${content}`)
-  .join('\n\n')}
-
-SIMILAR EXAMPLES:
+SIMILAR EXAMPLES (Use as the *only* compliance benchmark):
 ${searchResults.matchedExample}
 
-Analyze this section in the context of the full document and provide feedback about compliance and completeness.`
+Based ONLY on comparison with the SIMILAR EXAMPLES (checking context for omissions), return JSON with:
+1. isCompliant (boolean): True if SECTION CONTENT meets the standard shown in the examples, False otherwise.
+2. critiquePoints (array of strings, max 3): Concise critique points based *only* on deviations from the standard requirements demonstrated by the examples. **Do NOT use the word 'example' or 'benchmark' in these strings.**
+3. score (0-100): Score reflecting compliance level compared to the examples.
+4. analysis (string): Brief internal reasoning for compliance assessment based on comparison.`
       }],
       response_format: { type: "json_object" }
     });
+    console.log(`[Agent ${sectionTitle}] OpenAI call complete.`);
 
     try {
-      const content = analysis.choices[0].message.content;
-      if (!content) {
+      const rawContent = analysis.choices[0].message.content;
+      console.log(`[Agent ${sectionTitle}] Raw OpenAI Response Content:\n`, rawContent);
+      if (!rawContent) {
         throw new Error('No content in OpenAI response');
       }
-      const result = JSON.parse(content);
       
-      // Enhance suggestions with cross-references
-      const enhancedSuggestions = result.suggestions?.map((suggestion: string) => {
-        if (result.crossReferences?.length > 0) {
-          return `${suggestion} (See sections: ${result.crossReferences.join(', ')})`;
-        }
-        return suggestion;
-      });
+      console.log(`[Agent ${sectionTitle}] Attempting JSON parse...`);
+      const result = JSON.parse(rawContent);
+      console.log(`[Agent ${sectionTitle}] JSON Parsed Result:`, JSON.stringify(result));
+      
+      // Use critiquePoints as the suggestions
+      const suggestions = result.critiquePoints || [];
+      const isCompliant = suggestions.length === 0 ? result.isCompliant ?? true : false;
 
+      console.log(`[Agent ${sectionTitle}] Processed Result: compliant=${isCompliant}, score=${result.score}, suggestions=${suggestions.length}`);
       return {
-        isCompliant: result.isCompliant,
+        isCompliant: isCompliant,
         score: result.score,
-        suggestions: enhancedSuggestions?.length > 0 ? enhancedSuggestions : undefined,
-        contextualFeedback: result.contextualFeedback,
+        suggestions: suggestions,
         metadata: {
-          vectorScore: searchResults.score,
-          crossReferences: result.crossReferences
-        },
-        sectionType: result.sectionType
+          analysis: result.analysis,
+          vectorScore: searchResults.score
+        }
       };
     } catch (e) {
-      console.error('Failed to parse analysis:', e);
+      console.error(`[Agent ${sectionTitle}] Failed to parse analysis JSON:`, e);
+      // Log the content that failed to parse
+      console.error(`[Agent ${sectionTitle}] Content that failed parsing:`, analysis.choices[0].message.content); 
       return {
         isCompliant: false,
         score: 0,
@@ -988,11 +1007,6 @@ Analyze this section in the context of the full document and provide feedback ab
         sectionType: 'general'
       };
     }
-  }
-
-  // Method to clear document context when starting a new document
-  clearContext() {
-    this.documentContext.clear();
   }
 }
 

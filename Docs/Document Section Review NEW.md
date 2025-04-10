@@ -95,7 +95,7 @@ DocumentSectionReview (Page Component - Fetches Doc Content & ALL Comments)
         └── SubsectionDisplayArea (Mapped from section.subsections)
             ├── Subsection Title
             ├── ReadOnly Subsection Content Display
-            ├── AIFeedback (Placeholder/Conditional)
+            ├── AIFeedback (Reads subsection-specific results from context metadata)
             └── CommentsSection (Receives initialComments, handles posting & real-time updates)
 ```
 
@@ -160,6 +160,44 @@ const DocumentSectionReview = ({ documentId }: DocumentSectionReviewProps) => {
 // Handles deleting own comments (with optimistic update).
 ```
 
+#### AIFeedback (Component)
+```typescript
+// Uses useDocumentAnalysis() hook to access context state.
+// Finds the analysis result object for its parent section (e.g., 'sec1').
+// Extracts the specific analysis result for its own subsection from the parent's result.metadata.subsectionResults array.
+// Displays loading/error states or the specific suggestions/critique points for the subsection.
+```
+
+#### analysisService.ts (Conceptual - Backend Service)
+```typescript
+// Receives data for a main section (including its subsections).
+// Processes subsections sequentially to enable context awareness.
+// For each subsection: 
+//   1. Performs a placeholder check (immediate fail if found).
+//   2. Selects the appropriate specialized agent (Risk, Financial, General, etc.).
+//   3. Calls the agent's analyze method, passing subsection content AND document context.
+//   4. Collects the detailed result object for the subsection.
+// Aggregates overall status/score for the main section.
+// Returns an aggregated result object containing:
+//   - Overall section compliance/score.
+//   - Aggregated list of all suggestions (with subsection titles prepended).
+//   - Metadata containing the array of detailed subsection result objects.
+```
+
+#### GeneralAnalysisAgent (Conceptual - Backend Agent)
+```typescript
+// Receives subsection title, content, and document context map.
+// Fetches relevant benchmark examples from Pinecone ('exchangedocs').
+// Constructs a prompt for the LLM (GPT-4) instructing it to:
+//   - Act as an exchange reviewer.
+//   - Compare subsection content ONLY against Pinecone benchmarks for compliance.
+//   - Check document context map ONLY to verify potential omissions.
+//   - Generate concise (1-2 sentence) reviewer critique points based *only* on deviations from benchmarks.
+//   - Explicitly forbid mentioning 'example' or 'benchmark' in the output critique.
+// Parses the LLM's JSON response containing isCompliant, critiquePoints, score.
+// Returns the result including critiquePoints mapped to the 'suggestions' field.
+```
+
 ### 3. Context Providers
 *(DocumentAnalysisProvider might still be relevant for AI features but isn't the primary data source)*
 ```typescript
@@ -184,7 +222,7 @@ interface DocumentAnalysisState {
 - `section_version_history` - Stores historical versions of content (likely linked per subsection/field).
 - `profiles` - Potentially redundant for comment display; stores user info linked via `user_id`.
 - `users` (Supabase Auth) - For authentication and `user_id`.
-- `analysis_results` (Placeholder) - Future table for storing AI analysis results per subsection/version.
+- `analysis_results` (Placeholder) - Future table for storing detailed AI analysis results per subsection/version.
 
 ### 2. Key Database Operations
 ```typescript
@@ -253,6 +291,21 @@ const updateDocumentStatus = async (documentId: string, status: string) => {
     .eq('instrumentid', documentId);
 };
 ```
+
+## AI Analysis Logic
+
+1.  **Trigger:** Initiated per main section by `DocumentAnalysisButton` in the `SectionHeader`.
+2.  **Data Sent:** The button sends the main section's ID, title, status, and its array of `subsections` (each with ID, title, content) to the `/api/ai/analyze-document` endpoint.
+3.  **Backend Processing (`analysisService.ts`):**
+    *   Processes subsections sequentially.
+    *   **Placeholder Check:** Immediately fails subsections containing placeholders (e.g., `[TBD]`, `XXX`).
+    *   **Agent Selection:** Chooses a specialized agent (Risk, Financial, General) based on subsection type.
+    *   **Benchmark Fetch:** Retrieves relevant compliant examples from the Pinecone `exchangedocs` index based on subsection content.
+    *   **Contextual Analysis:** The agent analyzes the subsection content, comparing it against the Pinecone benchmarks, while also considering the content of other subsections (passed as context) to avoid flagging valid cross-references as omissions.
+    *   **Critique Generation:** The agent generates concise, reviewer-style critique points based *only* on deviations from the Pinecone benchmarks, avoiding generic advice or mentioning the examples directly.
+    *   **Result Aggregation:** Results (compliance, score, critique) from each subsection are collected. An overall status/score is calculated for the main section. The detailed subsection results are stored in a `metadata.subsectionResults` array within the main section's result object.
+4.  **Streaming & Context Update:** The aggregated result object is streamed back to the client (`DocumentAnalysisButton`), which dispatches it to the `DocumentAnalysisContext` (`SET_SECTION_RESULT`).
+5.  **UI Display (`AIFeedback`):** Each `AIFeedback` component reads the context, finds the aggregated result for its parent section, looks inside the `metadata.subsectionResults` array, extracts the specific result matching its own `subsectionId`, and displays the specific critique points and compliance status for that individual subsection.
 
 ## Error Handling
 

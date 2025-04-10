@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Lock as LockIcon, UserCircle, MessageSquare, Bot, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Lock as LockIcon, UserCircle, MessageSquare, Bot, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Trash2, Loader2, Copy } from 'lucide-react';
 import { Editor } from '../../../components/ui/editor';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
+import DocumentAnalysisButton from '@/components/documents/DocumentAnalysisButton';
 
 // --- Interfaces ---
 interface Subsection {
@@ -49,18 +50,20 @@ interface DocumentSectionReviewProps {
 // --- Sub-Components ---
 
 // Top Bar Component
-const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar }: {
+const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar, onViewFullDocument, onExportDocument }: {
   userName: string;
   isSidebarCollapsed: boolean;
   toggleSidebar: () => void;
+  onViewFullDocument: () => void;
+  onExportDocument: () => void;
 }) => (
-  <div className="flex justify-between items-center p-4 border-b bg-white sticky top-0 z-10">
+  <div className="flex justify-between items-center p-4 border-b bg-white sticky top-0 z-10 h-16">
     <div className="flex items-center gap-2">
       <Button variant="ghost" size="icon" onClick={toggleSidebar} className="mr-2">
         {isSidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
       </Button>
-      <Button variant="outline">View Full Document</Button>
-      <Button variant="outline">Export</Button>
+      <Button variant="outline" onClick={onViewFullDocument}>View Full Document</Button>
+      <Button variant="outline" onClick={onExportDocument}>Export</Button>
     </div>
     <div className="flex items-center gap-2">
       <Avatar className="h-8 w-8">
@@ -177,12 +180,16 @@ const TableOfContents = ({ sections, activeSectionId, onSectionSelect, isCollaps
         { id: 'sec6_merjlistingapplication1styearfees', title: 'First Year Fees' },
         { id: 'sec6_marketingcosts', title: 'Marketing Costs' },
         { id: 'sec6_annualfees', title: 'Annual Fees' },
+        { id: 'sec6_commissionforsubscription', title: 'Commission for Subscription' },
+        { id: 'sec6_payingagent', title: 'Paying Agent' },
+        { id: 'sec6_listingdocuments', title: 'Listing Documents' },
+        { id: 'sec6_complianceapproved', title: 'Compliance Approved' },
       ]},
     ];
 
   return (
     <ScrollArea className={cn(
-      "border-r h-[calc(100vh-4rem)] bg-gray-50 sticky top-[65px] transition-all duration-300 ease-in-out",
+      "border-r h-[calc(100vh-4rem)] bg-gray-50 sticky top-16 transition-all duration-300 ease-in-out",
       isCollapsed ? "w-0 opacity-0 p-0 border-none" : "w-72 p-4 opacity-100"
       )}>
       {!isCollapsed && (
@@ -250,22 +257,64 @@ const TableOfContents = ({ sections, activeSectionId, onSectionSelect, isCollaps
 };
 
 // Section Header Component
-const SectionHeader = ({ section, userName }: {
+const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggleExpand }: {
   section: Section;
   userName: string;
+  onUpdateStatus: (sectionId: string, newStatus: Section['status']) => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }) => (
-  <div className="flex justify-between items-center mb-2 p-3 bg-gray-50 rounded-t-md border-b">
+  // Make the header clickable to toggle expansion
+  <div 
+    className="flex justify-between items-center p-3 bg-gray-50 rounded-t-md border-b cursor-pointer hover:bg-gray-100 transition-colors"
+    onClick={onToggleExpand} // Toggle on click
+  >
     <div className="flex items-center gap-2">
-      {/* Icon based on section type could go here */}
-      <h3 className="text-md font-semibold">{section.title} <span className="text-sm font-normal text-gray-500">({section.status})</span></h3>
+      {/* Add Chevron icon */} 
+      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-600"/> : <ChevronRight className="h-4 w-4 text-gray-600"/>}
+      <h3 className="text-md font-semibold select-none">{section.title} <span className="text-sm font-normal text-gray-500">({section.status})</span></h3>
     </div>
-    <div className="flex items-center gap-2">
+    {/* Stop propagation on buttons so clicking them doesn't toggle collapse */}
+    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}> 
       <Avatar className="h-6 w-6">
         {/* <AvatarImage src={userAvatarUrl} /> */}
         <AvatarFallback className="text-xs">{userName.substring(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
-      <Button variant="outline" size="sm"><Bot className="h-4 w-4 mr-1"/> AI Analyse</Button>
-      <Button variant="destructive" size="sm"><LockIcon className="h-4 w-4 mr-1"/> Lock</Button>
+      {/* AI Analysis Button */}
+      {/* Pass section data including subsections array */}
+      <DocumentAnalysisButton 
+        documentId={section.document_id} 
+        // Pass the current section object, which now includes the subsections array
+        sections={[{
+            id: section.id, 
+            title: section.title,
+            status: section.status,
+            subsections: section.subsections // Pass the actual subsections array
+            // Remove the combined 'content' field
+        }]}
+      />
+      {/* Show EITHER Approve OR Undo/Reject Button */} 
+      {section.status === 'approved' ? (
+        // Show Undo/Reject button if already approved
+        <Button 
+          variant="outline"
+          size="sm"
+          className="bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200"
+          onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'in_progress'); }}
+        >
+          <XCircle className="h-4 w-4 mr-1"/> Re-open / Reject
+        </Button>
+      ) : section.status !== 'locked' ? (
+        // Show Approve button if not approved and not locked
+        <Button 
+          variant="outline"
+          size="sm"
+          className="bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
+          onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'approved'); }}
+        >
+          <CheckCircle className="h-4 w-4 mr-1"/> Approve
+        </Button>
+      ) : null } 
     </div>
   </div>
 );
@@ -463,7 +512,7 @@ const CommentsSection = ({ subsectionId, documentId, initialComments }: {
                 variant="ghost"
                 size="icon"
                 className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" // Position and hide until hover
-                onClick={() => handleDeleteComment(comment.id)}
+                onClick={(e) => { e.stopPropagation(); handleDeleteComment(comment.id); }}
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
@@ -487,76 +536,203 @@ const CommentsSection = ({ subsectionId, documentId, initialComments }: {
 
 // AI Feedback Component
 const AIFeedback = ({ subsectionId, documentId }: { subsectionId: string; documentId: string }) => {
-  // TODO: Fetch AI feedback based on subsectionId / documentId / version
-  const analysisResult = null; // Placeholder for fetched feedback
-  const hasFeedback = !!analysisResult; // Determine if feedback exists
+  const { state: analysisState } = useDocumentAnalysis();
+  const parentSectionId = subsectionId.split('_')[0]; 
+  
+  // Debug logging
+  console.log(`[AIFeedback-${subsectionId}] Rendering. Full analysisState:`, analysisState);
 
-  // --- MOCK DISPLAY LOGIC --- 
-  // Show mock feedback only for the very first subsection ('sec1_documentname')
-  const showMockFeedback = subsectionId === 'sec1_documentname'; 
-  // --- END MOCK DISPLAY LOGIC ---
+  const sectionState = analysisState?.sectionStates?.[parentSectionId];
+  console.log(`[AIFeedback-${subsectionId}] Parent sectionState:`, sectionState);
+  
+  const sectionAnalysisResult = sectionState?.result; 
+  console.log(`[AIFeedback-${subsectionId}] Parent section result:`, sectionAnalysisResult);
 
-  if (!showMockFeedback && !hasFeedback) return null; // Hide if not the target subsection and no real feedback
+  // Log metadata separately
+  const metadata = sectionAnalysisResult?.metadata;
+  console.log(`[AIFeedback-${subsectionId}] Metadata:`, metadata);
+  
+  // Log subsectionResults array specifically
+  const subsectionResultsArray = metadata?.subsectionResults;
+  console.log(`[AIFeedback-${subsectionId}] Subsection Results Array:`, subsectionResultsArray);
+
+  // --- Find the specific result for THIS subsection using multiple strategies --- 
+  let subsectionResult: any = null; // Use 'any' temporarily for robust access
+  
+  // Strategy 1: Check metadata.subsectionResults array (ideal case)
+  if (subsectionResultsArray && Array.isArray(subsectionResultsArray)) {
+    subsectionResult = subsectionResultsArray.find(
+      (subRes: any) => {
+        console.log(`[AIFeedback-${subsectionId}] Comparing: '${subRes?.subsectionId}' === '${subsectionId}'`);
+        return subRes?.subsectionId === subsectionId;
+      }
+    );
+    console.log(`[AIFeedback-${subsectionId}] Strategy 1 - Found in metadata.subsectionResults:`, subsectionResult);
+  }
+  
+  // Strategy 2: If this is the first/only subsection in section, try using the section result directly
+  if (!subsectionResult && sectionAnalysisResult) {
+    const isFirstSubsection = subsectionId.startsWith(parentSectionId) && 
+                            subsectionId.split('_').length === 2;
+    
+    if (isFirstSubsection) {
+      console.log(`[AIFeedback-${subsectionId}] Strategy 2 - Using section result directly (first subsection):`, sectionAnalysisResult);
+      subsectionResult = {
+        subsectionId: subsectionId,
+        isCompliant: sectionAnalysisResult.isCompliant,
+        score: sectionAnalysisResult.score,
+        suggestions: sectionAnalysisResult.suggestions || []
+      };
+    }
+  }
+  
+  // Strategy 3: Check if section result has a suggestion specifically mentioning this subsection title
+  if (!subsectionResult && sectionAnalysisResult?.suggestions && Array.isArray(sectionAnalysisResult.suggestions)) {
+    // Extract subsection name from ID (e.g., "generalinfo" from "sec1_generalinfo")
+    const subsectionName = subsectionId.split('_')[1] || '';
+    
+    // Filter suggestions that mention this subsection
+    const relevantSuggestions = sectionAnalysisResult.suggestions.filter(
+      (suggestion: string) => suggestion.toLowerCase().includes(subsectionName.toLowerCase())
+    );
+    
+    if (relevantSuggestions.length > 0) {
+      console.log(`[AIFeedback-${subsectionId}] Strategy 3 - Found relevant suggestions from section level:`, relevantSuggestions);
+      subsectionResult = {
+        subsectionId: subsectionId,
+        isCompliant: false, // If there are suggestions, mark as non-compliant
+        score: 50, // Default middle score
+        suggestions: relevantSuggestions
+      };
+    }
+  }
+  
+  // --- End Find Strategies --- 
+
+  const isLoading = analysisState?.isAnalyzing && analysisState?.currentSection === parentSectionId;
+  const error = analysisState?.error; 
+
+  // Display if loading, error occurred, OR if we found a specific result for this subsection
+  const shouldDisplay = isLoading || error || subsectionResult;
+  console.log(`[AIFeedback-${subsectionId}] shouldDisplay:`, shouldDisplay, 
+    { isLoading, error, hasResult: !!subsectionResult });
+
+  // Re-add the copy handler function
+  const handleCopyCritique = (critiqueText: string) => {
+    navigator.clipboard.writeText(critiqueText)
+      .then(() => { alert("Critique copied!"); })
+      .catch(err => { console.error("Failed to copy critique:", err); alert("Failed to copy critique."); });
+  };
+
+  if (!shouldDisplay) return null;
 
   return (
     <div className="mt-4 p-3 border-t bg-blue-50 rounded-b-md"> 
-       <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><Bot className="h-4 w-4 text-blue-600"/> AI Feedback:</h4>
-       {/* If real feedback exists, show it */} 
-       {hasFeedback ? (
-          <div className="text-sm text-gray-700">
-             <p>AI analysis data would go here.</p>
+       <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><Bot className="h-4 w-4 text-blue-600"/> AI Feedback</h4>
+       
+       {isLoading && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 animate-pulse">
+             <Loader2 className="h-4 w-4 animate-spin" />
+             <span>Analyzing...</span>
           </div>
-       ) 
-       /* Otherwise, if it's the target subsection for mock display, show mock data */
-       : showMockFeedback ? (
-         <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-            <li>Check for grammar and spelling errors.</li>
-            <li>Ensure the content is clear and concise.</li>
-            <li>Consider adding more details to support your claims.</li>
-         </ul>
-       )
-       /* Otherwise, render nothing (shouldn't be reached due to top check, but safe fallback) */
-       : null}
+       )}
+
+       {error && !isLoading && (
+          <div className="text-sm text-red-600">
+             Error during analysis: {error}
+          </div>
+       )}
+       
+       {/* Display feedback based on the SPECIFIC subsectionResult */}
+       {subsectionResult && !isLoading && !error && (
+          <div className="text-sm text-gray-700 space-y-2">
+            {/* Compliance Status & Score */}
+            <p>
+                Status: 
+                <span className={cn("font-medium", subsectionResult.isCompliant ? "text-green-600" : "text-red-600")}>
+                   {subsectionResult.isCompliant ? "Compliant" : "Requires Attention"}
+                </span>
+                {subsectionResult.score !== undefined && ` (Score: ${subsectionResult.score})`}
+            </p>
+            {/* Suggestions / Critique List */}
+            {subsectionResult.suggestions && subsectionResult.suggestions.length > 0 ? (
+              <div>
+                <p className="font-medium">Critique:</p>
+                <ul className="list-disc list-inside space-y-1 pl-2">
+                   {subsectionResult.suggestions.map((critique: string, index: number) => (
+                      <li key={index} className="flex justify-between items-start group">
+                        <span>{critique}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" onClick={() => handleCopyCritique(critique)} title="Copy critique">
+                           <Copy className="h-4 w-4 text-blue-600" />
+                        </Button>
+                      </li> 
+                   ))}
+                </ul>
+              </div>
+            // Fallback messages if no suggestions
+            ) : subsectionResult.isCompliant ? (
+                 <p className="text-green-600 italic">No specific issues found.</p>
+            ) : (
+                 <p className="text-yellow-600 italic">Requires attention, but no specific suggestions provided.</p>
+            )}
+          </div>
+       )}
+       {/* Fallback if analysis ran but this subsection's result is missing */}
+       {!subsectionResult && sectionState?.isAnalyzed && !isLoading && !error && (
+           <p className="text-sm text-gray-500 italic">Analysis complete, specific feedback unavailable.</p>
+       )}
     </div>
   );
 };
 
 // Single Section Display Component
-const SectionDisplay = ({ section, commentsBySubsection, onSaveChanges, userName }: {
+const SectionDisplay = ({ section, commentsBySubsection, onUpdateStatus, userName, isExpanded, onToggleExpand }: {
   section: Section;
-  commentsBySubsection: Record<string, Comment[]>; // Receive grouped comments
-  onSaveChanges: (sectionId: string) => void;
+  commentsBySubsection: Record<string, Comment[]>; 
+  onUpdateStatus: (sectionId: string, newStatus: Section['status']) => void;
   userName: string;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }) => (
-  <div id={section.id} className="mb-6 border rounded-md bg-white shadow-sm">
-    <SectionHeader section={section} userName={userName} />
-    <div className="p-4 space-y-4">
-      <p className="text-xs text-gray-500 mb-2">Review the content below.</p>
-      {section.subsections.map(subsection => {
-        // Get comments specifically for this subsection
-        const subsectionComments = commentsBySubsection[subsection.id] || []; 
-        return (
-          <div key={subsection.id} className="p-3 border rounded bg-gray-50/50 relative group">
-            <h4 className="text-sm font-medium mb-1 text-gray-700">{subsection.title}</h4>
-            <div className="text-sm text-gray-900 whitespace-pre-wrap">
-              {subsection.content || "[No content]"}
+  <div id={section.id} className="mb-6 border rounded-md bg-white shadow-sm overflow-hidden"> {/* Added overflow-hidden */} 
+    <SectionHeader 
+      section={section} 
+      userName={userName} 
+      onUpdateStatus={onUpdateStatus} 
+      // Pass down expansion state and toggle handler
+      isExpanded={isExpanded}
+      onToggleExpand={onToggleExpand}
+    />
+    {/* Conditionally render the content area */} 
+    {isExpanded && (
+      <div className="p-4 space-y-4">
+        <p className="text-xs text-gray-500 mb-2">Review the content below.</p>
+        {section.subsections.map(subsection => {
+          // Get comments specifically for this subsection
+          const subsectionComments = commentsBySubsection[subsection.id] || []; 
+          return (
+            <div key={subsection.id} className="p-3 border rounded bg-gray-50/50 relative group">
+              <h4 className="text-sm font-medium mb-1 text-gray-700">{subsection.title}</h4>
+              <div className="text-sm text-gray-900 whitespace-pre-wrap">
+                {subsection.content || "[No content]"}
+              </div>
+              <AIFeedback 
+                subsectionId={subsection.id} 
+                documentId={section.document_id} 
+              />
+              <div className="mt-2 border-t pt-2">
+                 <CommentsSection 
+                   subsectionId={subsection.id} 
+                   documentId={section.document_id} 
+                   // Pass down the pre-fetched comments
+                   initialComments={subsectionComments} 
+                 />
+              </div>
             </div>
-            <AIFeedback 
-              subsectionId={subsection.id} 
-              documentId={section.document_id} 
-            />
-            <div className="mt-2 border-t pt-2">
-               <CommentsSection 
-                 subsectionId={subsection.id} 
-                 documentId={section.document_id} 
-                 // Pass down the pre-fetched comments
-                 initialComments={subsectionComments} 
-               />
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    )}
   </div>
 );
 
@@ -571,7 +747,20 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
   const supabase = getSupabaseClient();
   const [userName, setUserName] = useState('User'); // Placeholder for user name
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Add state for sidebar collapse
-  const [allComments, setAllComments] = useState<Record<string, Comment[]>>({}); // Store comments grouped by subsectionId
+  const [allComments, setAllComments] = useState<Record<string, Comment[]>>({});
+  const [expandedContentSections, setExpandedContentSections] = useState<Record<string, boolean>>({}); // State for main content collapse
+
+  // Initialize expanded state for content (e.g., start all collapsed or first one open)
+  useEffect(() => {
+      if (sections.length > 0) {
+         // Start with first section expanded, rest collapsed
+         const initialExpansionState: Record<string, boolean> = {};
+         sections.forEach((section, index) => {
+             initialExpansionState[section.id] = index === 0; // Expand only the first section
+         });
+         setExpandedContentSections(initialExpansionState);
+      }
+  }, [sections]); // Run when sections data changes
 
   // Fetch Document Data AND All Comments
   useEffect(() => {
@@ -698,6 +887,10 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
             { id: 'sec6_merjlistingapplication1styearfees', title: 'First Year Fees' },
             { id: 'sec6_marketingcosts', title: 'Marketing Costs' },
             { id: 'sec6_annualfees', title: 'Annual Fees' },
+            { id: 'sec6_commissionforsubscription', title: 'Commission for Subscription' },
+            { id: 'sec6_payingagent', title: 'Paying Agent' },
+            { id: 'sec6_listingdocuments', title: 'Listing Documents' },
+            { id: 'sec6_complianceapproved', title: 'Compliance Approved' },
           ]},
         ];
 
@@ -706,20 +899,23 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
             const subsections: Subsection[] = mainSection.subsections.map(sub => ({
               id: sub.id,
               title: sub.title,
-              content: documentData[sub.id] || '[No content]' // Get content for this specific field
+              content: documentData[sub.id] || '[No content]' 
             }));
 
-            const status = mainSection.statusField ? documentData[mainSection.statusField] || 'pending' : 'pending';
+            // FIX: Default status to 'pending'. Do NOT read from secX_status field for the keyword status.
+            // const status = mainSection.statusField ? documentData[mainSection.statusField] || 'pending' : 'pending';
+            const status: Section['status'] = 'pending'; // Default all to pending for now
+            // TODO: Implement fetching actual keyword status from 'document_section_status' table if needed.
 
             return {
               id: mainSection.id,
               document_id: documentId,
               title: mainSection.title, 
-              status: status as Section['status'],
+              status: status, // Use the default or later fetched keyword status
               version: 1, // Placeholder
               created_at: documentData.created_at || new Date().toISOString(),
               updated_at: documentData.updated_at || new Date().toISOString(),
-              subsections: subsections // Assign the created subsections array
+              subsections: subsections 
             };
         });
 
@@ -739,41 +935,53 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
     fetchDocumentAndComments(); // Call the updated function
   }, [documentId, supabase]);
 
-  // Repurpose or remove handleSaveChanges
-  const handleSaveChanges = useCallback(async (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId);
-    if (!section) return;
+  // Handler for updating section status
+  const handleUpdateStatus = useCallback(async (sectionId: string, newStatus: Section['status']) => {
+    const currentSection = sections.find(s => s.id === sectionId);
+    if (!currentSection) return;
 
-    console.log("Review action triggered for section:", sectionId, "Current Status:", section.status);
-    // Implement review actions here, e.g., updating status in 'document_section_status' table
-    // Example: Update status to 'in_progress' if it was 'pending'
-    /*
-    if (section.status === 'pending') {
-      try {
-        const { error } = await supabase
-          .from('document_section_status') // Assuming this table tracks review status per main section
-          .upsert({
-             document_id: documentId,
-             section_id: sectionId,
-             status: 'in_progress', 
-             updated_at: new Date().toISOString(),
-             // updated_by: user?.id // Add user ID
-           }, { onConflict: 'document_id, section_id' })
-          .select();
-        
-        if (error) throw error;
+    // Optimistic UI Update
+    setSections(prevSections => 
+      prevSections.map(s => 
+        s.id === sectionId ? { ...s, status: newStatus } : s
+      )
+    );
 
-        // Update local state
-        setSections(prevSections => prevSections.map(s => 
-          s.id === sectionId ? { ...s, status: 'in_progress' } : s
-        ));
+    // Construct the status column name (e.g., 'sec1_status')
+    const statusColumn = `${sectionId}_status`;
 
-      } catch (err) {
-        console.error("Error updating section status:", err);
+    console.log(`[Status] Updating ${sectionId} to ${newStatus} (column: ${statusColumn})`);
+
+    try {
+      const { error } = await supabase
+        .from('listingdocumentdirectlisting')
+        .update({ 
+            [statusColumn]: newStatus,
+            updated_at: new Date().toISOString(),
+         })
+        .eq('instrumentid', documentId);
+
+      if (error) {
+        console.error(`[Status] Error updating status for ${sectionId}:`, error);
+        // Revert optimistic update on error
+        setSections(prevSections => 
+          prevSections.map(s => 
+            s.id === sectionId ? { ...s, status: currentSection.status } : s // Revert to original status
+          )
+        );
+        // TODO: Show user-facing error message
+      } else {
+        console.log(`[Status] Successfully updated ${sectionId} to ${newStatus}`);
       }
+    } catch (err) {
+        console.error(`[Status] Unexpected error during status update for ${sectionId}:`, err);
+         // Revert optimistic update on unexpected error
+        setSections(prevSections => 
+          prevSections.map(s => 
+            s.id === sectionId ? { ...s, status: currentSection.status } : s
+          )
+        );
     }
-    */
-
   }, [sections, documentId, supabase]);
 
   // Handle Section Selection for Scrolling
@@ -789,6 +997,150 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
      setIsSidebarCollapsed(prev => !prev);
   }, []);
 
+  // Handler to generate and view the full document HTML
+  const handleViewFullDocument = useCallback(() => {
+    console.log("[ViewFullDoc] Generating preview...");
+    if (!sections || sections.length === 0) {
+        console.warn("[ViewFullDoc] No sections data available to generate preview.");
+        alert("Document data is not loaded yet.");
+        return;
+    }
+
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Document Preview: ${documentId}</title>
+        <style>
+          body { font-family: sans-serif; line-height: 1.6; padding: 2rem; max-width: 800px; margin: auto; }
+          h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; color: #333; }
+          h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; font-size: 2em; }
+          h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; font-size: 1.5em; }
+          h3 { font-size: 1.2em; color: #555; }
+          pre { background-color: #f8f8f8; padding: 1em; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; }
+        </style>
+      </head>
+      <body>
+        <h1>Document Preview</h1>
+    `;
+
+    try {
+      sections.forEach(section => {
+        htmlContent += `<h2>${section.title} (Status: ${section.status})</h2>\n`;
+        section.subsections.forEach(subsection => {
+          // Basic escaping for HTML characters within the content
+          const escapedContent = subsection.content
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;") || "[No content]";
+              
+          htmlContent += `<h3>${subsection.title}</h3>\n`;
+          htmlContent += `<pre>${escapedContent}</pre>\n`; 
+        });
+      });
+
+      htmlContent += `
+        </body>
+        </html>
+      `;
+      
+      console.log("[ViewFullDoc] HTML Generated. Attempting to open window...");
+      // console.log(htmlContent); // Uncomment to debug generated HTML
+
+      const newWindow = window.open("", "_blank"); // Explicitly target blank
+      if (newWindow) {
+        newWindow.document.open(); // Explicit open
+        newWindow.document.write(htmlContent);
+        newWindow.document.close(); 
+        console.log("[ViewFullDoc] New window opened and content written.");
+      } else {
+        console.error("[ViewFullDoc] window.open() failed. Likely blocked by popup blocker.");
+        alert("Could not open new window. Please check your browser's popup blocker settings.");
+      }
+    } catch (error) {
+        console.error("[ViewFullDoc] Error during HTML generation or window writing:", error);
+        alert("An error occurred while generating the document preview.");
+    }
+  }, [sections, documentId]);
+
+  // Handler to generate and download the document as HTML
+  const handleExportDocument = useCallback(() => {
+    console.log("[ExportDoc] Generating HTML...");
+    if (!sections || sections.length === 0) {
+        console.warn("[ExportDoc] No sections data available.");
+        alert("Document data is not loaded yet.");
+        return;
+    }
+
+    // Re-use the HTML generation logic from handleViewFullDocument
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Document: ${documentId}</title>
+        <style>
+          body { font-family: sans-serif; line-height: 1.6; padding: 2rem; max-width: 800px; margin: auto; }
+          h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; color: #333; }
+          h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; font-size: 2em; }
+          h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; font-size: 1.5em; }
+          h3 { font-size: 1.2em; color: #555; }
+          pre { background-color: #f8f8f8; padding: 1em; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; }
+        </style>
+      </head>
+      <body>
+        <h1>Document: ${documentId}</h1>
+    `;
+
+    try {
+      sections.forEach(section => {
+        htmlContent += `<h2>${section.title} (Status: ${section.status})</h2>\n`;
+        section.subsections.forEach(subsection => {
+          const escapedContent = subsection.content
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;").replace(/'/g, "&#039;") || "[No content]";
+          htmlContent += `<h3>${subsection.title}</h3>\n`;
+          htmlContent += `<pre>${escapedContent}</pre>\n`; 
+        });
+      });
+      htmlContent += `</body></html>`;
+
+      console.log("[ExportDoc] HTML Generated. Triggering download...");
+
+      // Create a Blob from the HTML string
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' }); // Set type to text/html
+
+      // Create a temporary URL
+      const url = URL.createObjectURL(blob);
+
+      // Create a temporary anchor element
+      const link = document.createElement("a");
+      link.href = url;
+      const fileName = `document-${documentId}.html`; // Change extension to .html
+      link.download = fileName; 
+
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up
+      URL.revokeObjectURL(url);
+
+      console.log(`[ExportDoc] Download triggered as ${fileName}.`);
+
+    } catch (error) {
+        console.error("[ExportDoc] Error during HTML generation or download:", error);
+        alert("An error occurred while exporting the document.");
+    }
+  }, [sections, documentId]);
+
+  // Handler to toggle content section expansion
+  const toggleContentSection = useCallback((sectionId: string) => {
+    setExpandedContentSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  }, []);
+
   // --- Render Logic ---
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
@@ -799,13 +1151,15 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
+    <div className="flex flex-col bg-gray-100 min-h-screen">
       <TopBar 
         userName={userName} 
         isSidebarCollapsed={isSidebarCollapsed} 
         toggleSidebar={toggleSidebar} 
+        onViewFullDocument={handleViewFullDocument} 
+        onExportDocument={handleExportDocument}
       /> 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-[calc(100vh-4rem)]">
         <TableOfContents
           sections={sections}
           activeSectionId={activeSectionId}
@@ -820,8 +1174,10 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
               key={section.id}
               section={section}
               commentsBySubsection={allComments}
-              onSaveChanges={handleSaveChanges}
+              onUpdateStatus={handleUpdateStatus}
               userName={userName}
+              isExpanded={!!expandedContentSections[section.id]}
+              onToggleExpand={() => toggleContentSection(section.id)}
             />
           ))}
         </main>

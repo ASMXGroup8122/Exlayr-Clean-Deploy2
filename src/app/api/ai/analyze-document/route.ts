@@ -19,96 +19,43 @@ export async function POST(request: NextRequest) {
     // Start processing in the background
     const processPromise = (async () => {
       try {
-        // Initialize document for analysis
-        const document: Document = {
-          id: documentId,
-          sections: [],
-          cycleId
+        // Define the progress update callback function
+        const sendProgress = async (update: { progress: number, stage?: string, currentSection?: string }) => {
+          try {
+            await writer.write(encoder.encode(JSON.stringify({
+              type: 'progress',
+              cycleId, // Include cycleId for context
+              ...update
+            }) + '\n'));
+          } catch (e) {
+            console.error("Error writing progress update to stream:", e);
+            // Decide if this should throw or just log
+          }
         };
 
         // Send initial progress
-        await writer.write(encoder.encode(JSON.stringify({
-          type: 'progress',
-          progress: 0,
-          stage: 'Starting analysis...',
-          currentSection: '',
+        await sendProgress({ progress: 0, stage: 'Initializing Analysis...' });
+
+        // Prepare document object for the service
+        const document: Document = {
+          id: documentId,
+          sections: sections, // Pass the full sections array received from client
           cycleId
-        }) + '\n'));
+        };
 
-        // Process and analyze each section individually
-        const analyzedSections = [];
-        for (let i = 0; i < sections.length; i++) {
-          const section = sections[i];
-          const progress = Math.round((i / sections.length) * 100);
-          
-          // Send progress update before analyzing
-          await writer.write(encoder.encode(JSON.stringify({
-            type: 'progress',
-            progress,
-            stage: `Analyzing section ${i + 1} of ${sections.length}`,
-            currentSection: section.id,
-            cycleId
-          }) + '\n'));
-
-          // Analyze this section
-          const sectionDocument: Document = {
-            id: documentId,
-            sections: [section],
-            cycleId
-          };
-
-          const sectionResult = await analyzeDocument(sectionDocument);
-          const analyzedSection = sectionResult.sections[0];
-          analyzedSections.push(analyzedSection);
-
-          // Send section result immediately
-          await writer.write(encoder.encode(JSON.stringify({
-            type: 'section_complete',
-            sectionId: section.id,
-            cycleId,
-            analysisResult: {
-              isCompliant: analyzedSection.isCompliant,
-              score: analyzedSection.score,
-              suggestions: analyzedSection.suggestions,
-              metadata: analyzedSection.metadata
-            }
-          }) + '\n'));
-        }
-
-        // Calculate final statistics
-        const compliantSections = analyzedSections.filter(r => r.isCompliant).length;
-        const nonCompliantSections = analyzedSections.filter(r => !r.isCompliant).length;
-        const partiallyCompliantSections = analyzedSections.filter(r => !r.isCompliant && r.score > 0.5).length;
-        const overallCompliance = analyzedSections.every(r => r.isCompliant);
-
-        // Send completion progress
+        // Call analysis service ONCE, passing the progress callback
+        const analysisResults = await analyzeDocument(document, sendProgress);
+        
+        // Send final completion progress
+        await sendProgress({ progress: 100, stage: 'Analysis Complete' });
+        
+        // Send final results object (structure might need adjustment)
         await writer.write(encoder.encode(JSON.stringify({
-          type: 'progress',
-          progress: 100,
-          stage: 'Analysis complete',
-          currentSection: '',
-          cycleId
-        }) + '\n'));
-
-        // Send final results
-        await writer.write(encoder.encode(JSON.stringify({
-          type: 'result',
+          type: 'result', // Or use a specific 'analysis_complete' type
           cycleId,
-          sectionResults: analyzedSections.map(section => ({
-            sectionId: section.sectionId,
-            analysisResult: {
-              isCompliant: section.isCompliant,
-              score: section.score,
-              suggestions: section.suggestions,
-              metadata: section.metadata
-            }
-          })),
-          compliantSections,
-          partiallyCompliantSections,
-          nonCompliantSections,
-          overallCompliance
+          results: analysisResults // Send the complete result object
         }) + '\n'));
-
+        
       } catch (error) {
         console.error('Analysis error:', error);
         await writer.write(encoder.encode(JSON.stringify({

@@ -42,6 +42,7 @@ const initialState: DocumentAnalysisState = {
 
 // Reducer function
 function documentAnalysisReducer(state: DocumentAnalysisState, action: DocumentAnalysisAction): DocumentAnalysisState {
+  console.log("[Reducer] Action Received:", action.type, action);
   switch (action.type) {
     case 'START_ANALYSIS':
       return {
@@ -64,7 +65,16 @@ function documentAnalysisReducer(state: DocumentAnalysisState, action: DocumentA
         error: action.payload
       };
     case 'SET_SECTION_RESULT':
-      return {
+      console.log(`[Reducer] SET_SECTION_RESULT for ${action.payload.sectionId}. Current sectionStates:`, JSON.stringify(state.sectionStates));
+      console.log(`[Reducer] SET_SECTION_RESULT payload:`, JSON.stringify(action.payload));
+      
+      // Check for subsection results and log them specifically
+      const metadata = action.payload.result?.metadata;
+      const subsectionResults = metadata?.subsectionResults;
+      console.log(`[Reducer] SET_SECTION_RESULT metadata:`, metadata);
+      console.log(`[Reducer] SET_SECTION_RESULT subsectionResults:`, subsectionResults);
+      
+      const newState = {
         ...state,
         sectionStates: {
           ...state.sectionStates,
@@ -74,6 +84,8 @@ function documentAnalysisReducer(state: DocumentAnalysisState, action: DocumentA
           }
         }
       };
+      console.log(`[Reducer] SET_SECTION_RESULT for ${action.payload.sectionId}. New sectionStates:`, JSON.stringify(newState.sectionStates));
+      return newState;
     case 'ADD_INTERACTION':
       const sectionId = action.payload.sectionId;
       return {
@@ -87,10 +99,10 @@ function documentAnalysisReducer(state: DocumentAnalysisState, action: DocumentA
         }
       };
     case 'SET_ANALYZING':
-      return {
-        ...state,
-        isAnalyzing: action.payload
-      };
+      console.log(`[Reducer] SET_ANALYZING. Current state: ${state.isAnalyzing}, Payload: ${action.payload}`);
+      const newStateAnalyzing = { ...state, isAnalyzing: action.payload };
+      console.log(`[Reducer] SET_ANALYZING. New state: ${newStateAnalyzing.isAnalyzing}`);
+      return newStateAnalyzing;
     case 'SET_PROGRESS':
       return {
         ...state,
@@ -106,6 +118,7 @@ function documentAnalysisReducer(state: DocumentAnalysisState, action: DocumentA
         currentSection: undefined
       };
     default:
+      console.log("[Reducer] Unknown action type or default case.");
       return state;
   }
 }
