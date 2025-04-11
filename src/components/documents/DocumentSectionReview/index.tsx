@@ -14,6 +14,37 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import DocumentAnalysisButton from '@/components/documents/DocumentAnalysisButton';
 
+// Combine all styles into a single string at the top
+const combinedStyles = `
+  /* Pulsing section indicator styles */
+  @keyframes pulse {
+    0% { opacity: 0.3; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.3; transform: scale(0.95); }
+  }
+  
+  .section-analyzing-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #3b82f6;
+    margin-left: 8px;
+    animation: pulse 1.5s infinite ease-in-out;
+  }
+
+  /* Shimmer animation */
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+`;
+
 // --- Interfaces ---
 interface Subsection {
   id: string; // e.g., 'sec1_generalinfo'
@@ -263,61 +294,106 @@ const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggle
   onUpdateStatus: (sectionId: string, newStatus: Section['status']) => void;
   isExpanded: boolean;
   onToggleExpand: () => void;
-}) => (
-  // Make the header clickable to toggle expansion
-  <div 
-    className="flex justify-between items-center p-3 bg-gray-50 rounded-t-md border-b cursor-pointer hover:bg-gray-100 transition-colors"
-    onClick={onToggleExpand} // Toggle on click
-  >
-    <div className="flex items-center gap-2">
-      {/* Add Chevron icon */} 
-      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-600"/> : <ChevronRight className="h-4 w-4 text-gray-600"/>}
-      <h3 className="text-md font-semibold select-none">{section.title} <span className="text-sm font-normal text-gray-500">({section.status})</span></h3>
-    </div>
-    {/* Stop propagation on buttons so clicking them doesn't toggle collapse */}
-    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}> 
-      <Avatar className="h-6 w-6">
-        {/* <AvatarImage src={userAvatarUrl} /> */}
-        <AvatarFallback className="text-xs">{userName.substring(0, 2).toUpperCase()}</AvatarFallback>
-      </Avatar>
-      {/* AI Analysis Button */}
-      {/* Pass section data including subsections array */}
-      <DocumentAnalysisButton 
-        documentId={section.document_id} 
-        // Pass the current section object, which now includes the subsections array
-        sections={[{
-            id: section.id, 
-            title: section.title,
-            status: section.status,
-            subsections: section.subsections // Pass the actual subsections array
-            // Remove the combined 'content' field
-        }]}
-      />
-      {/* Show EITHER Approve OR Undo/Reject Button */} 
-      {section.status === 'approved' ? (
-        // Show Undo/Reject button if already approved
+}) => {
+  const { state: analysisState } = useDocumentAnalysis();
+  const isCurrentlyAnalyzing = analysisState?.isAnalyzing && 
+                              analysisState?.currentSection === section.id;
+  
+  return (
+    <div className="p-4 flex items-center justify-between bg-gray-50 border-b sticky top-0 z-10">
+      <div className="flex items-center">
         <Button 
-          variant="outline"
-          size="sm"
-          className="bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200"
-          onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'in_progress'); }}
+          variant="ghost" 
+          size="icon" 
+          onClick={onToggleExpand} 
+          className="mr-2"
         >
-          <XCircle className="h-4 w-4 mr-1"/> Re-open / Reject
+          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </Button>
-      ) : section.status !== 'locked' ? (
-        // Show Approve button if not approved and not locked
-        <Button 
-          variant="outline"
-          size="sm"
-          className="bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
-          onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'approved'); }}
-        >
-          <CheckCircle className="h-4 w-4 mr-1"/> Approve
-        </Button>
-      ) : null } 
+        <h3 className="text-md font-medium flex items-center">
+          {section.title}
+          {/* New indicator element - only shown when this section is analyzing */}
+          {isCurrentlyAnalyzing && <span className="section-analyzing-indicator" title="Analyzing this section..."></span>}
+        </h3>
+      </div>
+      
+      {/* Rest of header content remains unchanged */}
+      <div className="flex items-center gap-1">
+        <Avatar className="h-6 w-6">
+          {/* <AvatarImage src={userAvatarUrl} /> */}
+          <AvatarFallback className="text-xs">{userName.substring(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        
+        {/* Enhanced AI Analysis Button with visual feedback */}
+        <div className={cn(
+          "relative overflow-hidden rounded-md",
+          analysisState?.isAnalyzing && analysisState?.currentSection === section.id && 
+          "ring-2 ring-blue-500 ring-opacity-50"
+        )}>
+          {/* Progress indicator - more visible blue bar */}
+          {analysisState?.isAnalyzing && analysisState?.currentSection === section.id && (
+            <div className="absolute inset-0 bg-blue-100 pointer-events-none z-0">
+              <div 
+                className="h-full bg-blue-200 transition-all duration-300 ease-in-out"
+                style={{ width: `${analysisState?.progress || 0}%` }}
+              ></div>
+            </div>
+          )}
+          
+          {/* Pulsing overlay when analyzing */}
+          {analysisState?.isAnalyzing && analysisState?.currentSection === section.id && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-300/20 to-transparent bg-[length:200%_100%] animate-shimmer pointer-events-none z-10"></div>
+          )}
+          
+          {/* Button with enhanced visual state */}
+          <div className={cn(
+            "relative z-20",
+            analysisState?.isAnalyzing && analysisState?.currentSection === section.id && 
+            "text-blue-700 font-medium"
+          )}>
+            <DocumentAnalysisButton 
+              documentId={section.document_id} 
+              sections={[{
+                id: section.id, 
+                title: section.title,
+                status: section.status,
+                subsections: section.subsections
+              }]}
+            />
+            
+            {/* Add pulse dot indicator next to button when analyzing */}
+            {analysisState?.isAnalyzing && analysisState?.currentSection === section.id && (
+              <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+            )}
+          </div>
+        </div>
+        
+        {/* Show EITHER Approve OR Undo/Reject Button */} 
+        {section.status === 'approved' ? (
+          // Show Undo/Reject button if already approved
+          <Button 
+            variant="outline"
+            size="sm"
+            className="bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200"
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'in_progress'); }}
+          >
+            <XCircle className="h-4 w-4 mr-1"/> Re-open / Reject
+          </Button>
+        ) : section.status !== 'locked' ? (
+          // Show Approve button if not approved and not locked
+          <Button 
+            variant="outline"
+            size="sm"
+            className="bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'approved'); }}
+          >
+            <CheckCircle className="h-4 w-4 mr-1"/> Approve
+          </Button>
+        ) : null }
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Comments Section Component
 const CommentsSection = ({ subsectionId, documentId, initialComments }: { 
@@ -1152,6 +1228,20 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
 
   return (
     <div className="flex flex-col bg-gray-100 min-h-screen">
+      {/* Single style jsx tag for the entire component */}
+      <style jsx global>{combinedStyles}</style>
+      
+      {/* Add this inline style for additional animations that might be needed */}
+      <style jsx global>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+      `}</style>
+      
       <TopBar 
         userName={userName} 
         isSidebarCollapsed={isSidebarCollapsed} 

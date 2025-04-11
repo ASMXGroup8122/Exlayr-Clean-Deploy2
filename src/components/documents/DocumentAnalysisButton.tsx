@@ -151,44 +151,32 @@ export default function DocumentAnalysisButton({
 }: DocumentAnalysisButtonProps) {
   const { state, dispatch } = useDocumentAnalysis();
   const abortControllerRef = useRef<AbortController | null>(null);
-  const progressRef = useRef<number>(0);
   const supabase = getSupabaseClient();
   const router = useRouter();
   const pathname = usePathname();
   const [buttonText, setButtonText] = useState('Analyze with AI');
-  const isAnalyzing = state?.isAnalyzing || false;
   
-  // Track external analyzing state changes
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+  const isAnalysisRunning = state?.isAnalyzing || isExternallyAnalyzing;
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
-    // Only update if there's an actual state change to prevent unnecessary re-renders
-    const newAnalyzingState = isExternallyAnalyzing || (state?.isAnalyzing || false);
-    
-    // Only set state if value has changed
-    if (isAnalyzing !== newAnalyzingState) {
-      onAnalyzingChange?.(newAnalyzingState);
-    }
-  }, [isExternallyAnalyzing, state?.isAnalyzing, isAnalyzing, onAnalyzingChange]);
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    onAnalyzingChange?.(isAnalysisRunning);
+  }, [isAnalysisRunning, onAnalyzingChange]);
   
-  // Notify parent of analyzing state changes
   useEffect(() => {
-    if (onAnalyzingChange && state?.isAnalyzing !== undefined) {
-      // Only call when the state value actually changes
-      onAnalyzingChange(state.isAnalyzing);
-    }
-  }, [state?.isAnalyzing, onAnalyzingChange]);
-  
-  // Update button text based on analysis state
-  useEffect(() => {
-    if (state?.error) {
-      setButtonText('Retry Analysis');
-    } else if (state?.sectionStates?.[sections[0]?.id]?.isAnalyzed) {
-      setButtonText('Re-analyze');
-    } else if (isAnalyzing) {
-      setButtonText('Analyzing...');
-    } else {
-      setButtonText('Analyze with AI');
-    }
-  }, [isAnalyzing, state?.error, state?.sectionStates, sections]);
+    if (state?.error) setButtonText('Retry Analysis');
+    else if (state?.sectionStates?.[sections[0]?.id]?.isAnalyzed) setButtonText('Re-analyze');
+    else if (isAnalysisRunning) setButtonText('Analyzing...');
+    else setButtonText('Analyze with AI');
+  }, [isAnalysisRunning, state?.error, state?.sectionStates, sections]);
 
   useEffect(() => {
     if (!documentId) return;
@@ -337,28 +325,42 @@ export default function DocumentAnalysisButton({
 
   const handleAnalyze = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    console.log("[AnalyzeBtn] handleAnalyze called (Reverted State).");
-    if (isAnalyzing) return;
+    console.log("[AnalyzeBtn] handleAnalyze invoked. Current isAnalysisRunning:", isAnalysisRunning);
+
+    if (isAnalysisRunning) {
+      console.log("[AnalyzeBtn] Analysis already running, exiting.");
+      return;
+    }
+    
+    console.log("[AnalyzeBtn] Setting isOverlayVisible = true.");
+    setIsOverlayVisible(true);
+
+    const buttonElement = e.currentTarget;
+    buttonElement.classList.add('button-clicked');
+    setTimeout(() => buttonElement.classList.remove('button-clicked'), 200);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    onAnalyzingChange?.(true);
     let cycleId: string | null = null;
 
     try {
+      console.log("[AnalyzeBtn] Dispatching SET_ANALYZING: true");
       dispatch?.({ type: 'SET_ANALYZING', payload: true });
       dispatch?.({ type: 'SET_ERROR', payload: null });
-
-      console.log("[AnalyzeBtn] Creating review cycle...");
-      cycleId = await createReviewCycle();
-      if (!cycleId) throw new Error('Failed to create review cycle');
-      console.log(`[AnalyzeBtn] Review cycle created: ${cycleId}`);
-      onReviewCycleCreated?.(cycleId);
       onAnalysisStart?.();
-
+      
+      console.log("[AnalyzeBtn] Attempting to create review cycle...");
+      cycleId = await createReviewCycle(); 
+      if (!cycleId) {
+         console.error("[AnalyzeBtn] createReviewCycle returned null/undefined ID.");
+         throw new Error('Failed to obtain review cycle ID');
+      }
+      console.log(`[AnalyzeBtn] Review cycle created successfully: ${cycleId}`);
+      onReviewCycleCreated?.(cycleId);
+      
       const handleStreamData = (data: StreamData) => {
          console.log("[AnalyzeBtn] Stream Data Received:", data); 
-         console.log("[AnalyzeBtn] Stream Data Type:", data.type);  // Explicitly log the type
+         console.log("[AnalyzeBtn] Stream Data Type:", data.type);
          
          switch (data.type) {
            case 'progress':
@@ -399,20 +401,16 @@ export default function DocumentAnalysisButton({
              }
              break;
            case 'result': 
-             // Handle result with any type to avoid TypeScript errors with dynamic data shape
              const resultData: any = data;
              console.log(`[AnalyzeBtn] Result Case - Data:`, resultData);
              
-             // Check for results.sections array which contains all section results
              if (resultData.results?.sections && Array.isArray(resultData.results.sections)) {
                console.log(`[AnalyzeBtn] Found ${resultData.results.sections.length} section results`);
                
-               // Process each section result separately
                resultData.results.sections.forEach((sectionResult: any) => {
                  if (sectionResult.sectionId) {
                    console.log(`[AnalyzeBtn] Processing section result for ${sectionResult.sectionId}`);
                    
-                   // Each section should have metadata.subsectionResults
                    if (cycleId) {
                      createInteractionFromAnalysis(sectionResult.sectionId, sectionResult, cycleId)
                        .catch(err => console.error("Interaction Error:", err));
@@ -428,7 +426,6 @@ export default function DocumentAnalysisButton({
                  }
                });
              }
-             // Check for older format with sectionResults array
              else if (resultData.sectionResults && Array.isArray(resultData.sectionResults)) {
                resultData.sectionResults.forEach((secResult: any) => {
                  if (secResult.sectionId && secResult.analysisResult) {
@@ -458,7 +455,6 @@ export default function DocumentAnalysisButton({
              break;
            default:
              console.log("[AnalyzeBtn] Unknown Stream Data Type:", data.type);
-             // Try to extract section data if it exists
              if ('sectionId' in data && 'analysisResult' in data) {
                console.log(`[AnalyzeBtn] Found section data in unknown type:`, data.sectionId);
                if (cycleId) {
@@ -476,20 +472,24 @@ export default function DocumentAnalysisButton({
          }
        };
       
-      console.log("[AnalyzeBtn] Fetching API...");
-      const response = await fetch('/api/ai/analyze-document', {
+      console.log("[AnalyzeBtn] Preparing to fetch API: /api/ai/analyze-document");
+      const fetchOptions = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ documentId, sections, cycleId }),
         signal: controller.signal
-      });
-      console.log(`[AnalyzeBtn] API Response Status: ${response.status}`);
+      };
+      console.log("[AnalyzeBtn] Fetch options prepared:", fetchOptions); 
+
+      const response = await fetch('/api/ai/analyze-document', fetchOptions);
+      console.log(`[AnalyzeBtn] Fetch call completed. Response status: ${response.status}`);
 
       if (!response.ok || !response.body) {
         const errorText = await response.text().catch(() => `Status: ${response.statusText}`);
-        console.error("[AnalyzeBtn] API request failed:", errorText);
+        console.error("[AnalyzeBtn] API response not OK or body missing:", errorText);
         throw new Error(`Analysis request failed: ${errorText}`);
       }
+      console.log("[AnalyzeBtn] API response OK, proceeding to read stream.");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -498,48 +498,85 @@ export default function DocumentAnalysisButton({
         if (done) { console.log("[AnalyzeBtn] Stream finished."); break; }
         if (controller.signal.aborted) throw new Error('Analysis cancelled');
         const chunk = decoder.decode(value);
-        console.log("[AnalyzeBtn] Received chunk:", chunk); // Log the raw chunk
+        console.log("[AnalyzeBtn] Received chunk:", chunk);
         
         const lines = chunk.split('\n').filter(Boolean);
-        console.log("[AnalyzeBtn] Parsed lines:", lines); // Log the parsed lines
+        console.log("[AnalyzeBtn] Parsed lines:", lines);
         
         lines.forEach(line => {
           try { 
-            console.log("[AnalyzeBtn] Processing line:", line); // Log each line being processed
+            console.log("[AnalyzeBtn] Processing line:", line);
             handleStreamData(JSON.parse(line)); 
           }
           catch (err) { console.error("[AnalyzeBtn] Stream JSON parse error:", err, "Line:", line); } 
         });
       }
       
-      console.log("[AnalyzeBtn] Analysis complete. Dispatching SET_ANALYZING: false.");
-      dispatch?.({ type: 'SET_ANALYZING', payload: false }); 
-      onAnalyzingChange?.(false);
+      console.log("[AnalyzeBtn] Stream finished successfully.");
       showToast({ title: 'Analysis Complete', description: 'Document analysis finished.' });
 
     } catch (error: any) {
-      console.error("[AnalyzeBtn] Error in handleAnalyze:", error);
-      if (error.name !== 'AbortError') {
+      console.error("[AnalyzeBtn] Error caught within handleAnalyze try block:", error);
+       if (error.name !== 'AbortError') {
         dispatch?.({ type: 'SET_ERROR', payload: error.message || 'Unknown analysis error' });
         showToast({ title: 'Analysis Failed', description: error.message || 'Unknown analysis error', variant: 'destructive' });
       } else {
-         dispatch?.({ type: 'SET_ERROR', payload: 'Analysis cancelled' });
+         console.log("[AnalyzeBtn] Analysis aborted by user.");
       }
-      // Ensure analyzing state is set false on error
-      dispatch?.({ type: 'SET_ANALYZING', payload: false });
-      onAnalyzingChange?.(false);
-      if (cycleId) { /* Optional: Cleanup cycle on error? handleCleanup(cycleId, 'error'); */ }
+      if (cycleId && error.name !== 'AbortError') { /* Optional cleanup */ }
     } finally {
-       console.log("[AnalyzeBtn] handleAnalyze finally block.");
-       abortControllerRef.current = null; 
+       console.log("[AnalyzeBtn] Entering finally block.");
+       abortControllerRef.current = null;
+
+       if (!controller.signal.aborted) {
+            console.log("[AnalyzeBtn] Dispatching SET_ANALYZING: false in finally.");
+            dispatch?.({ type: 'SET_ANALYZING', payload: false });
+       } else {
+           console.log("[AnalyzeBtn] Aborted, skipping SET_ANALYZING: false in finally.");
+       }
+
+       console.log(`[AnalyzeBtn] Setting ${1500}ms timer to set isOverlayVisible = false.`);
+       setTimeout(() => {
+           if (isMountedRef.current) {
+               console.log("[AnalyzeBtn] Timer fired: Setting isOverlayVisible = false.");
+               setIsOverlayVisible(false);
+           } else {
+               console.log("[AnalyzeBtn] Timer fired, but component unmounted.");
+           }
+       }, 1500); 
     }
   };
 
-  // Log state values used in render (keep for debugging)
-  console.log("[AnalyzeBtn UI] Rendering - Reverted", { /* Revert logging if needed */ });
+  console.log("[AnalyzeBtn UI] Rendering", { 
+    isAnalysisRunning, 
+    isContextAnalyzing: state?.isAnalyzing,
+    isExternallyAnalyzing,
+    isOverlayVisible,
+    progress: state?.progress
+  });
 
   return (
-    <div className="flex flex-col gap-4"> 
+    <div className="flex flex-col gap-4 relative"> 
+      <style jsx global>{`
+        @keyframes pulse-blue {
+          0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+          70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        
+        .button-clicked {
+          transform: scale(0.98);
+          transition: transform 0.1s;
+          background-color: #ebf5ff !important;
+          border-color: #3b82f6 !important;
+        }
+        
+        .analyze-btn-hover:hover {
+          background-color: #f0f9ff;
+          border-color: #93c5fd;
+        }
+      `}</style>
+
       <div className="flex flex-col gap-2">
         <TooltipProvider>
           <Tooltip>
@@ -547,28 +584,46 @@ export default function DocumentAnalysisButton({
               <Button
                 type="button"
                 onClick={handleAnalyze}
-                disabled={isAnalyzing}
-                variant="outline"
-                className={cn("relative w-full", isAnalyzing && "pr-8")}
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {buttonText}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {buttonText}
-                  </>
+                disabled={isAnalysisRunning}
+                variant={isAnalysisRunning ? "default" : "outline"}
+                className={cn(
+                  "relative w-full overflow-hidden transition-all duration-200 analyze-btn-hover", 
+                  isAnalysisRunning 
+                    ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-600 animate-[pulse-blue_2s_infinite]" 
+                    : "hover:bg-blue-50"
                 )}
+              >
+                {isAnalysisRunning && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-400/30 to-blue-500/0 animate-[shimmer_2s_infinite] bg-[length:200%_100%]" />
+                )}
+                
+                {isAnalysisRunning && (
+                  <div 
+                    className="absolute bottom-0 left-0 h-1 bg-blue-300"
+                    style={{ width: `${state?.progress ?? 0}%` }}
+                  />
+                )}
+                
+                <div className="relative z-10 flex items-center justify-center">
+                  {isAnalysisRunning ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <span className="font-medium">{buttonText}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {buttonText}
+                    </>
+                  )}
+                </div>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[300px]">
               {state?.error ? (
                 <p className="text-red-500">{state?.error}</p>
               ) : (
-                isAnalyzing ? (
+                isAnalysisRunning ? (
                   <p className="animate-pulse">
                     {state?.analysisStage || `Analyzing... ${state?.progress}%`}
                   </p>
@@ -580,21 +635,43 @@ export default function DocumentAnalysisButton({
           </Tooltip>
         </TooltipProvider>
 
-        {/* Progress Bar & Status Text */}
-        {isAnalyzing && (
-            <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 relative overflow-hidden">
-              <div 
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
-                style={{ width: `${state?.progress ?? 0}%` }}
-              />
-            </div>
-        )}
-        {isAnalyzing && !state?.error && (
-            <div className="text-sm text-gray-600 text-center"> 
-                {state?.analysisStage || `Analyzing: ${state?.currentSection || '...'}`}
-            </div>
+        {isAnalysisRunning && !state?.error && (
+          <div className="text-sm text-blue-700 font-medium text-center animate-pulse"> 
+            {state?.analysisStage || `Analyzing ${state?.currentSection || 'document'}... ${state?.progress ?? 0}%`}
+          </div>
         )}
       </div>
+
+      {isOverlayVisible && (
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50" style={{pointerEvents: 'none'}}>
+          <div className="bg-white p-6 rounded-lg shadow-lg w-[300px] max-w-[80vw]">
+            <div className="flex items-center justify-center mb-4">
+              <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+            </div>
+            
+            <h3 className="text-lg font-semibold text-center mb-2">
+              {state?.analysisStage || "Analyzing Document..."}
+            </h3>
+            
+            <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+              <div 
+                className="bg-blue-500 h-4 rounded-full transition-all duration-300 ease-in-out"
+                style={{ width: `${Math.max(5, state?.progress || 0)}%` }}
+              />
+            </div>
+            
+            <p className="text-sm text-gray-600 text-center">
+              {state?.progress ? `${state.progress}% complete` : "Starting analysis..."}
+            </p>
+            
+            {state?.currentSection && (
+              <p className="text-sm text-gray-500 text-center mt-2">
+                Currently analyzing: <span className="font-medium">{state.currentSection}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

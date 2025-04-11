@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
         // Call analysis service ONCE, passing the progress callback
         const analysisResults = await analyzeDocument(document, sendProgress);
-        
+
         // Send final completion progress
         await sendProgress({ progress: 100, stage: 'Analysis Complete' });
         
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
           cycleId,
           results: analysisResults // Send the complete result object
         }) + '\n'));
-        
+
       } catch (error) {
         console.error('Analysis error:', error);
         await writer.write(encoder.encode(JSON.stringify({

@@ -295,8 +295,14 @@ const updateDocumentStatus = async (documentId: string, status: string) => {
 ## AI Analysis Logic
 
 1.  **Trigger:** Initiated per main section by `DocumentAnalysisButton` in the `SectionHeader`.
-2.  **Data Sent:** The button sends the main section's ID, title, status, and its array of `subsections` (each with ID, title, content) to the `/api/ai/analyze-document` endpoint.
-3.  **Backend Processing (`analysisService.ts`):**
+2.  **UI Feedback:** Upon clicking the button:
+    *   An overlay immediately appears, covering the screen and preventing further interaction.
+    *   The overlay displays a loading spinner, the current analysis stage (e.g., "Analyzing Section..."), and a progress bar.
+    *   The overlay remains visible throughout the entire analysis process (including API calls and stream processing).
+    *   Once the analysis completes (either successfully or with an error), the overlay remains visible for a short duration (approx. 1.5 seconds) before disappearing, allowing the user to see the final status/toast message.
+    *   The button itself also shows a loading state and disables interaction while analysis is running.
+3.  **Data Sent:** The button sends the main section's ID, title, status, and its array of `subsections` (each with ID, title, content) to the `/api/ai/analyze-document` endpoint.
+4.  **Backend Processing (`analysisService.ts`):
     *   Processes subsections sequentially.
     *   **Placeholder Check:** Immediately fails subsections containing placeholders (e.g., `[TBD]`, `XXX`).
     *   **Agent Selection:** Chooses a specialized agent (Risk, Financial, General) based on subsection type.
@@ -304,8 +310,10 @@ const updateDocumentStatus = async (documentId: string, status: string) => {
     *   **Contextual Analysis:** The agent analyzes the subsection content, comparing it against the Pinecone benchmarks, while also considering the content of other subsections (passed as context) to avoid flagging valid cross-references as omissions.
     *   **Critique Generation:** The agent generates concise, reviewer-style critique points based *only* on deviations from the Pinecone benchmarks, avoiding generic advice or mentioning the examples directly.
     *   **Result Aggregation:** Results (compliance, score, critique) from each subsection are collected. An overall status/score is calculated for the main section. The detailed subsection results are stored in a `metadata.subsectionResults` array within the main section's result object.
-4.  **Streaming & Context Update:** The aggregated result object is streamed back to the client (`DocumentAnalysisButton`), which dispatches it to the `DocumentAnalysisContext` (`SET_SECTION_RESULT`).
-5.  **UI Display (`AIFeedback`):** Each `AIFeedback` component reads the context, finds the aggregated result for its parent section, looks inside the `metadata.subsectionResults` array, extracts the specific result matching its own `subsectionId`, and displays the specific critique points and compliance status for that individual subsection.
+5.  **Streaming & Context Update:** The aggregated result object is streamed back to the client (`DocumentAnalysisButton`), which dispatches updates (`SET_PROGRESS`, `SET_SECTION_RESULT`) to the `DocumentAnalysisContext`.
+6.  **UI Display (`AIFeedback` & Overlay):** 
+    *   The overlay content (stage text, progress bar) updates based on the `SET_PROGRESS` actions dispatched to the context.
+    *   Each `AIFeedback` component reads the context, finds the aggregated result for its parent section, looks inside the `metadata.subsectionResults` array, extracts the specific result matching its own `subsectionId`, and displays the specific critique points and compliance status for that individual subsection *after* the analysis completes and the overlay is hidden.
 
 ## Error Handling
 
