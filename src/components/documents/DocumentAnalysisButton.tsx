@@ -6,7 +6,6 @@ import { toast } from '@/components/ui/use-toast';
 import { clientLogger } from '@/lib/ai/clientLogger';
 import { Loader2, AlertCircle, CheckCircle, Activity, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
@@ -578,62 +577,43 @@ export default function DocumentAnalysisButton({
       `}</style>
 
       <div className="flex flex-col gap-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                onClick={handleAnalyze}
-                disabled={isAnalysisRunning}
-                variant={isAnalysisRunning ? "default" : "outline"}
-                className={cn(
-                  "relative w-full overflow-hidden transition-all duration-200 analyze-btn-hover", 
-                  isAnalysisRunning 
-                    ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-600 animate-[pulse-blue_2s_infinite]" 
-                    : "hover:bg-blue-50"
-                )}
-              >
-                {isAnalysisRunning && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-400/30 to-blue-500/0 animate-[shimmer_2s_infinite] bg-[length:200%_100%]" />
-                )}
-                
-                {isAnalysisRunning && (
-                  <div 
-                    className="absolute bottom-0 left-0 h-1 bg-blue-300"
-                    style={{ width: `${state?.progress ?? 0}%` }}
-                  />
-                )}
-                
-                <div className="relative z-10 flex items-center justify-center">
-                  {isAnalysisRunning ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span className="font-medium">{buttonText}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {buttonText}
-                    </>
-                  )}
-                </div>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[300px]">
-              {state?.error ? (
-                <p className="text-red-500">{state?.error}</p>
-              ) : (
-                isAnalysisRunning ? (
-                  <p className="animate-pulse">
-                    {state?.analysisStage || `Analyzing... ${state?.progress}%`}
-                  </p>
-                ) : (
-                  <p>Start document analysis</p>
-                )
-              )}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Button
+          type="button"
+          onClick={handleAnalyze}
+          disabled={isAnalysisRunning}
+          variant={isAnalysisRunning ? "default" : "outline"}
+          className={cn(
+            "relative w-full overflow-hidden transition-all duration-200 analyze-btn-hover", 
+            isAnalysisRunning 
+              ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-600 animate-[pulse-blue_2s_infinite]" 
+              : "hover:bg-blue-50"
+          )}
+        >
+          {isAnalysisRunning && (
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-400/30 to-blue-500/0 animate-[shimmer_2s_infinite] bg-[length:200%_100%]" />
+          )}
+          
+          {isAnalysisRunning && (
+            <div 
+              className="absolute bottom-0 left-0 h-1 bg-blue-300"
+              style={{ width: `${state?.progress ?? 0}%` }}
+            />
+          )}
+          
+          <div className="relative z-10 flex items-center justify-center">
+            {isAnalysisRunning ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span className="font-medium">{buttonText}</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                {buttonText}
+              </>
+            )}
+          </div>
+        </Button>
 
         {isAnalysisRunning && !state?.error && (
           <div className="text-sm text-blue-700 font-medium text-center animate-pulse"> 

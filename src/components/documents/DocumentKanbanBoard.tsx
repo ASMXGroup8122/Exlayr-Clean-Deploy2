@@ -5,6 +5,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { KanbanColumn } from './KanbanColumn';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { DocumentCard } from './DocumentCard';
+import { useRouter } from 'next/navigation';
 
 interface Document {
   id: string;
@@ -42,6 +43,7 @@ export default function DocumentKanbanBoard({ onDocumentSelect }: KanbanBoardPro
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
   const supabase = getSupabaseClient();
+  const router = useRouter();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -147,15 +149,56 @@ export default function DocumentKanbanBoard({ onDocumentSelect }: KanbanBoardPro
     setActiveId(null);
     setActiveDocument(null);
 
-    if (!over) return;
+    if (!over) {
+        console.log("[Kanban] Drag ended outside a drop zone.");
+        return; // Dropped outside any column
+    }
 
-    const activeDoc = documents.find(doc => doc.id === active.id);
-    const overColumn = over.id as ColumnId;
+    const activeDocId = active.id as string;
+    const overColumnId = over.id as ColumnId;
+    const activeDoc = documents.find(doc => doc.id === activeDocId);
 
-    if (!activeDoc || activeDoc.status === overColumn) return;
+    if (!activeDoc) {
+        console.warn("[Kanban] Dragged document not found in state:", activeDocId);
+        return;
+    }
+    
+    const originalStatus = activeDoc.status as ColumnId;
 
+    // Check if the card was actually moved to a new column
+    if (originalStatus === overColumnId) {
+        console.log(`[Kanban] Document ${activeDocId} dropped in the same column (${overColumnId}). No action.`);
+        return; // No change in column
+    }
+
+    console.log(`[Kanban] Document ${activeDocId} dragged from ${originalStatus} to ${overColumnId}.`);
+
+    // --- Navigation Compromise Logic --- 
+    if (originalStatus === 'pending' && overColumnId === 'in_review') {
+        console.log(`[Kanban] Detected move from Pending to In Review for doc ${activeDocId}. Navigating...`);
+        
+        // Optimistically update UI (optional, can be removed if causing issues)
+        // This provides immediate feedback but won't persist without DB update
+        setDocuments(docs => 
+            docs.map(doc => 
+              doc.id === activeDocId 
+                ? { ...doc, status: overColumnId } 
+                : doc
+            )
+        );
+        
+        // Navigate to the document review page
+        router.push(`/dashboard/exchange/listings/${activeDocId}/documents`);
+        
+        // Exit the handler after navigation
+        return; 
+    }
+    // --- End Navigation Compromise Logic ---
+
+    // --- Original DB Update Logic (REMOVED as per compromise) --- 
+    /* 
     try {
-      // Optimistically update the UI
+      // Optimistically update the UI 
       setDocuments(docs => 
         docs.map(doc => 
           doc.id === activeDoc.id 
@@ -175,14 +218,17 @@ export default function DocumentKanbanBoard({ onDocumentSelect }: KanbanBoardPro
       if (updateError) {
         console.error('Error updating document status:', updateError);
         // Revert changes on error
-        fetchDocuments();
+        fetchDocuments(); 
         return;
       }
     } catch (err) {
       console.error('Error updating document status:', err);
       // Revert changes if update fails
-      fetchDocuments();
+      fetchDocuments(); 
     }
+    */
+   console.log(`[Kanban] Drag operation from ${originalStatus} to ${overColumnId} finished. No specific action triggered besides potential optimistic UI update.`);
+
   };
 
   const handleDragCancel = () => {

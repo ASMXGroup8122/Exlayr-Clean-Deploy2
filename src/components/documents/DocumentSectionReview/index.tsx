@@ -14,6 +14,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import DocumentAnalysisButton from '@/components/documents/DocumentAnalysisButton';
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // Combine all styles into a single string at the top
 const combinedStyles = `
@@ -842,8 +849,9 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
   const [canApproveOverallDocument, setCanApproveOverallDocument] = useState(false);
   const [overallDocumentStatus, setOverallDocumentStatus] = useState<string | null>(null);
-  // Keep the state for expanded content sections if it's still used
   const [expandedContentSections, setExpandedContentSections] = useState<Record<string, boolean>>({}); 
+  const [isFullDocumentModalOpen, setIsFullDocumentModalOpen] = useState(false);
+  const [fullDocumentHtmlContent, setFullDocumentHtmlContent] = useState<string>('');
 
    // --- Define TOC Structure INSIDE the component --- 
   const tocStructure: TocSection[] = [
@@ -1093,8 +1101,40 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
 
     const toggleSidebar = useCallback(() => setIsSidebarCollapsed(prev => !prev), []);
 
-    // Placeholder handlers
-    const handleViewFullDocument = useCallback(() => alert('View Full Document - To be implemented'), []);
+    // Restore View Full Document functionality
+    const handleViewFullDocument = useCallback(() => {
+        console.log("[ViewFullDoc] Generating preview...");
+        if (!sections || sections.length === 0) {
+            toast({ title: "Error", description: "Document data not loaded.", variant: "destructive" });
+            return;
+        }
+
+        let htmlContent = `
+          <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Document Preview: ${documentId}</title><style>body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 2rem; max-width: 900px; margin: auto; color: #333; } h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; color: #111; } h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; font-size: 2em; } h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; font-size: 1.5em; } h3 { font-size: 1.2em; color: #444; } pre { background-color: #f8f8f8; padding: 1em; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.95em; } .section-header { margin-top: 2.5em; } .subsection { margin-left: 1em; }</style></head><body><h1>Document Preview: ${documentId}</h1>`;
+
+        try {
+          sections.forEach(section => {
+            htmlContent += `<h2 class="section-header">${section.title} (Status: ${section.status})</h2>\n`;
+            section.subsections.forEach(subsection => {
+              const escapedContent = subsection.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") || "[No content]";
+              htmlContent += `<div class="subsection"><h3>${subsection.title}</h3><pre>${escapedContent}</pre></div>`; 
+            });
+          });
+          htmlContent += `</body></html>`;
+          
+          console.log("[ViewFullDoc] HTML Generated. Setting state to open modal.");
+
+          // Set state instead of opening window
+          setFullDocumentHtmlContent(htmlContent);
+          setIsFullDocumentModalOpen(true);
+
+        } catch (error) {
+            console.error("[ViewFullDoc] Error during HTML generation:", error);
+            toast({ title: "Preview Error", description: "An error occurred generating the preview.", variant: "destructive" });
+        }
+    }, [sections, documentId, toast]);
+
+    // Keep placeholder for Export
     const handleExportDocument = useCallback(() => alert('Export Document - To be implemented'), []);
 
     // Handler to toggle content section expansion
@@ -1165,6 +1205,29 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
           </div>
         </ScrollArea>
       </div>
+
+      <Dialog open={isFullDocumentModalOpen} onOpenChange={setIsFullDocumentModalOpen}>
+           <DialogContent className="max-w-4xl h-[80vh] flex flex-col sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl"> {/* Responsive max-width */} 
+             <DialogHeader>
+               <DialogTitle>Document Preview: {documentId}</DialogTitle>
+             </DialogHeader>
+             <ScrollArea className="flex-1 mt-4 mb-4 border rounded-md p-4 bg-gray-50"> 
+               <div
+                 dangerouslySetInnerHTML={{ __html: fullDocumentHtmlContent }}
+                 className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none" // Use prose for basic styling
+               />
+             </ScrollArea>
+             {/* Add Footer with Print Button */}
+             <DialogFooter className="mt-auto pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.print()} // Trigger browser print
+                >
+                   Print / Save as PDF
+                </Button>
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
     </div>
   );
 } 
