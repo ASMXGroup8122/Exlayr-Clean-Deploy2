@@ -392,3 +392,49 @@ const updateDocumentStatus = async (documentId: string, status: string) => {
    - Implement pagination for large lists
    - Optimize database queries
    - Monitor client-side performance
+
+### 3. Document Editing Implementation (Sponsor View)
+
+#### Location
+`src/app/(dashboard)/dashboard/sponsor/[orgId]/listings/[listingId]/edit-document/page.tsx`
+
+#### Purpose
+Provides an interface for Sponsors to:
+- Fill in the initial content for a new listing document.
+- Edit existing document content based on feedback or revisions requested by the Exchange.
+
+#### Data Source
+Similar to the Exchange view, this page primarily interacts with:
+- `listingdocumentdirectlisting`: Reads initial content and section statuses (`secX_status`), and writes updated content back.
+- `document_comments`: Reads existing comments and writes new comments.
+- `listing`: Reads the overall document status (though not used for locking here).
+
+#### Key Features
+- **Editable Content:** Displays document content within `<Textarea>` components, allowing sponsors to modify it.
+- **Section Locking:** If a section's status (`secX_status` in `listingdocumentdirectlisting`) is 'approved', the corresponding text areas for that section are disabled (read-only).
+- **Hierarchical Table of Contents:** A collapsible sidebar displays the document structure (sections and subsections). Clicking items scrolls the main content area to the corresponding section/subsection.
+- **View Full Document:** A modal dialog allows viewing the entire document content in a read-only format, with an option to print or save as PDF.
+- **Real-time Comments:** Each subsection includes a `CommentsSection` identical to the Exchange view, allowing sponsors to view and add comments.
+- **Granular Saving:** A "Save Section" button appears next to each subsection's text area, enabled only when there are unsaved changes for that specific subsection and the section is not locked. This allows saving progress incrementally.
+- **Overall Save:** A main "Save Changes" button in the top bar saves all pending unsaved changes across all subsections.
+- **Unsaved Changes Tracking:** Uses `localChanges` state to track modifications not yet saved to the database. Text areas with unsaved changes are visually highlighted.
+- **Collapsible Content Sections:** Main sections in the content area can be collapsed/expanded.
+
+#### Component Hierarchy (Simplified)
+```
+SponsorEditDocumentPage (Page Component - Fetches Doc Content, Statuses & ALL Comments)
+├── TopBar (Collapsible Toggle, View Full Document, Save All Changes)
+├── TableOfContents (Collapsible Sidebar, Hierarchical Sections/Subsections)
+└── MainContentArea (Scrollable)
+    └── SectionDisplay[] (Mapped from sections state, collapsible)
+        ├── SectionHeader (Section Title, Toggle)
+        └── SubsectionDisplayArea (Mapped from section.subsections)
+            ├── Subsection Title + Save Section Button
+            ├── Editable Textarea (Conditionally ReadOnly)
+            └── CommentsSection
+```
+
+#### Key Differences from Exchange View
+- **Editability:** The primary difference is that subsection content is editable via text areas (unless locked).
+- **Save Mechanisms:** Includes both granular ("Save Section") and overall ("Save Changes") buttons.
+- **No Exchange Actions:** Lacks the AI analysis trigger, section status update buttons (Approve/Reject), and overall document approval/revision buttons present in the Exchange view.
