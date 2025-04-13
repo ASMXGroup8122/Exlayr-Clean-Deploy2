@@ -1,8 +1,8 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
-import { useEffect } from 'react';
 import Link from 'next/link';
 import {
     BarChart3,
@@ -98,6 +98,10 @@ const portalCards = [
     }
 ];
 
+// Import NEW AI components
+import AiActionCards from '@/components/ai/AiActionCards';
+import AiChatInputBar from '@/components/ai/AiChatInputBar';
+
 export default function SponsorDashboard() {
     const { user } = useAuth();
     const router = useRouter();
@@ -110,89 +114,36 @@ export default function SponsorDashboard() {
         }
     }, [user, router]);
 
-    return (
-        <div className="space-y-6">
-            {/* Listings Snapshot */}
-            <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-                    <h3 className="text-lg font-medium text-gray-900">Recent Listings</h3>
-                    <Link 
-                        href={`/dashboard/sponsor/${orgId}/listings`}
-                        className="text-sm text-blue-600 hover:text-blue-500 flex items-center"
-                    >
-                        View all
-                        <ArrowRight className="ml-1 h-4 w-4" />
-                    </Link>
-                </div>
-                <div className="border-t border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Company
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Exchange
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Next Key Date
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {recentListings.map((listing) => (
-                                <tr key={listing.companyName}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {listing.companyName}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(listing.status)}`}>
-                                            {listing.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {listing.exchange}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">{listing.nextKeyDate}</div>
-                                        <div className="text-sm text-gray-500">{listing.keyDateDescription}</div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    // State for the AI interface
+    const [intent, setIntent] = useState<string | null>(null);
 
-            {/* Portal Cards */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {portalCards.map((card) => {
-                    const Icon = card.icon;
-                    return (
-                        <Link
-                            key={card.title}
-                            href={`/dashboard/sponsor/${orgId}${card.href}`}
-                            className={`${card.bgColor} p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow`}
-                        >
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <Icon className="h-6 w-6 text-gray-600" />
-                                </div>
-                                <div className="ml-4">
-                                    <h3 className="text-lg font-medium text-gray-900">
-                                        {card.title}
-                                    </h3>
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        {card.description}
-                                    </p>
-                                </div>
-                            </div>
-                        </Link>
-                    );
-                })}
+    // Log intent whenever it changes
+    useEffect(() => {
+        console.log(`[SponsorDashboardPage] Intent state changed to: ${intent}`);
+    }, [intent]);
+
+    // Original welcome message (can keep or remove)
+    const userName = "David"; // Replace with dynamic user name if available
+
+    return (
+        <div className="flex flex-col h-full">
+            {/* === NEW AI Interface Area === */}
+            {/* Container grows and uses flex to push content down */}
+            <div className="flex-1 flex flex-col items-center p-6">
+
+                {/* Spacer div takes up available space above the content */}
+                <div className="flex-grow" />
+
+                {/* Action Cards Area */}
+                <div className="w-full max-w-3xl mb-6">
+                    <AiActionCards intent={intent} orgId={orgId} />
+                </div>
+
+                {/* Input Bar Area */}
+                <AiChatInputBar onIntentChange={setIntent} />
+
+                {/* Optional padding below input bar */}
+                <div className="h-6 md:h-10" />
             </div>
         </div>
     );

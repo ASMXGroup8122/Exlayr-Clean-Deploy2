@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDocumentAnalysis } from '@/contexts/DocumentAnalysisContext';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Lock as LockIcon, UserCircle, MessageSquare, Bot, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Trash2, Loader2, Copy } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Lock as LockIcon, UserCircle, MessageSquare, Bot, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Trash2, Loader2, Copy, AlertCircle } from 'lucide-react';
 import { Editor } from '../../../components/ui/editor';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 // Combine all styles into a single string at the top
 const combinedStyles = `
@@ -308,17 +309,25 @@ const TableOfContents = ({ sections, activeSectionId, onSectionSelect, isCollaps
 };
 
 // Section Header Component
-const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggleExpand }: {
+const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggleExpand, isProcessingSectionStatus, overallDocumentStatus }: {
   section: Section;
   userName: string;
   onUpdateStatus: (sectionId: string, newStatus: Section['status']) => void;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  isProcessingSectionStatus: boolean;
+  overallDocumentStatus: string | null;
 }) => {
   const { state: analysisState } = useDocumentAnalysis();
   const isCurrentlyAnalyzing = analysisState?.isAnalyzing && 
                               analysisState?.currentSection === section.id;
   
+  // Check if the overall document status prevents section-level actions
+  const isOverallLocked = overallDocumentStatus === 'needs_revision' || 
+                          overallDocumentStatus === 'approved' || 
+                          overallDocumentStatus === 'rejected' ||
+                          overallDocumentStatus === 'listed'; 
+
   return (
     <div className="p-4 flex items-center justify-between bg-gray-50 border-b sticky top-0 z-10">
       <div className="flex items-center">
@@ -332,25 +341,20 @@ const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggle
         </Button>
         <h3 className="text-md font-medium flex items-center">
           {section.title}
-          {/* New indicator element - only shown when this section is analyzing */}
           {isCurrentlyAnalyzing && <span className="section-analyzing-indicator" title="Analyzing this section..."></span>}
         </h3>
       </div>
       
-      {/* Rest of header content remains unchanged */}
       <div className="flex items-center gap-1">
         <Avatar className="h-6 w-6">
-          {/* <AvatarImage src={userAvatarUrl} /> */}
           <AvatarFallback className="text-xs">{userName.substring(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>
         
-        {/* Enhanced AI Analysis Button with visual feedback */}
         <div className={cn(
           "relative overflow-hidden rounded-md",
           analysisState?.isAnalyzing && analysisState?.currentSection === section.id && 
           "ring-2 ring-blue-500 ring-opacity-50"
         )}>
-          {/* Progress indicator - more visible blue bar */}
           {analysisState?.isAnalyzing && analysisState?.currentSection === section.id && (
             <div className="absolute inset-0 bg-blue-100 pointer-events-none z-0">
               <div 
@@ -360,12 +364,10 @@ const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggle
             </div>
           )}
           
-          {/* Pulsing overlay when analyzing */}
           {analysisState?.isAnalyzing && analysisState?.currentSection === section.id && (
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-300/20 to-transparent bg-[length:200%_100%] animate-shimmer pointer-events-none z-10"></div>
           )}
           
-          {/* Button with enhanced visual state */}
           <div className={cn(
             "relative z-20",
             analysisState?.isAnalyzing && analysisState?.currentSection === section.id && 
@@ -381,33 +383,35 @@ const SectionHeader = ({ section, userName, onUpdateStatus, isExpanded, onToggle
               }]}
             />
             
-            {/* Add pulse dot indicator next to button when analyzing */}
             {analysisState?.isAnalyzing && analysisState?.currentSection === section.id && (
               <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
             )}
           </div>
         </div>
         
-        {/* Show EITHER Approve OR Undo/Reject Button */} 
         {section.status === 'approved' ? (
-          // Show Undo/Reject button if already approved
           <Button 
             variant="outline"
             size="sm"
             className="bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200"
             onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'in_progress'); }}
+            disabled={isProcessingSectionStatus || isOverallLocked}
+            title={isOverallLocked ? `Document status is ${overallDocumentStatus}, cannot modify sections.` : 'Re-open section for review'}
           >
-            <XCircle className="h-4 w-4 mr-1"/> Re-open / Reject
+            {isProcessingSectionStatus ? <Loader2 className="h-4 w-4 animate-spin mr-1"/> : <XCircle className="h-4 w-4 mr-1"/>}
+            Re-open / Reject
           </Button>
         ) : section.status !== 'locked' ? (
-          // Show Approve button if not approved and not locked
           <Button 
             variant="outline"
             size="sm"
             className="bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
             onClick={(e) => { e.stopPropagation(); onUpdateStatus(section.id, 'approved'); }}
+            disabled={isProcessingSectionStatus || isOverallLocked}
+            title={isOverallLocked ? `Document status is ${overallDocumentStatus}, cannot modify sections.` : 'Approve this section'}
           >
-            <CheckCircle className="h-4 w-4 mr-1"/> Approve
+            {isProcessingSectionStatus ? <Loader2 className="h-4 w-4 animate-spin mr-1"/> : <CheckCircle className="h-4 w-4 mr-1"/>}
+            Approve
           </Button>
         ) : null }
       </div>
@@ -633,6 +637,7 @@ const CommentsSection = ({ subsectionId, documentId, initialComments }: {
 // AI Feedback Component
 const AIFeedback = ({ subsectionId, documentId }: { subsectionId: string; documentId: string }) => {
   const { state: analysisState } = useDocumentAnalysis();
+  const { toast } = useToast();
   const parentSectionId = subsectionId.split('_')[0]; 
   
   // Debug logging
@@ -716,8 +721,8 @@ const AIFeedback = ({ subsectionId, documentId }: { subsectionId: string; docume
   // Re-add the copy handler function
   const handleCopyCritique = (critiqueText: string) => {
     navigator.clipboard.writeText(critiqueText)
-      .then(() => { alert("Critique copied!"); })
-      .catch(err => { console.error("Failed to copy critique:", err); alert("Failed to copy critique."); });
+      .then(() => { toast({ title: "Critique Copied!" }); })
+      .catch(err => { console.error("Failed to copy critique:", err); toast({ title: "Copy Failed", variant: "destructive" }); });
   };
 
   if (!shouldDisplay) return null;
@@ -782,22 +787,25 @@ const AIFeedback = ({ subsectionId, documentId }: { subsectionId: string; docume
 };
 
 // Single Section Display Component
-const SectionDisplay = ({ section, commentsBySubsection, onUpdateStatus, userName, isExpanded, onToggleExpand }: {
+const SectionDisplay = ({ section, commentsBySubsection, onUpdateStatus, userName, isExpanded, onToggleExpand, isProcessingSectionStatus, overallDocumentStatus }: {
   section: Section;
   commentsBySubsection: Record<string, Comment[]>; 
   onUpdateStatus: (sectionId: string, newStatus: Section['status']) => void;
   userName: string;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  isProcessingSectionStatus: boolean;
+  overallDocumentStatus: string | null;
 }) => (
   <div id={section.id} className="mb-6 border rounded-md bg-white shadow-sm overflow-hidden"> {/* Added overflow-hidden */} 
     <SectionHeader 
       section={section} 
       userName={userName} 
       onUpdateStatus={onUpdateStatus} 
-      // Pass down expansion state and toggle handler
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
+      isProcessingSectionStatus={isProcessingSectionStatus}
+      overallDocumentStatus={overallDocumentStatus}
     />
     {/* Conditionally render the content area */} 
     {isExpanded && (
@@ -847,11 +855,15 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
   const [commentsBySubsection, setCommentsBySubsection] = useState<Record<string, Comment[]>>({});
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+  const [isProcessingSectionStatus, setIsProcessingSectionStatus] = useState<Record<string, boolean>>({});
+  const [isProcessingSendRevision, setIsProcessingSendRevision] = useState(false);
   const [canApproveOverallDocument, setCanApproveOverallDocument] = useState(false);
   const [overallDocumentStatus, setOverallDocumentStatus] = useState<string | null>(null);
   const [expandedContentSections, setExpandedContentSections] = useState<Record<string, boolean>>({}); 
   const [isFullDocumentModalOpen, setIsFullDocumentModalOpen] = useState(false);
   const [fullDocumentHtmlContent, setFullDocumentHtmlContent] = useState<string>('');
+  const [showRevisionSentConfirmation, setShowRevisionSentConfirmation] = useState(false);
+  const confirmationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
    // --- Define TOC Structure INSIDE the component --- 
   const tocStructure: TocSection[] = [
@@ -1023,31 +1035,40 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
     // Ensure tocStructure is not needed in dependency array as it's defined inside
   }, [documentId, supabase, activeSectionId]); 
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (confirmationTimeoutRef.current) {
+        clearTimeout(confirmationTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // --- Handlers ---
   const handleUpdateSectionStatus = useCallback(async (sectionId: string, newStatus: Section['status']) => {
-    // Use local tocStructure
-    const sectionDefinition = tocStructure.find((s: TocSection) => s.id === sectionId);
+    const sectionDefinition = tocStructure.find(s => s.id === sectionId);
     const statusField = sectionDefinition?.statusField;
     if (!statusField) {
       toast({ title: "Error", description: "Cannot update status for this section.", variant: "destructive" });
       return;
     }
 
-    const previousSections = sections;
-    // Optimistic UI for sections state
+    setIsProcessingSectionStatus(prev => ({ ...prev, [sectionId]: true }));
+    const previousSections = sections; 
     setSections(prevSections => 
-        prevSections.map((sec: Section) => 
+        prevSections.map(sec => 
             sec.id === sectionId ? { ...sec, status: newStatus } : sec
         )
     );
-    // Optimistic UI for overall approval state
-    // Use the updated sections state directly after setting it (React might batch this) 
-    // Or calculate based on `newStatus` like before for robustness
-    setCanApproveOverallDocument(sections.map(sec => 
+    const updatedSectionsForCheck = sections.map(sec => 
         sec.id === sectionId ? { ...sec, status: newStatus } : sec
-    ).every((sec: Section) => 
-        sec.status === 'approved' || !tocStructure.find((s: TocSection) => s.id === sec.id)?.statusField
-    ));
+    );
+    const allApproved = tocStructure.every(ts => {
+        if (!ts.statusField) return true;
+        const sectionData = updatedSectionsForCheck.find(s => s.id === ts.id);
+        return sectionData?.status === 'approved';
+    });
+    setCanApproveOverallDocument(allApproved);
 
     try {
       const { error: updateError } = await supabase
@@ -1055,16 +1076,20 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
         .update({ [statusField]: newStatus, updated_at: new Date().toISOString() })
         .eq('instrumentid', documentId);
       if (updateError) throw updateError;
-      toast({ title: "Status Updated", description: `Section ${sectionId} status set to ${newStatus}.` });
+      toast({ title: "Status Updated", description: `Section "${sectionDefinition?.title}" status set to ${newStatus}.` });
     } catch (error: any) {
       toast({ title: "Update Failed", description: error.message, variant: "destructive" });
-      // Revert UI on error
       setSections(previousSections);
-      setCanApproveOverallDocument(previousSections.every((sec: Section) => 
-          sec.status === 'approved' || !tocStructure.find((s: TocSection) => s.id === sec.id)?.statusField
-      ));
+      const revertedAllApproved = tocStructure.every(ts => {
+        if (!ts.statusField) return true;
+        const sectionData = previousSections.find(s => s.id === ts.id);
+        return sectionData?.status === 'approved';
+      });
+      setCanApproveOverallDocument(revertedAllApproved);
+    } finally {
+      setIsProcessingSectionStatus(prev => ({ ...prev, [sectionId]: false }));
     }
-  }, [documentId, supabase, sections, toast, tocStructure]); // Add tocStructure to deps? No, defined inside.
+  }, [documentId, supabase, sections, toast, tocStructure]);
 
   const handleApproveOverallDocument = async () => {
     if (!canApproveOverallDocument || isProcessingApproval) return;
@@ -1085,149 +1110,227 @@ export default function DocumentSectionReview({ documentId }: DocumentSectionRev
     }
   };
 
-  // --- Other Handlers (handleSectionSelect, toggleSidebar, View/Export) ---
-   const handleSectionSelect = useCallback((sectionId: string) => {
-        setActiveSectionId(sectionId);
-        const element = document.getElementById(sectionId);
-        if (element) {
-           // If the section content is collapsed, expand it first
-           setExpandedContentSections(prev => ({ ...prev, [sectionId]: true }));
-           // Use setTimeout to allow the DOM to update before scrolling
-           setTimeout(() => { 
-              element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-           }, 0);
+  const handleSendForRevision = async () => {
+    console.log(`Sending document ${documentId} for revision.`);
+    setIsProcessingSendRevision(true);
+    setShowRevisionSentConfirmation(false);
+    if (confirmationTimeoutRef.current) {
+      clearTimeout(confirmationTimeoutRef.current);
+    }
+    
+    if (!documentId) {
+        console.error('[handleSendForRevision] Error: documentId is missing or invalid!');
+        toast({ title: "Error", description: "Cannot send for revision: Document ID is missing.", variant: "destructive" });
+        setIsProcessingSendRevision(false);
+        return;
+    }
+
+    try {
+        const { data, error: updateError } = await supabase
+            .from('listing')
+            .update({ instrumentsecuritiesadmissionstatus: 'needs_revision' })
+            .eq('instrumentid', documentId);
+
+        console.log('[handleSendForRevision] Supabase Response (No updated_at):', { data, updateError });
+
+        if (updateError) {
+            throw updateError; 
         }
-    }, []);
 
-    const toggleSidebar = useCallback(() => setIsSidebarCollapsed(prev => !prev), []);
+        setOverallDocumentStatus('needs_revision'); 
+        
+        setShowRevisionSentConfirmation(true);
+        confirmationTimeoutRef.current = setTimeout(() => {
+            setShowRevisionSentConfirmation(false);
+            confirmationTimeoutRef.current = null;
+        }, 4000);
 
-    // Restore View Full Document functionality
-    const handleViewFullDocument = useCallback(() => {
-        console.log("[ViewFullDoc] Generating preview...");
-        if (!sections || sections.length === 0) {
-            toast({ title: "Error", description: "Document data not loaded.", variant: "destructive" });
-            return;
-        }
+    } catch (err) {
+        console.error('[handleSendForRevision] Raw Error Object (in catch):', err);
+        toast({ title: "Error", description: `Failed to send for revision: ${(err instanceof Error && err.message) ? err.message : 'Unknown database error. Check console logs.'}`, variant: "destructive" });
+    } finally {
+        setIsProcessingSendRevision(false);
+    }
+  };
 
-        let htmlContent = `
-          <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Document Preview: ${documentId}</title><style>body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 2rem; max-width: 900px; margin: auto; color: #333; } h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; color: #111; } h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; font-size: 2em; } h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; font-size: 1.5em; } h3 { font-size: 1.2em; color: #444; } pre { background-color: #f8f8f8; padding: 1em; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.95em; } .section-header { margin-top: 2.5em; } .subsection { margin-left: 1em; }</style></head><body><h1>Document Preview: ${documentId}</h1>`;
+  const handleSectionSelect = useCallback((sectionId: string) => {
+    setActiveSectionId(sectionId);
+    const element = document.getElementById(sectionId);
+    if (element) {
+       setExpandedContentSections(prev => ({ ...prev, [sectionId]: true }));
+       setTimeout(() => { 
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+       }, 0);
+    }
+  }, []);
 
-        try {
-          sections.forEach(section => {
-            htmlContent += `<h2 class="section-header">${section.title} (Status: ${section.status})</h2>\n`;
-            section.subsections.forEach(subsection => {
-              const escapedContent = subsection.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") || "[No content]";
-              htmlContent += `<div class="subsection"><h3>${subsection.title}</h3><pre>${escapedContent}</pre></div>`; 
-            });
-          });
-          htmlContent += `</body></html>`;
-          
-          console.log("[ViewFullDoc] HTML Generated. Setting state to open modal.");
+  const toggleSidebar = useCallback(() => setIsSidebarCollapsed(prev => !prev), []);
 
-          // Set state instead of opening window
-          setFullDocumentHtmlContent(htmlContent);
-          setIsFullDocumentModalOpen(true);
+  const handleViewFullDocument = useCallback(() => {
+    console.log("[ViewFullDoc] Generating preview...");
+    if (!sections || sections.length === 0) {
+      toast({ title: "Error", description: "Document data not loaded.", variant: "destructive" });
+      return;
+    }
 
-        } catch (error) {
-            console.error("[ViewFullDoc] Error during HTML generation:", error);
-            toast({ title: "Preview Error", description: "An error occurred generating the preview.", variant: "destructive" });
-        }
-    }, [sections, documentId, toast]);
+    let htmlContent = `
+      <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Document Preview: ${documentId}</title><style>body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 2rem; max-width: 900px; margin: auto; color: #333; } h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; color: #111; } h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; font-size: 2em; } h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; font-size: 1.5em; } h3 { font-size: 1.2em; color: #444; } pre { background-color: #f8f8f8; padding: 1em; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.95em; } .section-header { margin-top: 2.5em; } .subsection { margin-left: 1em; }</style></head><body><h1>Document Preview: ${documentId}</h1>`;
 
-    // Keep placeholder for Export
-    const handleExportDocument = useCallback(() => alert('Export Document - To be implemented'), []);
+    try {
+      sections.forEach(section => {
+        htmlContent += `<h2 class="section-header">${section.title} (Status: ${section.status})</h2>\n`;
+        section.subsections.forEach(subsection => {
+          const escapedContent = subsection.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") || "[No content]";
+          htmlContent += `<div class="subsection"><h3>${subsection.title}</h3><pre>${escapedContent}</pre></div>`; 
+        });
+      });
+      htmlContent += `</body></html>`;
+      
+      console.log("[ViewFullDoc] HTML Generated. Setting state to open modal.");
 
-    // Handler to toggle content section expansion
-    const toggleContentSection = useCallback((sectionId: string) => {
-      setExpandedContentSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
-    }, []);
+      setFullDocumentHtmlContent(htmlContent);
+      setIsFullDocumentModalOpen(true);
+
+    } catch (error) {
+      console.error("[ViewFullDoc] Error during HTML generation:", error);
+      toast({ title: "Preview Error", description: "An error occurred generating the preview.", variant: "destructive" });
+    }
+  }, [sections, documentId, toast]);
+
+  const handleExportDocument = useCallback(() => alert('Export Document - To be implemented'), []);
+
+  const toggleContentSection = useCallback((sectionId: string) => {
+    setExpandedContentSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  }, []);
 
   // --- Render Logic ---
   if (loading) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
   const isDocumentApproved = overallDocumentStatus === 'approved';
+  const isPendingReview = overallDocumentStatus === 'pending';
+  const needsRevision = overallDocumentStatus === 'needs_revision';
+
+  console.log('[DocumentSectionReview] Rendering. isProcessingSectionStatus:', isProcessingSectionStatus);
+  console.log('[DocumentSectionReview] Rendering. overallDocumentStatus:', overallDocumentStatus);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <style>{combinedStyles}</style>
-      
-      <TableOfContents 
-        sections={sections} // Pass sections state
-        activeSectionId={activeSectionId}
-        onSectionSelect={handleSectionSelect}
-        isCollapsed={isSidebarCollapsed}
-      />
-
-      <div className="flex-1 flex flex-col">
-        <TopBar 
-          userName={userName}
-          isSidebarCollapsed={isSidebarCollapsed}
-          toggleSidebar={toggleSidebar}
-          onViewFullDocument={handleViewFullDocument}
-          onExportDocument={handleExportDocument}
-        />
+    <TooltipProvider>
+      <div className="flex h-screen overflow-hidden">
+        <style>{combinedStyles}</style>
         
-        {/* Overall Approve Button Area */}
-        {!isDocumentApproved && (
-            <div className="p-4 border-b bg-gray-100 flex justify-end items-center">
-                <Button
-                    onClick={handleApproveOverallDocument}
-                    disabled={!canApproveOverallDocument || isProcessingApproval}
-                    size="lg"
-                    className={cn(/* ... disabled styles ... */)}
-                >
-                    {isProcessingApproval ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4"/>}
-                    Approve Entire Document
-                </Button>
-                 {!canApproveOverallDocument && (
-                     <p className="text-xs text-gray-500 ml-4">All sections must be individually approved first.</p>
-                 )} 
+        <TableOfContents 
+          sections={sections} 
+          activeSectionId={activeSectionId}
+          onSectionSelect={handleSectionSelect}
+          isCollapsed={isSidebarCollapsed}
+        />
+
+        <div className="flex-1 flex flex-col">
+          <TopBar 
+            userName={userName}
+            isSidebarCollapsed={isSidebarCollapsed}
+            toggleSidebar={toggleSidebar}
+            onViewFullDocument={handleViewFullDocument}
+            onExportDocument={handleExportDocument}
+          />
+          
+          {/* Overall Action Buttons Area */}
+          {!isDocumentApproved && (
+            <div className="p-4 border-b bg-gray-100 flex justify-end items-center space-x-4">
+               <div className="flex items-center space-x-2">
+                   <Button
+                      variant="outline"
+                      onClick={handleSendForRevision}
+                      disabled={isProcessingSendRevision || (!isPendingReview && !needsRevision) || showRevisionSentConfirmation}
+                      className={cn(
+                          needsRevision 
+                              ? "border-gray-400 text-gray-600 bg-gray-100 cursor-not-allowed" 
+                              : "border-yellow-500 text-yellow-700 hover:bg-yellow-50",
+                          (isProcessingSendRevision || (!isPendingReview && !needsRevision) || showRevisionSentConfirmation) && "cursor-not-allowed opacity-50"
+                      )}
+                      aria-label={needsRevision ? "Document has been sent for revision" : "Send document back to sponsor for revisions"}
+                  >
+                      {isProcessingSendRevision ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                      ) : needsRevision ? (
+                          <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                      ) : (
+                           <AlertCircle className="mr-2 h-4 w-4" /> 
+                      )}
+                      {needsRevision ? "Sent for Revision" : "Send for Revision"}
+                  </Button>
+                  {showRevisionSentConfirmation && (
+                      <div className="flex items-center text-sm text-green-600 animate-pulse">
+                           <CheckCircle className="h-4 w-4 mr-1" />
+                           Revision Request Sent!
+                      </div>
+                  )}
+               </div>
+
+              <Button
+                onClick={handleApproveOverallDocument}
+                disabled={!canApproveOverallDocument || isProcessingApproval}
+                size="lg"
+                className={cn(
+                  "bg-green-600 hover:bg-green-700 text-white",
+                  (!canApproveOverallDocument || isProcessingApproval) && "cursor-not-allowed opacity-50"
+                )}
+                aria-label={canApproveOverallDocument ? "Approve the entire document" : "Cannot approve yet, ensure all sections are approved"}
+              >
+                {isProcessingApproval ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4"/>}
+                Approve Entire Document
+              </Button>
+               {!canApproveOverallDocument && !isProcessingApproval && (
+                   <p className="text-xs text-gray-500 ml-2"> (Requires all sections approved)</p>
+               )} 
             </div>
-        )}
-        {isDocumentApproved && (
-             <div className="p-4 border-b bg-green-100 text-green-800 font-medium text-center">Document Approved</div>
-        )}
+          )}
+          {isDocumentApproved && (
+               <div className="p-4 border-b bg-green-100 text-green-800 font-medium text-center">Document Approved</div>
+          )}
 
-        <ScrollArea className="flex-1 overflow-y-auto bg-white">
-          <div className="p-6 space-y-8">
-            {sections.map((section) => (
-              <SectionDisplay 
-                key={section.id}
-                section={section} 
-                commentsBySubsection={commentsBySubsection} // Correct prop name
-                onUpdateStatus={handleUpdateSectionStatus} 
-                userName={userName}
-                isExpanded={!!expandedContentSections[section.id]} // Use dedicated expansion state
-                onToggleExpand={() => toggleContentSection(section.id)} // Use dedicated toggle handler
+          <ScrollArea className="flex-1 overflow-y-auto bg-white">
+            <div className="p-6 space-y-8">
+              {sections.map((section) => (
+                <SectionDisplay 
+                  key={section.id}
+                  section={section} 
+                  commentsBySubsection={commentsBySubsection}
+                  onUpdateStatus={handleUpdateSectionStatus} 
+                  userName={userName}
+                  isExpanded={!!expandedContentSections[section.id]}
+                  onToggleExpand={() => toggleContentSection(section.id)}
+                  isProcessingSectionStatus={isProcessingSectionStatus[section.id] || false}
+                  overallDocumentStatus={overallDocumentStatus}
+                />
+              ))}
+               {sections.length === 0 && <div className="text-center text-gray-500 py-16">No sections.</div>}
+            </div>
+          </ScrollArea>
+        </div>
+
+        <Dialog open={isFullDocumentModalOpen} onOpenChange={setIsFullDocumentModalOpen}>
+          <DialogContent className="max-w-4xl h-[80vh] flex flex-col sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>Document Preview: {documentId}</DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="flex-1 mt-4 mb-4 border rounded-md p-4 bg-gray-50"> 
+              <div
+                dangerouslySetInnerHTML={{ __html: fullDocumentHtmlContent }}
+                className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none"
               />
-            ))}
-             {sections.length === 0 && <div className="text-center text-gray-500 py-16">No sections.</div>}
-          </div>
-        </ScrollArea>
+            </ScrollArea>
+            <DialogFooter className="mt-auto pt-4 border-t">
+               <Button 
+                 variant="outline" 
+                 onClick={() => window.print()}
+               >
+                  Print / Save as PDF
+               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      <Dialog open={isFullDocumentModalOpen} onOpenChange={setIsFullDocumentModalOpen}>
-           <DialogContent className="max-w-4xl h-[80vh] flex flex-col sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl"> {/* Responsive max-width */} 
-             <DialogHeader>
-               <DialogTitle>Document Preview: {documentId}</DialogTitle>
-             </DialogHeader>
-             <ScrollArea className="flex-1 mt-4 mb-4 border rounded-md p-4 bg-gray-50"> 
-               <div
-                 dangerouslySetInnerHTML={{ __html: fullDocumentHtmlContent }}
-                 className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none" // Use prose for basic styling
-               />
-             </ScrollArea>
-             {/* Add Footer with Print Button */}
-             <DialogFooter className="mt-auto pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.print()} // Trigger browser print
-                >
-                   Print / Save as PDF
-                </Button>
-             </DialogFooter>
-           </DialogContent>
-         </Dialog>
-    </div>
+    </TooltipProvider>
   );
 } 

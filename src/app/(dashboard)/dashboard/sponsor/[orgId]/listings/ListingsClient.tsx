@@ -4,8 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, FileText, ArrowUpRight } from 'lucide-react';
+import { Plus, FileText, ArrowUpRight, Send, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
 
 interface Listing {
     instrumentid: string;
@@ -41,6 +43,9 @@ export default function ListingsClient() {
 
     const [listings, setListings] = useState<Listing[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [listingToSubmit, setListingToSubmit] = useState<string | null>(null);
 
     useEffect(() => {
         let isSubscribed = true;
@@ -141,6 +146,60 @@ export default function ListingsClient() {
         }
     };
 
+    const handleConfirmSubmit = async () => {
+        if (!listingToSubmit || !user) {
+            console.error('No user or listing found');
+            return;
+        }
+
+        const listingId = listingToSubmit;
+        console.log(`Submitting/Resubmitting listing ${listingId} for approval.`);
+        setIsSubmitting(listingId);
+        setShowConfirmDialog(false);
+        setListingToSubmit(null);
+
+        try {
+            const { error: updateError } = await supabase
+                .from('listing')
+                .update({ 
+                    instrumentsecuritiesadmissionstatus: 'pending', 
+                    updated_at: new Date().toISOString()
+                })
+                .eq('instrumentid', listingId)
+                .in('instrumentsecuritiesadmissionstatus', ['draft', 'needs_revision']);
+
+            if (updateError) throw updateError;
+
+            toast({
+                title: "Success",
+                description: "Listing submitted for review.",
+            });
+
+            // Update local state
+            setListings(currentListings => 
+                currentListings.map(l => 
+                    l.instrumentid === listingId 
+                        ? { ...l, instrumentsecuritiesadmissionstatus: 'pending' } 
+                        : l
+                )
+            );
+
+        } catch (error) {
+            console.error('Error submitting/resubmitting listing for approval:', error);
+            toast({
+                title: "Error",
+                description: "An error occurred while submitting/resubmitting the listing for approval.",
+            });
+        } finally {
+            setIsSubmitting(null);
+        }
+    };
+
+    const triggerSubmitConfirmation = (listingId: string) => {
+        setShowConfirmDialog(true);
+        setListingToSubmit(listingId);
+    };
+
     if (isLoading) {
         return <div>Loading...</div>;
     }
@@ -237,22 +296,53 @@ export default function ListingsClient() {
                                         {new Date(listing.instrumentupdatedat).toLocaleDateString()}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        <div className="flex space-x-4">
-                                            <Link
-                                                href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/due-diligence/director`}
-                                                className="text-blue-600 hover:text-blue-900 flex items-center"
-                                            >
-                                                <FileText className="h-4 w-4 mr-1" />
-                                                Edit
-                                            </Link>
-                                            {listing.instrumentsecuritiesadmissionstatus === 'draft' && (
-                                                <button
-                                                    onClick={() => handleSubmitForApproval(listing.instrumentid)}
-                                                    className="text-green-600 hover:text-green-900 flex items-center"
+                                        <div className="flex items-center space-x-4">
+                                            {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
+                                                <Link
+                                                    href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/due-diligence/director`}
+                                                    className="text-blue-600 hover:text-blue-900 flex items-center"
                                                 >
-                                                    <ArrowUpRight className="h-4 w-4 mr-1" />
+                                                    <FileText className="h-4 w-4 mr-1" />
+                                                    Edit
+                                                </Link>
+                                            ) : (
+                                                <span className="text-gray-500 flex items-center">
+                                                    Edit
+                                                </span>
+                                            )}
+                                            
+                                            {listing.instrumentsecuritiesadmissionstatus === 'draft' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
+                                                    disabled={isSubmitting === listing.instrumentid}
+                                                    className="flex items-center"
+                                                >
+                                                    {isSubmitting === listing.instrumentid ? (
+                                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Send className="h-4 w-4 mr-1" />
+                                                    )}
                                                     Submit
-                                                </button>
+                                                </Button>
+                                            )}
+                                            
+                                            {listing.instrumentsecuritiesadmissionstatus === 'needs_revision' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
+                                                    disabled={isSubmitting === listing.instrumentid}
+                                                    className="flex items-center text-blue-600 border-blue-300 hover:bg-blue-50"
+                                                >
+                                                    {isSubmitting === listing.instrumentid ? (
+                                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Send className="h-4 w-4 mr-1" />
+                                                    )}
+                                                    Resubmit for Review
+                                                </Button>
                                             )}
                                         </div>
                                     </td>

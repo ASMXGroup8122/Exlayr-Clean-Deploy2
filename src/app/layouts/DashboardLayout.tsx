@@ -40,8 +40,8 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
                 <div className="fixed top-0 right-0 left-64 z-10 bg-white border-b border-[#DADCE0]">
                     <Header />
                 </div>
-                <main className="flex-1 overflow-y-auto bg-[#F8F9FA] pt-16">
-                    <div className="px-4 py-4 max-w-[95%] mx-auto">
+                <main className="flex-1 overflow-y-auto bg-[#F8F9FA] pt-16 flex flex-col">
+                    <div className="px-4 py-4 max-w-[95%] mx-auto flex-1 w-full">
                         {children}
                     </div>
                 </main>

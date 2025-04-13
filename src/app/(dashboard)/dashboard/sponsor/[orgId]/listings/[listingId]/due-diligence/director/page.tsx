@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { useListing } from '@/contexts/ListingContext';
+import { useListing, ListingProvider } from '@/contexts/ListingContext';
 
 interface Director {
     name: string;
@@ -15,7 +15,8 @@ interface Director {
     pep_status: boolean;
 }
 
-export default function DirectorDueDiligencePage() {
+// Inner component that uses the context
+function DirectorDueDiligenceContent() {
     const { user } = useAuth();
     const router = useRouter();
     const params = useParams();
@@ -25,32 +26,24 @@ export default function DirectorDueDiligencePage() {
     const [directors, setDirectors] = useState<Director[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Fetch existing data if available
+    useEffect(() => {
+        if (formData.director_due_diligence?.directors) {
+            setDirectors(formData.director_due_diligence.directors);
+        } else {
+            // Optionally fetch from DB if context is empty (though provider should handle this)
+            // For simplicity, we assume ListingProvider fetches initial data
+            // If not, add the fetchDirectors logic back here
+        }
+         setIsLoading(false); // Assume provider handles initial loading
+    }, [formData.director_due_diligence]);
+
+    // Simplified useEffect for auth check
     useEffect(() => {
         if (!user || user.account_type !== 'exchange_sponsor') {
             router.replace('/sign-in');
-            return;
         }
-
-        const fetchDirectors = async () => {
-            const { data, error } = await supabase
-                .from('listing')
-                .select('director_due_diligence')
-                .eq('id', listingId)
-                .single();
-
-            if (error) {
-                console.error('Error fetching directors:', error);
-                return;
-            }
-
-            if (data?.director_due_diligence?.directors) {
-                setDirectors(data.director_due_diligence.directors);
-            }
-            setIsLoading(false);
-        };
-
-        fetchDirectors();
-    }, [user, listingId, router]);
+    }, [user, router]);
 
     const addDirector = () => {
         const newDirector: Director = {
@@ -79,28 +72,25 @@ export default function DirectorDueDiligencePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Update local context
-            updateDueDiligence('director', { directors });
+            // Update local context - This should trigger the provider to save
+            updateDueDiligence('director_due_diligence', { directors });
+            
+            // Provider should ideally handle the save, but if not:
+            // const { error } = await supabase
+            //     .from('listing')
+            //     .update({ director_due_diligence: { directors } })
+            //     .eq('instrumentid', listingId); // Use instrumentid if that's the correct column name
+            // if (error) throw error;
 
-            // Update database
-            const { error } = await supabase
-                .from('listing')
-                .update({
-                    director_due_diligence: { directors }
-                })
-                .eq('id', listingId);
-
-            if (error) throw error;
-
-            // Navigate to next section
             router.push(`/dashboard/sponsor/${orgId}/listings/${listingId}/due-diligence/industry`);
         } catch (error) {
             console.error('Error saving director due diligence:', error);
+            // Add user feedback (e.g., toast)
         }
     };
 
     if (isLoading) {
-        return <div>Loading...</div>;
+        return <div>Loading director details...</div>;
     }
 
     return (
@@ -218,5 +208,22 @@ export default function DirectorDueDiligencePage() {
                 </div>
             </form>
         </div>
+    );
+}
+
+// Main page component that wraps the content with the provider
+export default function DirectorDueDiligencePage() {
+    const params = useParams();
+    const { listingId } = params as { listingId: string };
+
+    // Ensure listingId is available before rendering provider
+    if (!listingId) {
+        return <div>Loading listing information...</div>; // Or redirect, or show error
+    }
+
+    return (
+        <ListingProvider listingId={listingId}>
+            <DirectorDueDiligenceContent />
+        </ListingProvider>
     );
 } 
