@@ -30,6 +30,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 type NavItem = {
     href: string;
@@ -224,9 +225,13 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                     <div className="flex-shrink-0 px-4 py-5 border-b border-[#DADCE0]">
                         <div className="flex items-center justify-between">
                             {!collapsed && (
-                                <span className="text-xl font-bold text-[#202124]">
-                                    Exlayr
-                                </span>
+                                <Image
+                                    src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos/exlayr_logo.png"
+                                    alt="Exlayr Logo"
+                                    width={180}
+                                    height={60}
+                                    priority
+                                />
                             )}
                             <button 
                                 onClick={() => setCollapsed(!collapsed)}

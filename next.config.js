@@ -8,6 +8,12 @@ const nextConfig = {
                 port: '',
                 pathname: '/**',
             },
+            {
+                protocol: 'https',
+                hostname: 'ulvnzvdpbblxsyjynufh.supabase.co',
+                port: '',
+                pathname: '/storage/v1/object/public/**',
+            },
         ],
     },
     webpack: (config) => {

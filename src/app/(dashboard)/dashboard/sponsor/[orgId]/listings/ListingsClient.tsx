@@ -299,15 +299,16 @@ export default function ListingsClient() {
                                         <div className="flex items-center space-x-4">
                                             {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
                                                 <Link
-                                                    href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/due-diligence/director`}
+                                                    href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document`}
                                                     className="text-blue-600 hover:text-blue-900 flex items-center"
                                                 >
                                                     <FileText className="h-4 w-4 mr-1" />
-                                                    Edit
+                                                    Edit Document
                                                 </Link>
                                             ) : (
-                                                <span className="text-gray-500 flex items-center">
-                                                    Edit
+                                                <span className="text-gray-400 flex items-center cursor-not-allowed">
+                                                    <FileText className="h-4 w-4 mr-1" />
+                                                    Edit Document
                                                 </span>
                                             )}
                                             

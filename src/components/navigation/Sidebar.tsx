@@ -14,8 +14,10 @@ import {
     BarChart,
     Brain,
     CreditCard,
-    User
+    User,
+    X
 } from 'lucide-react';
+import Image from 'next/image';
 
 export const Sidebar = () => {
     const pathname = usePathname();
@@ -93,8 +95,17 @@ export const Sidebar = () => {
     return (
         <div className="flex flex-col w-64 bg-[#1E3A8A] text-white">
             {/* Logo */}
-            <div className="p-6">
-                <h1 className="text-2xl font-bold">Exlayr</h1>
+            <div className="flex items-center justify-between mb-6">
+                <Image
+                    src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos/exlayr_logo.png"
+                    alt="Exlayr Logo"
+                    width={120}
+                    height={40}
+                    priority
+                />
+                <button className="lg:hidden">
+                    <X className="h-6 w-6" />
+                </button>
             </div>
 
             {/* Navigation */}
