@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast";
 import CommentSection from '@/components/documents/DocumentSectionReview/CommentSection';
 import type { Comment } from '@/components/documents/DocumentSectionReview/types';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 // Combine all styles into a single string at the top
 const combinedStyles = `
@@ -575,6 +576,8 @@ export default function SponsorEditDocumentClient({
   const supabase = getSupabaseClient();
   const { toast } = useToast();
   const router = useRouter();
+  const [isFullDocumentModalOpen, setIsFullDocumentModalOpen] = useState(false);
+  const [fullDocumentHtmlContent, setFullDocumentHtmlContent] = useState('');
 
   const hasUnsavedChanges = useMemo(() => 
       Object.values(localChanges).some(change => change !== undefined), 
@@ -903,10 +906,43 @@ export default function SponsorEditDocumentClient({
       }
   };
 
+  // Handle View Full Document
+  const handleViewFullDocument = useCallback(() => {
+    console.log("[ViewFullDoc] Generating preview...");
+    if (!sections || sections.length === 0) {
+      toast({ title: "Error", description: "Document data not loaded.", variant: "destructive" });
+      return;
+    }
+
+    let htmlContent = `
+      <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Document Preview: ${documentId}</title><style>body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 2rem; max-width: 900px; margin: auto; color: #333; } h1, h2, h3 { margin-top: 1.5em; margin-bottom: 0.5em; color: #111; } h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; font-size: 2em; } h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; font-size: 1.5em; } h3 { font-size: 1.2em; color: #444; } pre { background-color: #f8f8f8; padding: 1em; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.95em; } .section-header { margin-top: 2.5em; } .subsection { margin-left: 1em; }</style></head><body><h1>Document Preview: ${documentId}</h1>`;
+
+    try {
+      sections.forEach(section => {
+        htmlContent += `<h2 class="section-header">${section.title} (Status: ${section.status})</h2>\n`;
+        section.subsections.forEach(subsection => {
+          const content = localChanges[subsection.id] ?? subsection.content ?? '';
+          const escapedContent = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") || "[No content]";
+          htmlContent += `<div class="subsection"><h3>${subsection.title}</h3><pre>${escapedContent}</pre></div>`; 
+        });
+      });
+      htmlContent += `</body></html>`;
+      
+      console.log("[ViewFullDoc] HTML Generated. Setting state to open modal.");
+
+      setFullDocumentHtmlContent(htmlContent);
+      setIsFullDocumentModalOpen(true);
+
+    } catch (error) {
+      console.error("[ViewFullDoc] Error during HTML generation:", error);
+      toast({ title: "Preview Error", description: "An error occurred generating the preview.", variant: "destructive" });
+    }
+  }, [sections, documentId, localChanges, toast]);
+
   return (
     <div className="flex h-screen bg-muted/40"> 
       <TableOfContents
-        sections={sortedInitialSections} // Pass SORTED INITIAL sections to ToC
+        sections={sortedInitialSections} 
         activeSubsectionId={activeSubsectionId}
         onSubsectionSelect={handleSubsectionSelect}
         isCollapsed={isSidebarCollapsed}
@@ -916,13 +952,13 @@ export default function SponsorEditDocumentClient({
           userName={userName}
           isSidebarCollapsed={isSidebarCollapsed}
           toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          onViewFullDocument={() => { console.log("View Full Document clicked"); /* TODO */}}
+          onViewFullDocument={handleViewFullDocument}
           onSaveAll={handleSaveAll}
           hasUnsavedChanges={hasUnsavedChanges}
           onSubmitForReview={handleSubmitForReview}
         />
         <MainContentArea 
-          sections={sections} // Pass the SECTIONS STATE (initialized sorted) to Main Area
+          sections={sections}
           activeSubsectionId={activeSubsectionId}
           commentsBySubsection={commentsBySubsection}
           localChanges={localChanges}
@@ -935,7 +971,30 @@ export default function SponsorEditDocumentClient({
           setExpandedSections={setExpandedSections}
           mainContentRef={mainContentRef}
         />
-            </div>
-        </div>
-    );
+      </div>
+      
+      {/* Full Document Modal */}
+      <Dialog open={isFullDocumentModalOpen} onOpenChange={setIsFullDocumentModalOpen}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Document Preview: {documentId}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 mt-4 mb-4 border rounded-md p-4 bg-gray-50"> 
+            <div
+              dangerouslySetInnerHTML={{ __html: fullDocumentHtmlContent }}
+              className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none"
+            />
+          </ScrollArea>
+          <DialogFooter className="mt-auto pt-4 border-t">
+             <Button 
+               variant="outline" 
+               onClick={() => window.print()}
+             >
+                Print / Save as PDF
+             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 } 
