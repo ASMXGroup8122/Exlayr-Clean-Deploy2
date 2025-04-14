@@ -112,114 +112,99 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
   };
 
   return (
-    <div className="p-3 md:p-6 space-y-4 md:space-y-6 pb-24">
-      {/* Title with AI Assistant button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl md:text-2xl font-bold text-[#202124]">Campaign Manager</h1>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="ml-2 text-blue-600 hover:bg-blue-50"
-            onClick={() => setShowAiAssistant(true)}
-          >
-            <Bot className="h-5 w-5 mr-1" />
-            <SparkleIcon className="h-4 w-4" />
-            <span className="sr-only">AI Assistant</span>
-          </Button>
-        </div>
-      </div>
-
+    <div className="p-6">
       <Tabs defaultValue={mode} onValueChange={(val) => setMode(val as 'sponsor' | 'client')} className="w-full">
-        <TabsList className="bg-[#F8F9FA] border border-[#DADCE0] p-1 rounded-lg mb-4 w-full">
+        <TabsList className="bg-[#F8F9FA] border border-[#DADCE0] p-1 rounded-lg mb-6 w-full">
           <TabsTrigger value="sponsor" className="flex-1 data-[state=active]:bg-[#E8F0FE] data-[state=active]:text-[#1a73e8] text-[#5f6368] hover:text-[#202124]">My Campaigns</TabsTrigger>
           <TabsTrigger value="client" className="flex-1 data-[state=active]:bg-[#E8F0FE] data-[state=active]:text-[#1a73e8] text-[#5f6368] hover:text-[#202124]">Client Campaigns</TabsTrigger>
         </TabsList>
 
-        {/* Sponsor Campaigns View */}
         <TabsContent value="sponsor">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-[#202124]">Sponsor Campaigns</h2>
-            <div className="flex flex-wrap gap-2 w-full md:w-auto">
-              <Button 
-                size="sm" 
-                onClick={() => setShowScheduler(!showScheduler)}
-                variant="outline"
-                className="text-[#5f6368] border-[#DADCE0] hover:bg-[#E8EAED] hover:text-[#202124]"
-              >
-                {showScheduler ? 'Hide Scheduler' : 'Open Scheduler'}
-              </Button>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="text-[#5f6368] border-[#DADCE0] hover:bg-[#E8EAED] hover:text-[#202124]"
-                  >
-                    Choose from Templates
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg mx-4">
-                  <DialogHeader>
-                    <DialogTitle className="text-[#202124]">Select a Campaign Template</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 mt-4 max-h-[60vh] overflow-y-auto">
-                    {campaignTemplates.map(tpl => (
-                      <Card
-                        key={tpl.value}
-                        onClick={() => setTemplate(tpl.value)}
-                        className={`cursor-pointer border transition-colors ${template === tpl.value ? 'border-[#1a73e8] bg-[#E8F0FE]' : 'border-[#DADCE0] hover:bg-[#F8F9FA]'}`}
-                      >
-                        <CardHeader className="text-base font-semibold text-[#202124] pb-1">{tpl.label}</CardHeader>
-                        <CardContent className="text-sm text-[#5f6368]">{tpl.description}</CardContent>
-                      </Card>
-                    ))}
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-[#202124] mb-4">Sponsor Campaigns</h2>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button 
+                  size="sm" 
+                  onClick={() => setShowScheduler(!showScheduler)}
+                  variant="outline"
+                  className="text-[#5f6368] border-[#DADCE0] hover:bg-[#E8EAED] hover:text-[#202124] w-full sm:w-auto"
+                >
+                  {showScheduler ? 'Hide Scheduler' : 'Open Scheduler'}
+                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="text-[#5f6368] border-[#DADCE0] hover:bg-[#E8EAED] hover:text-[#202124] w-full sm:w-auto"
+                    >
+                      Choose from Templates
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="w-[95vw] max-w-4xl mx-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-[#202124]">Select a Campaign Template</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4 max-h-[60vh] overflow-y-auto">
+                      {campaignTemplates.map(tpl => (
+                        <Card
+                          key={tpl.value}
+                          onClick={() => setTemplate(tpl.value)}
+                          className={`cursor-pointer border transition-colors ${template === tpl.value ? 'border-[#1a73e8] bg-[#E8F0FE]' : 'border-[#DADCE0] hover:bg-[#F8F9FA]'}`}
+                        >
+                          <CardHeader className="text-base font-semibold text-[#202124] pb-1 p-4">{tpl.label}</CardHeader>
+                          <CardContent className="text-sm text-[#5f6368] px-4 pb-4">{tpl.description}</CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button 
+                  size="sm" 
+                  className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto"
+                >
+                  + New Campaign
+                </Button>
+              </div>
+            </div>
+
+            {showScheduler && (
+              <div className="bg-[#F8F9FA] border border-[#DADCE0] rounded-lg p-2 sm:p-4 -mx-2 sm:mx-0">
+                <CampaignScheduler orgId={orgId} />
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-base font-medium text-[#202124] mb-4">Active Campaigns</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Card className="border-[#DADCE0] hover:border-[#1a73e8] transition-colors">
+                  <div className="p-4">
+                    <h3 className="text-base font-medium text-[#202124] mb-2">Webinar Series - Volume Drive</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#5f6368] mb-3">
+                      <p>Status: <span className="font-semibold text-green-600">Running</span></p>
+                      <p>Reach: 9,250 views</p>
+                      <p>Spend: £6,120</p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="text-[#1a73e8] border-[#1a73e8] hover:bg-[#E8F0FE] w-full sm:w-auto"
+                    >
+                      View
+                    </Button>
                   </div>
-                </DialogContent>
-              </Dialog>
-              <Button 
-                size="sm" 
-                className="bg-[#1a73e8] hover:bg-[#1557B0] text-white"
-              >
-                + New Campaign
-              </Button>
-            </div>
-          </div>
-
-          {showScheduler && (
-            <div className="bg-[#F8F9FA] border border-[#DADCE0] rounded-lg p-3 md:p-4 mb-4 md:mb-6">
-              <CampaignScheduler orgId={orgId} />
-            </div>
-          )}
-
-          <div className="mt-4 md:mt-6">
-            <h2 className="text-base font-medium text-[#202124] mb-3">Active Campaigns</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              <Card className="border-[#DADCE0] hover:border-[#1a73e8] transition-colors">
-                <CardHeader className="text-base font-medium text-[#202124] pb-1 p-3 md:p-4">Webinar Series - Volume Drive</CardHeader>
-                <CardContent className="space-y-2 text-[#5f6368] p-3 md:p-4 pt-0">
-                  <p>Status: <span className="font-semibold text-green-600">Running</span></p>
-                  <p>Reach: 9,250 views</p>
-                  <p>Spend: £6,120</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="mt-2 text-[#1a73e8] border-[#1a73e8] hover:bg-[#E8F0FE] w-full md:w-auto"
-                  >
-                    View
-                  </Button>
-                </CardContent>
-              </Card>
+                </Card>
+              </div>
             </div>
           </div>
         </TabsContent>
 
-        {/* Client Campaigns View */}
         <TabsContent value="client">
           <div>
             <h2 className="text-lg font-semibold text-[#202124] mb-4">Client Campaigns</h2>
             <Select onValueChange={setClient}>
-              <SelectTrigger className="w-full border-[#DADCE0] text-[#202124]">
+              <SelectTrigger className="w-full sm:w-[300px] border-[#DADCE0] text-[#202124]">
                 <SelectValue placeholder="Select a client" className="text-[#5f6368]" />
               </SelectTrigger>
               <SelectContent>
@@ -231,15 +216,15 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
             {client && (
               <div className="mt-6">
                 <p className="text-sm text-[#5f6368]">Viewing campaigns for: <span className="font-semibold text-[#202124]">{client}</span></p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
                   <Card className="border-[#DADCE0] hover:border-[#1a73e8] transition-colors">
-                    <CardHeader className="text-base font-medium text-[#202124] pb-1 p-3 md:p-4">Alpha Energy - £3M Raise</CardHeader>
-                    <CardContent className="space-y-2 text-[#5f6368] p-3 md:p-4 pt-0">
+                    <CardHeader className="text-base font-medium text-[#202124] pb-1 p-4">Alpha Energy - £3M Raise</CardHeader>
+                    <CardContent className="space-y-3 px-4 pb-4">
                       <p>Status: <span className="font-semibold text-yellow-600">Planning</span></p>
                       <Button 
                         variant="outline" 
                         size="sm"
-                        className="mt-2 text-[#1a73e8] border-[#1a73e8] hover:bg-[#E8F0FE] w-full md:w-auto"
+                        className="text-[#1a73e8] border-[#1a73e8] hover:bg-[#E8F0FE] w-full sm:w-auto"
                       >
                         Manage
                       </Button>
@@ -254,19 +239,19 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
 
       {/* AI Assistant Dialog */}
       {showAiAssistant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowAiAssistant(false)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30" onClick={() => setShowAiAssistant(false)}>
           <div 
-            className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 overflow-hidden flex flex-col h-[560px]" 
+            className="bg-white rounded-t-lg sm:rounded-lg shadow-xl w-full sm:max-w-4xl mx-0 sm:mx-4 overflow-hidden flex flex-col h-[90vh] sm:h-[560px]" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Dialog Header */}
-            <div className="p-4 border-b flex items-center justify-between">
+            <div className="p-3 sm:p-4 border-b flex items-center justify-between">
               <div className="flex items-center">
-                <MessageSquare className="text-blue-600 mr-2 h-5 w-5" />
-                <h2 className="font-semibold">Campaign AI Assistant</h2>
+                <MessageSquare className="text-blue-600 mr-2 h-4 sm:h-5 w-4 sm:w-5" />
+                <h2 className="font-semibold text-sm sm:text-base">Campaign AI Assistant</h2>
               </div>
               <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => setShowAiAssistant(false)}>
-                <X className="h-5 w-5" />
+                <X className="h-4 sm:h-5 w-4 sm:w-5" />
               </Button>
             </div>
             

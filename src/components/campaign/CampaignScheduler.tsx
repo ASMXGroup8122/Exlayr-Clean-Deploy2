@@ -140,30 +140,42 @@ export function CampaignScheduler({ orgId }: CampaignSchedulerProps) {
 
   return (
     <div className="h-full">
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+      <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm border border-[#DADCE0]">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           headerToolbar={{
-            left: 'prev,next today',
+            left: 'prev,next',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            right: 'dayGridMonth,timeGridWeek'
+          }}
+          views={{
+            dayGridMonth: {
+              titleFormat: { month: 'short', year: 'numeric' },
+              dayHeaderFormat: { weekday: 'short' }
+            },
+            timeGridWeek: {
+              titleFormat: { month: 'short', year: 'numeric' },
+              dayHeaderFormat: { weekday: 'short' }
+            }
           }}
           editable={true}
           selectable={true}
           selectMirror={true}
-          dayMaxEvents={true}
+          dayMaxEvents={3}
           events={events}
           select={handleDateSelect}
           eventClick={handleEventClick}
           height="auto"
-          aspectRatio={1.8}
+          aspectRatio={1.35}
+          stickyHeaderDates={true}
+          handleWindowResize={true}
         />
       </div>
 
       {/* Event Modal */}
       <Dialog open={showEventModal} onOpenChange={setShowEventModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-[425px] mx-auto">
           <DialogHeader>
             <DialogTitle>{selectedEvent ? 'Edit Campaign Event' : 'New Campaign Event'}</DialogTitle>
           </DialogHeader>
@@ -202,17 +214,17 @@ export function CampaignScheduler({ orgId }: CampaignSchedulerProps) {
               </div>
             </div>
           </div>
-          <DialogFooter className="flex justify-between">
+          <DialogFooter className="sm:justify-between">
             {selectedEvent && (
-              <Button variant="destructive" onClick={handleDeleteEvent} type="button">
+              <Button variant="destructive" onClick={handleDeleteEvent} type="button" className="w-full sm:w-auto">
                 Delete
               </Button>
             )}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowEventModal(false)} type="button">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => setShowEventModal(false)} type="button" className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleSaveEvent} type="button">
+              <Button onClick={handleSaveEvent} type="button" className="w-full sm:w-auto">
                 {selectedEvent ? 'Update' : 'Create'} Event
               </Button>
             </div>
