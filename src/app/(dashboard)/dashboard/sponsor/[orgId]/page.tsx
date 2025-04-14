@@ -122,28 +122,128 @@ export default function SponsorDashboard() {
         console.log(`[SponsorDashboardPage] Intent state changed to: ${intent}`);
     }, [intent]);
 
-    // Original welcome message (can keep or remove)
-    const userName = "David"; // Replace with dynamic user name if available
-
     return (
-        <div className="flex flex-col h-full">
-            {/* === NEW AI Interface Area === */}
-            {/* Container grows and uses flex to push content down */}
-            <div className="flex-1 flex flex-col items-center p-6">
-
-                {/* Spacer div takes up available space above the content */}
-                <div className="flex-grow" />
-
-                {/* Action Cards Area */}
-                <div className="w-full max-w-3xl mb-6">
-                    <AiActionCards intent={intent} orgId={orgId} />
+        <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
+            {/* Main Content */}
+            <div className="flex-1 p-4 md:p-6 space-y-6">
+                {/* Quick Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                        <div className="flex items-center">
+                            <div className="p-2 rounded-lg bg-blue-50">
+                                <Building2 className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-[#5f6368]">Active Listings</p>
+                                <p className="text-lg font-semibold text-[#202124]">12</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                        <div className="flex items-center">
+                            <div className="p-2 rounded-lg bg-green-50">
+                                <Users className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-[#5f6368]">Total Clients</p>
+                                <p className="text-lg font-semibold text-[#202124]">8</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                        <div className="flex items-center">
+                            <div className="p-2 rounded-lg bg-purple-50">
+                                <Bell className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-[#5f6368]">Pending Tasks</p>
+                                <p className="text-lg font-semibold text-[#202124]">5</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                        <div className="flex items-center">
+                            <div className="p-2 rounded-lg bg-yellow-50">
+                                <Clock className="h-5 w-5 text-yellow-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-[#5f6368]">Due Today</p>
+                                <p className="text-lg font-semibold text-[#202124]">3</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Input Bar Area */}
-                <AiChatInputBar onIntentChange={setIntent} />
+                {/* Quick Actions Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {portalCards.map((card, index) => {
+                        const Icon = card.icon;
+                        return (
+                            <Link
+                                key={index}
+                                href={card.href}
+                                className={`${card.bgColor} p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-[#DADCE0]`}
+                            >
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0">
+                                        <Icon className="h-6 w-6 text-gray-600" />
+                                    </div>
+                                    <div className="ml-4 flex-1">
+                                        <h3 className="text-sm font-medium text-[#202124]">
+                                            {card.title}
+                                        </h3>
+                                        <p className="mt-1 text-xs text-[#5f6368]">
+                                            {card.description}
+                                        </p>
+                                    </div>
+                                    <ArrowRight className="h-5 w-5 text-[#5f6368]" />
+                                </div>
+                            </Link>
+                        );
+                    })}
+                </div>
 
-                {/* Optional padding below input bar */}
-                <div className="h-6 md:h-10" />
+                {/* Recent Listings */}
+                <div className="bg-white rounded-lg shadow-sm border border-[#DADCE0] overflow-hidden">
+                    <div className="p-4 border-b border-[#DADCE0]">
+                        <h2 className="text-lg font-medium text-[#202124]">Recent Listings</h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-[#F8F9FA]">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Company</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Exchange</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Next Key Date</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#DADCE0]">
+                                {recentListings.map((listing, index) => (
+                                    <tr key={index}>
+                                        <td className="px-4 py-3 text-sm text-[#202124]">{listing.companyName}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(listing.status)}`}>
+                                                {listing.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-[#5f6368]">{listing.exchange}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="text-sm text-[#202124]">{listing.nextKeyDate}</div>
+                                            <div className="text-xs text-[#5f6368]">{listing.keyDateDescription}</div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* AI Interface Area */}
+                <div className="w-full max-w-3xl mx-auto">
+                    <AiActionCards intent={intent} orgId={orgId} />
+                    <AiChatInputBar onIntentChange={setIntent} />
+                </div>
             </div>
         </div>
     );

@@ -25,7 +25,8 @@ import {
     Command,
     FileText,
     BarChartHorizontal,
-    Megaphone
+    Megaphone,
+    Menu
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -39,12 +40,19 @@ type NavItem = {
     category: string;
 };
 
-export default function Sidebar({ userRole }: { userRole: string }) {
+export default function Sidebar({ 
+    userRole,
+    isCollapsed,
+    onCollapsedChange
+}: { 
+    userRole: string;
+    isCollapsed: boolean;
+    onCollapsedChange: (collapsed: boolean) => void;
+}) {
     const pathname = usePathname();
     const { user, signOut } = useAuth();
     const [profileOpen, setProfileOpen] = useState(false);
     const [issuerStatus, setIssuerStatus] = useState<string | null>(null);
-    const [collapsed, setCollapsed] = useState(false);
     const [recentPages, setRecentPages] = useState<NavItem[]>([]);
     const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
     const [aiMessage, setAiMessage] = useState('');
@@ -217,27 +225,48 @@ export default function Sidebar({ userRole }: { userRole: string }) {
 
     return (
         <>
-            <div 
-                className={`fixed top-0 left-0 flex flex-col ${collapsed ? 'w-20' : 'w-64'} h-screen bg-[#F8F9FA] border-r border-[#DADCE0] z-20`}
+            {/* Mobile menu button */}
+            <button
+                onClick={() => onCollapsedChange(!isCollapsed)}
+                className="md:hidden fixed top-5 left-5 z-[60] p-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm text-[#5f6368] hover:text-[#202124]"
+                aria-label="Toggle menu"
             >
+                <Menu size={20} />
+            </button>
+
+            {/* Mobile overlay */}
+            {!isCollapsed && (
+                <div
+                    className="md:hidden fixed inset-0 bg-black/20 z-40"
+                    onClick={() => onCollapsedChange(true)}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white border-r border-[#DADCE0] transition-transform duration-200 ${
+                isCollapsed ? '-translate-x-full md:translate-x-0 md:w-16' : 'translate-x-0'
+            }`}>
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Top section with logo and collapse button - always visible */}
-                    <div className="flex-shrink-0 px-4 py-5 border-b border-[#DADCE0]">
-                        <div className="flex items-center justify-between">
-                            {!collapsed && (
-                                <Image
-                                    src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos//exlayr_logo3.png"
-                                    alt="Exlayr Logo"
-                                    width={200}
-                                    height={60}
-                                    className="max-h-10 w-auto"
-                                />
+                    {/* Top section with logo and collapse button */}
+                    <div className="flex-shrink-0 h-16 px-4 border-b border-[#DADCE0] flex items-center">
+                        <div className="flex items-center justify-between w-full">
+                            {!isCollapsed && (
+                                <div className="flex-1 flex justify-center">
+                                    <Image
+                                        src="/exlayr_logo3.png"
+                                        alt="Exlayr Logo"
+                                        width={220}
+                                        height={70}
+                                        className="h-8 w-auto"
+                                        priority
+                                    />
+                                </div>
                             )}
                             <button 
-                                onClick={() => setCollapsed(!collapsed)}
+                                onClick={() => onCollapsedChange(!isCollapsed)}
                                 className="p-1.5 rounded-full text-[#5f6368] hover:text-[#202124] hover:bg-[#E8EAED] transition-all duration-200"
                             >
-                                {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                                {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
                             </button>
                         </div>
                     </div>
@@ -247,16 +276,16 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                         <div className="px-3 py-4">
                             {/* Recent Pages Section */}
                             {recentPages.length > 0 && (
-                                <div className="mb-6">
-                                    <div className="flex items-center mb-2 px-2">
-                                        <Clock className="w-4 h-4 text-[#5f6368]" />
-                                        <span className="ml-2 text-xs font-medium text-[#5f6368] uppercase tracking-wider">Recent</span>
-                                    </div>
+                                <div className="mb-4">
+                                    {!isCollapsed && (
+                                        <h3 className="px-3 mb-2 text-xs font-medium text-[#5f6368]">Recent</h3>
+                                    )}
                                     <div className="space-y-1">
                                         {recentPages.map((item) => (
                                             <Link
                                                 key={`recent-${item.href}`}
                                                 href={item.href}
+                                                onClick={() => onCollapsedChange(true)}
                                                 className="flex items-center px-3 py-1.5 text-sm rounded-md text-[#202124] hover:bg-[#E8EAED] transition-colors duration-200"
                                             >
                                                 <span className="text-[#5f6368] group-hover:text-[#202124]">
@@ -273,7 +302,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                             <nav className="space-y-6">
                                 {sortedCategories.map(category => (
                                     <div key={category} className="space-y-1">
-                                        {!collapsed && (
+                                        {!isCollapsed && (
                                             <div className="flex items-center mb-2 px-2">
                                                 <span className="text-xs font-medium text-[#5f6368] uppercase tracking-wider">{category}</span>
                                             </div>
@@ -284,6 +313,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                                 <Link
                                                     key={item.href}
                                                     href={item.href}
+                                                    onClick={() => onCollapsedChange(true)}
                                                     className={`group relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                                                         isActive
                                                             ? 'bg-[#E8F0FE] text-[#1a73e8]'
@@ -293,7 +323,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                                     <div className={`flex items-center justify-center ${isActive ? 'text-[#1a73e8]' : 'text-[#5f6368] group-hover:text-[#202124]'} transition-colors duration-200`}>
                                                         {item.icon}
                                                     </div>
-                                                    {!collapsed && <span className="ml-3 transition-opacity duration-200">{item.label}</span>}
+                                                    {!isCollapsed && <span className="ml-3 transition-opacity duration-200">{item.label}</span>}
                                                     {isActive && (
                                                         <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-2/3 bg-[#1a73e8] rounded-r-full" />
                                                     )}
@@ -315,7 +345,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                 className="w-full flex items-center justify-center px-3 py-2 bg-[#1a73e8] hover:bg-[#1557B0] text-white rounded-lg transition-all duration-200"
                             >
                                 <MessageSquare className="w-5 h-5" />
-                                {!collapsed && <span className="ml-2">AI Assistant</span>}
+                                {!isCollapsed && <span className="ml-2">AI Assistant</span>}
                             </button>
                         </div>
 
@@ -326,7 +356,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                 className="w-full flex items-center justify-center px-3 py-2 bg-[#F8F9FA] hover:bg-[#E8EAED] text-[#202124] rounded-lg transition-all duration-200 border border-[#DADCE0]"
                             >
                                 <Command className="w-5 h-5" />
-                                {!collapsed && <span className="ml-2">Command Palette (⌘K)</span>}
+                                {!isCollapsed && <span className="ml-2">Command Palette (⌘K)</span>}
                             </button>
                         </div>
 
@@ -341,7 +371,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                         <UserCircle className="h-6 w-6 text-[#5f6368]" />
                                     </div>
                                 </div>
-                                {!collapsed && (
+                                {!isCollapsed && (
                                     <>
                                         <div className="ml-3 flex-1">
                                             <p className="text-sm font-medium truncate">{user?.email}</p>
@@ -356,6 +386,10 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                 <div className="mt-3 px-2 space-y-1 bg-[#F8F9FA] rounded-lg py-2 border border-[#DADCE0]">
                                     <Link
                                         href={`/dashboard/${userRole}/profile`}
+                                        onClick={() => {
+                                            setProfileOpen(false);
+                                            onCollapsedChange(true);
+                                        }}
                                         className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-[#202124] hover:text-[#1a73e8] hover:bg-[#E8EAED] transition-colors duration-200"
                                     >
                                         <UserCircle className="mr-3 h-5 w-5 text-[#5f6368]" />
@@ -363,6 +397,10 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                                     </Link>
                                     <Link
                                         href={`/dashboard/${userRole}/settings`}
+                                        onClick={() => {
+                                            setProfileOpen(false);
+                                            onCollapsedChange(true);
+                                        }}
                                         className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-[#202124] hover:text-[#1a73e8] hover:bg-[#E8EAED] transition-colors duration-200"
                                     >
                                         <Settings className="mr-3 h-5 w-5 text-[#5f6368]" />
@@ -401,7 +439,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                         </div>
                     </div>
                 </div>
-            </div>
+            </aside>
 
             {/* AI Assistant Dialog */}
             {aiAssistantOpen && (
@@ -520,9 +558,6 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                     </div>
                 </div>
             )}
-
-            {/* Add a spacer div to prevent content from going under the sidebar */}
-            <div className={`flex-shrink-0 ${collapsed ? 'w-20' : 'w-64'}`} />
         </>
     );
 } 
