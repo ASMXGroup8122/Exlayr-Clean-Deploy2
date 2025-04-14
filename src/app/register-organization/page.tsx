@@ -69,10 +69,10 @@ export default function RegisterOrganizationPage() {
                         <div className="flex items-center">
                             <div className="flex justify-center mb-8">
                                 <Image
-                                    src="/exlayr_logo3.png"
+                                    src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos//exlayr_logo3.png"
                                     alt="Exlayr Logo"
-                                    width={280}
-                                    height={90}
+                                    width={240}
+                                    height={70}
                                     className="mx-auto"
                                     priority
                                 />

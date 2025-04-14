@@ -98,12 +98,11 @@ export const Sidebar = () => {
             <div className="relative mb-8 pt-4">
                 <div className="flex justify-center">
                     <Image
-                        src="/exlayr_logo3.png"
+                        src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos//exlayr_logo3.png"
                         alt="Exlayr Logo"
-                        width={340}
-                        height={120}
-                        className="max-h-28 w-auto"
-                        priority
+                        width={320}
+                        height={100}
+                        className="max-h-24 w-auto"
                     />
                 </div>
                 <button className="lg:hidden absolute right-4 top-1/2 -translate-y-1/2">
