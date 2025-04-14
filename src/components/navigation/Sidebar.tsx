@@ -95,15 +95,18 @@ export const Sidebar = () => {
     return (
         <div className="flex flex-col w-64 bg-[#1E3A8A] text-white">
             {/* Logo */}
-            <div className="flex items-center justify-between mb-6">
-                <Image
-                    src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos/exlayr_logo.png"
-                    alt="Exlayr Logo"
-                    width={120}
-                    height={40}
-                    priority
-                />
-                <button className="lg:hidden">
+            <div className="relative mb-8 pt-4">
+                <div className="flex justify-center">
+                    <Image
+                        src="/exlayr_logo3.png"
+                        alt="Exlayr Logo"
+                        width={340}
+                        height={120}
+                        className="max-h-28 w-auto"
+                        priority
+                    />
+                </div>
+                <button className="lg:hidden absolute right-4 top-1/2 -translate-y-1/2">
                     <X className="h-6 w-6" />
                 </button>
             </div>

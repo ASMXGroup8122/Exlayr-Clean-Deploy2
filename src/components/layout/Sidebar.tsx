@@ -226,10 +226,11 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                         <div className="flex items-center justify-between">
                             {!collapsed && (
                                 <Image
-                                    src="https://ulvnzvdpbblxsyjynufh.supabase.co/storage/v1/object/public/logos/exlayr_logo.png"
+                                    src="/exlayr_logo3.png"
                                     alt="Exlayr Logo"
-                                    width={180}
-                                    height={60}
+                                    width={220}
+                                    height={70}
+                                    className="max-h-10 w-auto"
                                     priority
                                 />
                             )}

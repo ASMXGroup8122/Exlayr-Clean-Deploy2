@@ -67,14 +67,16 @@ export default function RegisterOrganizationPage() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
-                            <Image
-                                src="/logo.png"
-                                alt="Exlayr Logo"
-                                width={120}
-                                height={40}
-                                className="cursor-pointer"
-                                onClick={() => window.location.href = 'https://www.exlayr.ai'}
-                            />
+                            <div className="flex justify-center mb-8">
+                                <Image
+                                    src="/exlayr_logo3.png"
+                                    alt="Exlayr Logo"
+                                    width={280}
+                                    height={90}
+                                    className="mx-auto"
+                                    priority
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
