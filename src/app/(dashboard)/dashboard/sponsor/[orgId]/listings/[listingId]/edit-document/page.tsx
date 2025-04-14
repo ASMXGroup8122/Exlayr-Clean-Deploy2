@@ -1,5 +1,4 @@
-// Remove 'use client' - this IS a Server Component
-
+// This is a Server Component
 import { cookies } from 'next/headers';
 import { Suspense } from 'react';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -23,16 +22,12 @@ type PageProps = {
   };
 };
 
-// Prevent caching of this page
-export const revalidate = 0;
+// Set proper caching behavior
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-/**
- * Server component page for sponsors to edit listing documents.
- * Fetches document content and comments server-side, then renders the client component.
- * @param params - Contains `orgId` and `listingId`.
- */
-export default async function SponsorEditDocumentPage({ params }: PageProps) {
+// Use a dedicated page data fetcher for Next.js 15
+async function getPageData(listingId: string) {
   const supabase = createServerComponentClient<Database>({ cookies });
 
   // Fetch User Data FIRST
@@ -48,7 +43,7 @@ export default async function SponsorEditDocumentPage({ params }: PageProps) {
   const { data: documentData, error: documentError } = await supabase
     .from('listingdocumentdirectlisting')
     .select('*')
-    .eq('instrumentid', params.listingId)
+    .eq('instrumentid', listingId)
     .single();
 
   if (documentError) throw documentError;
@@ -57,7 +52,7 @@ export default async function SponsorEditDocumentPage({ params }: PageProps) {
   const { data: commentData, error: commentError } = await supabase
     .from('document_comments')
     .select('*')
-    .eq('document_id', params.listingId);
+    .eq('document_id', listingId);
 
   // Allow continuing even if comments fail? Or throw?
   // Let's throw for now to make issues obvious
@@ -95,14 +90,41 @@ export default async function SponsorEditDocumentPage({ params }: PageProps) {
   // Determine user name (use email as fallback)
   const userName = user.user_metadata?.full_name || user.email || 'Unknown User';
 
+  return {
+    sections,
+    groupedComments,
+    listingId,
+    userId: user.id,
+    userName
+  };
+}
+
+/**
+ * Server component page for sponsors to edit listing documents.
+ * Fetches document content and comments server-side, then renders the client component.
+ */
+export default async function SponsorEditDocumentPage({ 
+  params 
+}: { 
+  params: { 
+    orgId: string; 
+    listingId: string;
+  } 
+}) {
+  // Extract and validate the ID first before using it in async operations
+  const listingIdParam = await Promise.resolve(params.listingId);
+  
+  // Fetch the page data using the extracted ID
+  const { sections, groupedComments, userId, userName } = await getPageData(listingIdParam);
+
   return (
     <Suspense fallback={<div>Loading document editor...</div>}>
       <SponsorEditDocumentClient 
         initialSections={sections} 
         groupedComments={groupedComments}
-        documentId={params.listingId}
-        userId={user.id} // Pass user ID
-        userName={userName} // Pass user name/email
+        documentId={listingIdParam}
+        userId={userId}
+        userName={userName}
       />
     </Suspense>
   );

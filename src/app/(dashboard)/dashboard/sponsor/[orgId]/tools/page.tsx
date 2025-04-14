@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FileText, BarChart2, Globe, BookOpen, Search } from 'lucide-react';
+import { FileText, BarChart2, Globe, BookOpen, Search, VideoIcon } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import ToolsPage from '../../../tools/page';
 import { Agent } from '@/types/tools';
@@ -14,6 +14,13 @@ export const sponsorAgents: Agent[] = [
         description: 'Track and analyze your sponsorship performance metrics',
         icon: <BarChart2 className="w-5 h-5" />,
         category: 'analytics'
+    },
+    {
+        id: 'campaign-manager',
+        name: 'Campaign Manager',
+        description: 'Create and manage marketing campaigns for capital raises and announcements',
+        icon: <VideoIcon className="w-5 h-5" />,
+        category: 'content'
     },
     {
         id: 'compliance-check',

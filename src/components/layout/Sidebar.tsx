@@ -77,7 +77,7 @@ export default function Sidebar({ userRole }: { userRole: string }) {
                 { href: `/dashboard/sponsor/${orgId}/tools`, label: 'Tools', icon: <Wrench className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/analytics`, label: 'Analytics', icon: <BarChart className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/knowledge-vault`, label: 'Knowledge Vault', icon: <Brain className="w-5 h-5" />, category: 'Tools' },
-                { href: `/dashboard/sponsor/${orgId}/tools/campaign-manager`, label: 'Campaign Manager', icon: <Megaphone className="w-5 h-5" />, category: 'Tools' },
+                { href: `/dashboard/sponsor/${orgId}/campaigns`, label: 'Campaign Manager', icon: <Megaphone className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/billing`, label: 'Billing', icon: <CreditCard className="w-5 h-5" />, category: 'Settings' },
                 { href: `/dashboard/sponsor/${orgId}/settings`, label: 'Settings', icon: <Settings className="w-5 h-5" />, category: 'Settings' }
             ],
