@@ -139,8 +139,87 @@ export function CampaignScheduler({ orgId }: CampaignSchedulerProps) {
   };
 
   return (
-    <div className="h-full">
-      <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+    <div className="h-full -mx-4 sm:mx-0">
+      <div className="bg-white border-x sm:border border-[#DADCE0] sm:rounded-lg">
+        <style jsx global>{`
+          .fc {
+            max-width: 100% !important;
+          }
+          .fc .fc-toolbar-title {
+            font-size: 1rem !important;
+            font-weight: 500 !important;
+            padding: 0 !important;
+          }
+          .fc .fc-toolbar {
+            flex-wrap: wrap !important;
+            gap: 0.125rem !important;
+            padding: 0.125rem 0.25rem !important;
+            margin-bottom: 0.25rem !important;
+          }
+          .fc .fc-button-group {
+            background-color: #F8F9FA !important;
+            border-radius: 0.25rem !important;
+            padding: 0 !important;
+          }
+          .fc .fc-button {
+            background-color: transparent !important;
+            border: none !important;
+            color: #5f6368 !important;
+            padding: 0.125rem 0.375rem !important;
+            font-weight: normal !important;
+            box-shadow: none !important;
+            text-transform: capitalize !important;
+            font-size: 0.875rem !important;
+            min-width: 32px !important;
+          }
+          .fc .fc-toolbar-chunk:first-child .fc-button-group {
+            margin-left: -0.25rem !important;
+          }
+          .fc .fc-toolbar-chunk:last-child .fc-button-group {
+            margin-right: -0.25rem !important;
+          }
+          .fc .fc-view-harness {
+            background: white !important;
+          }
+          .fc td, .fc th {
+            padding: 0 !important;
+          }
+          .fc .fc-daygrid-day-frame {
+            padding: 0.125rem !important;
+            min-height: 5rem !important;
+          }
+          .fc .fc-timegrid-slot {
+            height: 2.5rem !important;
+          }
+          .fc .fc-timegrid-axis-cushion {
+            padding: 0.25rem !important;
+            font-size: 0.75rem !important;
+          }
+          .fc .fc-timegrid-slot-label {
+            font-size: 0.75rem !important;
+          }
+          .fc .fc-col-header-cell-cushion {
+            padding: 0.25rem 0.125rem !important;
+            font-size: 0.875rem !important;
+          }
+          .fc .fc-daygrid-day-number {
+            font-size: 0.875rem !important;
+            padding: 0.125rem 0.25rem !important;
+          }
+          @media (max-width: 640px) {
+            .fc .fc-toolbar {
+              padding: 0.125rem !important;
+            }
+            .fc .fc-toolbar-title {
+              font-size: 0.875rem !important;
+              line-height: 1.25rem !important;
+            }
+            .fc .fc-button {
+              padding: 0.125rem 0.25rem !important;
+              font-size: 0.75rem !important;
+            }
+          }
+        `}</style>
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
@@ -151,13 +230,27 @@ export function CampaignScheduler({ orgId }: CampaignSchedulerProps) {
           }}
           views={{
             dayGridMonth: {
-              titleFormat: { month: 'short', year: 'numeric' },
-              dayHeaderFormat: { weekday: 'short' }
+              titleFormat: { year: 'numeric', month: '2-digit' },
+              dayHeaderFormat: { weekday: 'short' },
+              buttonText: {
+                month: 'Month'
+              }
             },
             timeGridWeek: {
-              titleFormat: { month: 'short', year: 'numeric' },
-              dayHeaderFormat: { weekday: 'short' }
+              titleFormat: { year: 'numeric', month: '2-digit' },
+              dayHeaderFormat: { weekday: 'short' },
+              buttonText: {
+                week: 'Week'
+              },
+              slotMinTime: '00:00:00',
+              slotMaxTime: '24:00:00',
+              slotDuration: '01:00:00'
             }
+          }}
+          buttonText={{
+            today: 'Today',
+            month: 'Month',
+            week: 'Week'
           }}
           editable={true}
           selectable={true}
@@ -167,7 +260,7 @@ export function CampaignScheduler({ orgId }: CampaignSchedulerProps) {
           select={handleDateSelect}
           eventClick={handleEventClick}
           height="auto"
-          aspectRatio={1.35}
+          aspectRatio={1.8}
           stickyHeaderDates={true}
           handleWindowResize={true}
         />
