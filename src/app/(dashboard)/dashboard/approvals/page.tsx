@@ -95,21 +95,22 @@ export default function ApprovalsPage() {
         {items.map((item) => {
           const isLoading = loadingItemId === item.id;
           return (
-            <Card key={item.id}>
+            <Card key={item.id} className="w-full">
               <CardContent className="pt-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
+                <div className="w-full md:w-auto">
                   <p className="text-sm font-medium truncate max-w-xs md:max-w-md lg:max-w-lg" title={item.title}>{item.title}</p>
                   <p className="text-xs text-gray-500">
                     Submitted by {item.submittedBy} on {new Date(item.submittedAt).toLocaleDateString()}
                   </p>
                   {/* Add more preview details here if needed */}
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0 w-full sm:w-auto">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => handleDecision(item, 'reject')}
                     disabled={isLoading} // Disable button when loading
+                    className="w-full sm:w-auto"
                   >
                     {isLoading ? 'Rejecting...' : 'Reject'}
                   </Button>
@@ -117,7 +118,7 @@ export default function ApprovalsPage() {
                     variant="default" 
                     size="sm" 
                     onClick={() => handleDecision(item, 'approve')}
-                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50" 
+                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50 w-full sm:w-auto" 
                     disabled={isLoading} // Disable button when loading
                   >
                     {isLoading ? 'Approving...' : 'Approve'}

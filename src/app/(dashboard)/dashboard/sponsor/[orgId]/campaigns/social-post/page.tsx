@@ -125,7 +125,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl mx-auto p-6">
+    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl mx-auto p-4 sm:p-6">
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-6">
@@ -137,10 +137,11 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 value={formData.url}
                 onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                 placeholder="Enter the URL you want to post about"
+                className="w-full"
               />
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <Switch
                 id="include-source"
                 checked={formData.include_source}
@@ -156,7 +157,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 onValueChange={(value) => setFormData({ ...formData, sentiment: value })}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select sentiment" />
                 </SelectTrigger>
                 <SelectContent>
@@ -177,6 +178,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 value={formData.thoughts}
                 onChange={(e) => setFormData({ ...formData, thoughts: e.target.value })}
                 placeholder="Share your thoughts on this content"
+                className="w-full"
               />
             </div>
 
@@ -187,7 +189,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 onValueChange={(value) => setFormData({ ...formData, character_length: value })}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select character length" />
                 </SelectTrigger>
                 <SelectContent>
@@ -209,6 +211,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="Enter your email"
+                className="w-full"
               />
             </div>
 
@@ -219,7 +222,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 onValueChange={(value) => setFormData({ ...formData, linkedin_post_type: value })}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select LinkedIn post type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -238,7 +241,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 value={formData.twitter_post_type}
                 onValueChange={(value) => setFormData({ ...formData, twitter_post_type: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Twitter post type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -257,7 +260,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 value={formData.instagram_post_type}
                 onValueChange={(value) => setFormData({ ...formData, instagram_post_type: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Instagram post type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -271,7 +274,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <Switch
                   id="add-podcast"
                   checked={formData.add_podcast}
@@ -282,7 +285,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
 
               {formData.add_podcast && (
                 <>
-                  <div className="flex items-center space-x-2 ml-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 ml-0 sm:ml-6">
                     <Switch
                       id="multiple-news"
                       checked={formData.multiple_news_items}
@@ -291,13 +294,13 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                     <Label htmlFor="multiple-news">Multiple news items (max 6 sources)</Label>
                   </div>
 
-                  <div className="space-y-2 ml-6">
+                  <div className="space-y-2 ml-0 sm:ml-6">
                     <Label>Podcast Category</Label>
                     <Select
                       value={formData.podcast_category}
                       onValueChange={(value) => setFormData({ ...formData, podcast_category: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select podcast category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -320,12 +323,13 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 value={formData.additional_instructions}
                 onChange={(e) => setFormData({ ...formData, additional_instructions: e.target.value })}
                 placeholder="Any additional instructions or notes"
+                className="w-full"
               />
             </div>
 
             <div className="space-y-2">
               <Label>Platforms *</Label>
-              <div className="flex gap-6 items-center">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                 <div className="flex items-center gap-2">
                   <Switch
                     id="platform-linkedin"
@@ -359,13 +363,13 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end items-center gap-4">
-        <Link href="/dashboard/approvals" className="text-sm text-blue-600 hover:underline">
+      <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-4">
+        <Link href="/dashboard/approvals" className="text-sm text-blue-600 hover:underline w-full sm:w-auto text-center">
           View Pending Approvals
         </Link>
         <Button 
           type="submit" 
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
         >
           Create Social Post
         </Button>

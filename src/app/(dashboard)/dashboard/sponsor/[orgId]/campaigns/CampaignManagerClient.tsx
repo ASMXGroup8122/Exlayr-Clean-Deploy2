@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Mic, Send, Search, X, Bot, SparkleIcon, MessageSquare, Loader2, Share2 } from 'lucide-react';
+import { Mic, Send, Search, X, Bot, SparkleIcon, MessageSquare, Loader2, Share2, CheckSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { CampaignScheduler } from '@/components/campaign/CampaignScheduler';
@@ -165,22 +165,26 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
                     </div>
                   </DialogContent>
                 </Dialog>
-                <Link href={`/dashboard/sponsor/${orgId}/campaigns/social-post`}>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mb-6">
+                  <Link href={`/dashboard/sponsor/${orgId}/campaigns/social-post`}>
+                    <Button className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto">
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Single Social Post
+                    </Button>
+                  </Link>
                   <Button 
-                    size="sm"
                     className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto"
+                    onClick={() => router.push(`/dashboard/sponsor/${orgId}/campaigns/new`)}
                   >
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Single Social Post
+                    + New Campaign
                   </Button>
-                </Link>
-                <Button 
-                  size="sm" 
-                  className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto"
-                  onClick={() => router.push(`/dashboard/sponsor/${orgId}/campaigns/new`)}
-                >
-                  + New Campaign
-                </Button>
+                  <Link href="/dashboard/approvals">
+                    <Button className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto">
+                      <CheckSquare className="h-4 w-4 mr-2" />
+                      View Approvals
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
 
@@ -193,7 +197,7 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
             <div>
               <h2 className="text-base font-medium text-[#202124] mb-4">Active Campaigns</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Card className="border-[#DADCE0] hover:border-[#1a73e8] transition-colors">
+                <Card className="border-[#DADCE0] hover:border-[#1a73e8] transition-colors w-full">
                   <div className="p-4">
                     <h3 className="text-base font-medium text-[#202124] mb-2">Webinar Series - Volume Drive</h3>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#5f6368] mb-3">
