@@ -166,138 +166,131 @@ const Content: React.FC<ContentProps> = ({
     }, [messages]);
     
     return (
-        <div className="fixed inset-0 pt-16 pl-64">
-            <div className="h-full flex">
+        <div className="fixed inset-0 pt-16 pl-0 sm:pl-64">
+            <div className="h-full flex flex-col sm:flex-row">
                 {/* Main Chat Area */}
                 <div className="flex-1 flex flex-col bg-white relative">
+                    {/* Chat Header - Mobile Only */}
+                    <div className="sm:hidden flex items-center px-4 py-2 border-b bg-white">
+                        <button
+                            onClick={() => setIsToolbarOpen(true)}
+                            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                            <span className="text-sm font-medium">Tools</span>
+                        </button>
+                        {selectedAgent && (
+                            <div className="ml-4 flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center">
+                                    {selectedAgent.icon}
+                                </div>
+                                <span className="text-sm font-medium">{selectedAgent.name}</span>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Messages Area */}
-                    <div className="absolute inset-0 bottom-[100px] overflow-hidden">
+                    <div className="absolute inset-0 top-[40px] sm:top-0 bottom-[100px] overflow-hidden">
                         <ScrollArea className="h-full">
-                            <div className="px-6 py-4 space-y-6">
+                            <div className="px-4 sm:px-6 py-4 space-y-6">
                                 {messages.map(message => (
                                     <div
                                         key={message.id}
                                         className={cn(
-                                            "flex gap-3 max-w-[80%]",
+                                            "flex gap-3 max-w-[90%] sm:max-w-[80%]",
                                             message.sender === 'user' ? "ml-auto" : ""
                                         )}
                                     >
                                         {message.sender === 'agent' && message.agentId && (
-                                            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
                                                 {agents.find(a => a.id === message.agentId)?.icon}
                                             </div>
                                         )}
                                         <div
                                             className={cn(
-                                                "rounded-lg px-4 py-2.5",
+                                                "rounded-lg px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base",
                                                 message.sender === 'user' 
                                                     ? "bg-blue-600 text-white" 
                                                     : "bg-gray-50 text-gray-900 border border-gray-100"
                                             )}
                                         >
-                                            {/* Use whitespace-pre-wrap to render newlines from JSON */}
                                             <div className="whitespace-pre-wrap">{message.content}</div>
                                         </div>
                                     </div>
                                 ))}
-                                <div ref={messagesEndRef} /> {/* Element to scroll to */}
+                                <div ref={messagesEndRef} />
                             </div>
                         </ScrollArea>
                     </div>
 
-                    {/* Fixed Input Area */}
-                    <div className="absolute bottom-0 left-0 right-0 border-t bg-white">
+                    {/* Input Area */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t">
                         <ChatInput
                             value={input}
                             onChange={setInput}
                             onSend={handleSendMessage}
-                            placeholder={selectedAgent 
-                                ? `Message ${selectedAgent.name}...` 
-                                : "Select an agent to get started..."
-                            }
+                            placeholder={selectedAgent ? `Message ${selectedAgent.name}...` : 'Select an agent to get started...'}
                             disabled={!selectedAgent}
                         />
                     </div>
                 </div>
 
-                {/* Agents Toolbar */}
-                <div className={cn(
-                    "h-full border-l bg-white flex flex-col",
-                    isToolbarOpen ? "w-[320px]" : "w-12"
-                )}>
-                    <div className="flex-none p-6 border-b flex items-center justify-between">
-                        {isToolbarOpen && (
-                            <div className="flex-1 mr-2">
-                                <h2 className="text-lg font-medium text-gray-900">
-                                    {selectedAgent ? selectedAgent.name : 'Select an Agent'}
-                                </h2>
-                                {selectedAgent && (
-                                    <p className="mt-1 text-sm text-gray-500 line-clamp-2">{selectedAgent.description}</p>
-                                )}
-                            </div>
+                {/* Agent Selection Sidebar */}
+                <div 
+                    className={cn(
+                        "fixed inset-y-0 right-0 w-full sm:w-80 bg-white border-l transform transition-transform duration-200 ease-in-out z-20",
+                        "pt-16 pb-4",
+                        isToolbarOpen ? "translate-x-0" : "translate-x-full sm:translate-x-0"
+                    )}
+                >
+                    {/* Mobile Toggle Button */}
+                    <button
+                        onClick={() => setIsToolbarOpen(!isToolbarOpen)}
+                        className={cn(
+                            "sm:hidden fixed top-20 right-4 p-2 bg-white rounded-full shadow-lg border",
+                            "transform transition-transform duration-200 ease-in-out z-30",
+                            isToolbarOpen ? "rotate-180 translate-x-0" : "translate-x-0"
                         )}
-                        <div className="flex items-center gap-2">
-                            <Link href="/dashboard/tools/settings">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="shrink-0 text-gray-500 hover:text-gray-900"
-                                >
-                                    <Settings className="w-4 h-4" />
-                                </Button>
-                            </Link>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setIsToolbarOpen(!isToolbarOpen)}
-                                className="shrink-0 text-gray-500 hover:text-gray-900"
-                            >
-                                {isToolbarOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-                            </Button>
+                    >
+                        <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <div className="h-full flex flex-col">
+                        <div className="px-4 mb-4">
+                            <h2 className="text-lg font-semibold text-gray-900">Select an Agent</h2>
                         </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                        {isToolbarOpen ? (
-                            <div className="p-3 space-y-1">
+                        <ScrollArea className="flex-1 px-4">
+                            <div className="grid grid-cols-1 gap-3">
                                 {agents.map(agent => (
                                     <button
                                         key={agent.id}
-                                        onClick={() => handleAgentSelect(agent)}
+                                        onClick={() => {
+                                            handleAgentSelect(agent);
+                                            setIsToolbarOpen(false);
+                                        }}
                                         className={cn(
-                                            "w-full px-3 py-2.5 rounded-lg text-left transition-colors",
+                                            "flex items-start gap-3 p-3 rounded-lg text-left transition-colors",
                                             "hover:bg-gray-50",
-                                            selectedAgent?.id === agent.id && "bg-gray-50"
+                                            selectedAgent?.id === agent.id
+                                                ? "bg-blue-50 border-blue-100 border"
+                                                : "border border-gray-100"
                                         )}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-                                                {agent.icon}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="font-medium text-gray-900 truncate">{agent.name}</div>
-                                                <div className="text-sm text-gray-500 line-clamp-2">{agent.description}</div>
-                                            </div>
+                                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                            {agent.icon}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-medium text-gray-900 truncate">
+                                                {agent.name}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 line-clamp-2">
+                                                {agent.description}
+                                            </p>
                                         </div>
                                     </button>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="py-3 px-2 space-y-3">
-                                {agents.map(agent => (
-                                    <button
-                                        key={agent.id}
-                                        onClick={() => handleAgentSelect(agent)}
-                                        className={cn(
-                                            "w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center",
-                                            selectedAgent?.id === agent.id && "bg-blue-100"
-                                        )}
-                                        title={agent.name}
-                                    >
-                                        {agent.icon}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                        </ScrollArea>
                     </div>
                 </div>
             </div>
@@ -357,7 +350,8 @@ function ToolsPage({ roleAgents = [], RouteGuard }: ToolsPageProps) {
 
     const handleAgentSelect = (agent: Agent) => {
         setSelectedAgent(agent);
-        setMessages(prev => [...prev, {
+        // Clear previous messages and start fresh with the new agent
+        setMessages([{
             id: Date.now().toString(),
             content: `${agent.name} is ready to help you. What would you like to do?`,
             sender: 'agent',

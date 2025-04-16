@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Mic, Send, Search, X, Bot, SparkleIcon, MessageSquare, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Mic, Send, Search, X, Bot, SparkleIcon, MessageSquare, Loader2, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { CampaignScheduler } from '@/components/campaign/CampaignScheduler';
+import { Label } from '@/components/ui/label';
+import { CampaignGoal } from '@/types/campaigns';
+import Link from 'next/link';
 
 interface CampaignManagerClientProps {
   orgId: string;
@@ -24,6 +28,7 @@ interface ChatMessage {
 }
 
 export default function CampaignManagerClient({ orgId }: CampaignManagerClientProps) {
+  const router = useRouter();
   const [goal, setGoal] = useState('raise');
   const [client, setClient] = useState('');
   const [showScheduler, setShowScheduler] = useState(false);
@@ -160,9 +165,19 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
                     </div>
                   </DialogContent>
                 </Dialog>
+                <Link href={`/dashboard/sponsor/${orgId}/campaigns/social-post`}>
+                  <Button 
+                    size="sm"
+                    className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto"
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Single Social Post
+                  </Button>
+                </Link>
                 <Button 
                   size="sm" 
                   className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto"
+                  onClick={() => router.push(`/dashboard/sponsor/${orgId}/campaigns/new`)}
                 >
                   + New Campaign
                 </Button>
