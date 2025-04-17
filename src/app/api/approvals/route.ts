@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 // In-memory storage for approval items (resets on server restart)
 const approvalItems: any[] = [];
 
+// PUBLIC: Allow n8n to POST approval items without authentication
 export async function POST(req: Request) {
   try {
     const data = await req.json();
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
   }
 }
 
+// (Optionally protected) GET handler for UI
 export async function GET() {
   const supabase = createRouteHandlerClient({ cookies });
 

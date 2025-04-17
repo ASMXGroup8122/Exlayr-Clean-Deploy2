@@ -10,7 +10,15 @@ const AUTH_PATHS = ['/auth/callback', '/auth/error'];
 // Helper functions
 function shouldSkipAuth(request: NextRequest): boolean {
     const { pathname } = request.nextUrl;
-    return PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
+    
+    // Allow public access to POST /api/approvals
+    if (pathname === '/api/approvals' && request.method === 'POST') {
+        return true;
+    }
+    
+    return PUBLIC_PATHS.includes(pathname) || 
+           pathname.startsWith('/_next') || 
+           pathname.startsWith('/api/auth');
 }
 
 function redirectToSignIn(request: NextRequest) {
@@ -22,6 +30,11 @@ function redirectToSignIn(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
     try {
+        // Check if this is a webhook request to /api/approvals first
+        if (request.nextUrl.pathname === '/api/approvals' && request.method === 'POST') {
+            return NextResponse.next();
+        }
+
         // Create a response early to modify later
         const response = NextResponse.next();
 
