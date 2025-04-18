@@ -106,7 +106,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     };
 
     try {
-      const response = await fetch('https://n8n.srv792795.hstgr.cloud/webhook/61191174-95d1-4fcc-8d37-6c71fb31bab3', {
+      const response = await fetch('https://app.exlayr.ai/webhook/61191174-95d1-4fcc-8d37-6c71fb31bab3', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
