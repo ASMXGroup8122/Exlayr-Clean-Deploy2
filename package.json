@@ -50,6 +50,7 @@
     "framer-motion": "^12.6.3",
     "lucide-react": "^0.469.0",
     "next": "^15.2.4",
+    "node-fetch": "^3.3.2",
     "openai": "^4.87.3",
     "react": "18.2.0",
     "react-chartjs-2": "^5.2.0",

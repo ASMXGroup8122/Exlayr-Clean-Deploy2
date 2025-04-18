@@ -106,7 +106,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     };
 
     try {
-      const response = await fetch('https://n8n.srv792795.hstgr.cloud/webhook-test/61191174-95d1-4fcc-8d37-6c71fb31bab3', {
+      const response = await fetch('https://n8n.srv792795.hstgr.cloud/webhook/61191174-95d1-4fcc-8d37-6c71fb31bab3', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,10 +117,18 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
       if (response.ok) {
         router.push(`/dashboard/sponsor/${orgId}/campaigns`);
       } else {
-        console.error('Failed to submit social post');
+        const errorText = await response.text();
+        console.error('Failed to submit social post. Status:', response.status, 'Response:', errorText);
       }
     } catch (error) {
       console.error('Error submitting social post:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+      }
     }
   };
 

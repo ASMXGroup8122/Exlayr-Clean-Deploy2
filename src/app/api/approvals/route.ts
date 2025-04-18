@@ -8,10 +8,17 @@ const approvalItems: any[] = [];
 // PUBLIC: Allow n8n to POST approval items without authentication
 export async function POST(req: Request) {
   try {
+    console.log('Received POST request to /api/approvals');
     const data = await req.json();
+    console.log('Received data:', data);
+    
+    // Store in memory
     approvalItems.push(data);
+    console.log('Current approval items:', approvalItems);
+    
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Error in POST /api/approvals:', error);
     return NextResponse.json({ error: 'Failed to store approval item' }, { status: 400 });
   }
 }
@@ -21,19 +28,14 @@ export async function GET() {
   const supabase = createRouteHandlerClient({ cookies });
 
   try {
-    const [sponsors, issuers, exchanges] = await Promise.all([
-      supabase.from('sponsors').select('*').eq('status', 'pending'),
-      supabase.from('issuers').select('*').eq('status', 'pending'),
-      supabase.from('exchanges').select('*').eq('status', 'pending'),
-    ]);
-
+    console.log('Received GET request to /api/approvals');
+    console.log('Current approval items:', approvalItems);
+    
     return NextResponse.json({
-      sponsors: sponsors.data || [],
-      issuers: issuers.data || [],
-      exchanges: exchanges.data || [],
-      approvalItems, // Add approval items to the response
+      approvalItems: approvalItems || []
     });
   } catch (error) {
+    console.error('Error in GET /api/approvals:', error);
     return NextResponse.json({ error: 'Failed to fetch approvals' }, { status: 500 });
   }
 } 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,44 @@ export default function ApprovalsPage() {
   const [pendingPressReleases, setPendingPressReleases] = useState<PendingItem[]>([]);
   const [pendingContentCreation, setPendingContentCreation] = useState<PendingItem[]>([]); // New state
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null); // Track loading state per item
+  const [isLoading, setIsLoading] = useState(true); // Loading state for initial fetch
+
+  // Fetch approval items when component mounts
+  useEffect(() => {
+    const fetchApprovalItems = async () => {
+      try {
+        console.log('Fetching approval items from /api/approvals...');
+        const response = await fetch('/api/approvals');
+        console.log('Response status:', response.status);
+        const data = await response.json();
+        console.log('Received data:', data);
+        
+        // Sort items into their respective categories
+        const socialItems = data.approvalItems.filter((item: any) => item.type === 'social');
+        const videoItems = data.approvalItems.filter((item: any) => item.type === 'video');
+        const pressReleaseItems = data.approvalItems.filter((item: any) => item.type === 'press_release');
+        const contentCreationItems = data.approvalItems.filter((item: any) => item.type === 'content_creation');
+
+        console.log('Sorted items:', {
+          social: socialItems,
+          video: videoItems,
+          pressRelease: pressReleaseItems,
+          contentCreation: contentCreationItems
+        });
+
+        setPendingSocial(socialItems);
+        setPendingVideos(videoItems);
+        setPendingPressReleases(pressReleaseItems);
+        setPendingContentCreation(contentCreationItems);
+      } catch (error) {
+        console.error('Error fetching approval items:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchApprovalItems();
+  }, []);
 
   // Helper function to remove item from state
   const removeItemFromState = (itemId: string, type: PendingItem['type']) => {
@@ -87,29 +125,29 @@ export default function ApprovalsPage() {
 
   const renderPendingList = (items: PendingItem[], type: PendingItem['type']) => {
     if (items.length === 0) {
-      return <p className="text-sm text-gray-500 text-center py-8">No pending {type.replace('_', ' ')} items.</p>; // Updated message
+      return <p className="text-sm text-gray-500 text-center py-8">No pending {type.replace('_', ' ')} items.</p>;
     }
 
     return (
       <div className="space-y-4">
         {items.map((item) => {
           const isLoading = loadingItemId === item.id;
+          const uniqueKey = `${type}-${item.id}-${item.submittedAt}`; // Create a guaranteed unique key
           return (
-            <Card key={item.id} className="w-full">
+            <Card key={uniqueKey} className="w-full">
               <CardContent className="pt-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="w-full md:w-auto">
                   <p className="text-sm font-medium truncate max-w-xs md:max-w-md lg:max-w-lg" title={item.title}>{item.title}</p>
                   <p className="text-xs text-gray-500">
                     Submitted by {item.submittedBy} on {new Date(item.submittedAt).toLocaleDateString()}
                   </p>
-                  {/* Add more preview details here if needed */}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0 w-full sm:w-auto">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => handleDecision(item, 'reject')}
-                    disabled={isLoading} // Disable button when loading
+                    disabled={isLoading}
                     className="w-full sm:w-auto"
                   >
                     {isLoading ? 'Rejecting...' : 'Reject'}
@@ -119,7 +157,7 @@ export default function ApprovalsPage() {
                     size="sm" 
                     onClick={() => handleDecision(item, 'approve')}
                     className="bg-green-600 hover:bg-green-700 disabled:opacity-50 w-full sm:w-auto" 
-                    disabled={isLoading} // Disable button when loading
+                    disabled={isLoading}
                   >
                     {isLoading ? 'Approving...' : 'Approve'}
                   </Button>
@@ -136,49 +174,53 @@ export default function ApprovalsPage() {
     <div className="p-4 md:p-6 space-y-6">
       <h1 className="text-2xl font-bold">Content Approvals</h1>
 
-      <Tabs defaultValue="social">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto sm:h-10"> {/* Adjusted grid-cols */}
-          <TabsTrigger value="social" className="relative">
-            Social Posts
-            <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-              {pendingSocial.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="videos" className="relative">
-            Videos
-            <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-              {pendingVideos.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="press_releases" className="relative">
-            Press Releases
-            <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-              {pendingPressReleases.length}
-            </Badge>
-          </TabsTrigger>
-          {/* New Content Creation Tab */}
-          <TabsTrigger value="content_creation" className="relative">
-            Content Creation
-            <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-              {pendingContentCreation.length}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <p className="text-gray-500">Loading approval items...</p>
+        </div>
+      ) : (
+        <Tabs defaultValue="social">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto sm:h-10">
+            <TabsTrigger value="social" className="relative">
+              Social Posts
+              <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
+                {pendingSocial.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="videos" className="relative">
+              Videos
+              <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
+                {pendingVideos.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="press_releases" className="relative">
+              Press Releases
+              <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
+                {pendingPressReleases.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="content_creation" className="relative">
+              Content Creation
+              <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
+                {pendingContentCreation.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="social">
-          {renderPendingList(pendingSocial, 'social')}
-        </TabsContent>
-        <TabsContent value="videos">
-          {renderPendingList(pendingVideos, 'video')}
-        </TabsContent>
-        <TabsContent value="press_releases">
-          {renderPendingList(pendingPressReleases, 'press_release')}
-        </TabsContent>
-        {/* New Content Creation Panel */}
-        <TabsContent value="content_creation">
-          {renderPendingList(pendingContentCreation, 'content_creation')}
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="social">
+            {renderPendingList(pendingSocial, 'social')}
+          </TabsContent>
+          <TabsContent value="videos">
+            {renderPendingList(pendingVideos, 'video')}
+          </TabsContent>
+          <TabsContent value="press_releases">
+            {renderPendingList(pendingPressReleases, 'press_release')}
+          </TabsContent>
+          <TabsContent value="content_creation">
+            {renderPendingList(pendingContentCreation, 'content_creation')}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 } 
