@@ -10,17 +10,16 @@ import Image from 'next/image'; // Import Image component
 import Link from 'next/link'; // Import Link
 import { Linkedin } from 'lucide-react'; // Only import Linkedin icon
 
-// Updated Interface based on expected payload
+// Updated Interface based on expected payload (removed payload field)
 interface PendingItem {
   id: string; // Use resumeUrl as unique ID for now
-  title: string; // Will map from payload.summary or generate default
-  postContent: string; // From payload.post
-  imageUrl?: string; // From payload.image
-  submittedBy: string; // Will map from payload.email or user_id
-  createdAt: string; // From payload.created_at or timestamp
+  title: string;
+  postContent: string;
+  imageUrl?: string;
+  submittedBy: string;
+  createdAt: string;
   type: 'social' | 'video' | 'press_release' | 'content_creation';
   resumeUrl: string;
-  payload: any; // Keep raw payload for reference if needed
 }
 
 export default function ApprovalsPage() {
@@ -57,19 +56,20 @@ export default function ApprovalsPage() {
         // Filter by organization_id and Map to PendingItem structure
         const userOrgId = user.organization_id;
         const mappedItems = allItems
-          .filter((item: any) => item?.payload?.organization_id === userOrgId)
+          // Filter directly on item.organization_id
+          .filter((item: any) => item?.organization_id === userOrgId)
+          // Map directly from item fields
           .map((item: any): PendingItem => {
-            const postSnippet = item.payload?.post?.substring(0, 50) + (item.payload?.post?.length > 50 ? '...' : '');
+            const postSnippet = item.post?.substring(0, 50) + (item.post?.length > 50 ? '...' : '');
             return {
               id: item.resumeUrl, // Using resumeUrl as a temporary unique ID
               title: postSnippet || `Pending ${item.type?.replace('_', ' ') || 'Item'}`, // Use post snippet for title
-              postContent: item.payload?.post || 'No content available.',
-              imageUrl: item.payload?.image,
-              submittedBy: item.payload?.email || `User ID: ${item.payload?.user_id}` || 'Unknown Submitter',
-              createdAt: item.payload?.created_at || item.payload?.timestamp || new Date().toISOString(), // Use created_at or timestamp from payload
+              postContent: item.post || 'No content available.',
+              imageUrl: item.image,
+              submittedBy: item.email || `User ID: ${item.user_id}` || 'Unknown Submitter',
+              createdAt: item.created_at || item.timestamp || new Date().toISOString(), // Use created_at or timestamp from item
               type: item.type,
               resumeUrl: item.resumeUrl,
-              payload: item.payload, // Keep raw payload
             };
           });
 
@@ -176,8 +176,8 @@ export default function ApprovalsPage() {
           const isLoading = loadingItemId === item.id;
           const uniqueKey = item.resumeUrl || `${type}-${item.createdAt}-${Math.random()}`;
           
-          // Check only for linkedin platform flag
-          const showLinkedIn = item.payload?.linkedin === true;
+          // Check only for linkedin platform flag directly on item
+          const showLinkedIn = item.linkedin === true;
 
           return (
             <Card key={uniqueKey} className="w-full overflow-hidden">
