@@ -12,6 +12,21 @@ export async function POST(req: Request) {
     const data = await req.json();
     console.log('Received data:', data);
     
+    // Modify resumeUrl
+    const targetBaseUrl = "https://app.exlayr.ai"; // Hardcoded base URL
+    if (data.resumeUrl && typeof data.resumeUrl === 'string') {
+      try {
+        const originalUrl = new URL(data.resumeUrl);
+        // Construct new URL using the target base and original path/query
+        const newUrl = new URL(originalUrl.pathname + originalUrl.search, targetBaseUrl);
+        data.resumeUrl = newUrl.toString();
+        console.log(`Modified resumeUrl to: ${data.resumeUrl}`);
+      } catch (urlError) {
+        console.error('Error modifying resumeUrl:', urlError);
+        // Decide if you want to proceed with the original URL or throw an error
+      }
+    }
+    
     // Store in memory
     approvalItems.push(data);
     console.log('Current approval items:', approvalItems);
