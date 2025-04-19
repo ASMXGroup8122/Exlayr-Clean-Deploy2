@@ -6,6 +6,7 @@
 3. [Route Protection](#route-protection)
 4. [Directory Structure](#directory-structure)
 5. [Document Generation Standards](#document-generation-standards)
+6. [Domain Configuration](#domain-configuration)
 
 ## Page Creation Standards
 
@@ -403,3 +404,31 @@ src/
    - Validate section access
    - Sanitize user inputs
    - Secure webhook endpoints 
+
+## Domain Configuration
+
+### Service Domains
+
+1. **Application Domain**
+   - Main application: `ai.exlayr.ai`
+   - Serves the Next.js frontend application
+   - Handles user authentication and dashboard interfaces
+
+2. **Integration Services**
+   - n8n instance: `app.exlayr.ai`
+   - Handles workflow automation and webhooks
+   - Used for document generation and processing
+
+### Domain Usage Guidelines
+
+1. **Webhook Configuration**
+   - All n8n webhook URLs should use `app.exlayr.ai` domain
+   - Example: `https://app.exlayr.ai/webhook/socialpost`
+
+2. **Application Routes**
+   - All application routes should use `ai.exlayr.ai` domain
+   - Example: `https://ai.exlayr.ai/dashboard/sponsor`
+
+3. **Environment Configuration**
+   - Use appropriate environment variables for domain configuration
+   - Maintain separate configurations for development and production 

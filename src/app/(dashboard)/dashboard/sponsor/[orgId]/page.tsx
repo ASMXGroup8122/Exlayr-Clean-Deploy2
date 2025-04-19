@@ -53,51 +53,6 @@ const getStatusColor = (status: string) => {
     return colors[status as keyof typeof colors] || colors.Draft;
 };
 
-const portalCards = [
-    {
-        title: 'Reminders & Key Dates',
-        description: '3 upcoming deadlines this week',
-        href: '/calendar',
-        icon: Calendar,
-        bgColor: 'bg-blue-50'
-    },
-    {
-        title: 'Volume / Analytics',
-        description: 'Monthly volume up 15%',
-        href: '/analytics',
-        icon: BarChart3,
-        bgColor: 'bg-green-50'
-    },
-    {
-        title: 'User Management',
-        description: 'Manage team members and permissions',
-        href: '/users',
-        icon: Users,
-        bgColor: 'bg-purple-50'
-    },
-    {
-        title: 'AI Knowledge Vault',
-        description: 'New regulatory guidelines available',
-        href: '/knowledge-vault',
-        icon: Brain,
-        bgColor: 'bg-yellow-50'
-    },
-    {
-        title: 'New Issuer Listing',
-        description: 'Start a new listing application',
-        href: '/new-listing',
-        icon: Plus,
-        bgColor: 'bg-indigo-50'
-    },
-    {
-        title: 'Personnel Due Diligence',
-        description: 'AI-powered background checks and analysis',
-        href: '/personnel-due-diligence',
-        icon: Users,
-        bgColor: 'bg-pink-50'
-    }
-];
-
 // Import NEW AI components
 import AiActionCards from '@/components/ai/AiActionCards';
 import AiChatInputBar from '@/components/ai/AiChatInputBar';
@@ -172,35 +127,6 @@ export default function SponsorDashboard() {
                             </div>
                         </div>
                     </div>
-                </div>
-
-                {/* Quick Actions Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {portalCards.map((card, index) => {
-                        const Icon = card.icon;
-                        return (
-                            <Link
-                                key={index}
-                                href={card.href}
-                                className={`${card.bgColor} p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-[#DADCE0]`}
-                            >
-                                <div className="flex items-center">
-                                    <div className="flex-shrink-0">
-                                        <Icon className="h-6 w-6 text-gray-600" />
-                                    </div>
-                                    <div className="ml-4 flex-1">
-                                        <h3 className="text-sm font-medium text-[#202124]">
-                                            {card.title}
-                                        </h3>
-                                        <p className="mt-1 text-xs text-[#5f6368]">
-                                            {card.description}
-                                        </p>
-                                    </div>
-                                    <ArrowRight className="h-5 w-5 text-[#5f6368]" />
-                                </div>
-                            </Link>
-                        );
-                    })}
                 </div>
 
                 {/* Recent Listings */}
