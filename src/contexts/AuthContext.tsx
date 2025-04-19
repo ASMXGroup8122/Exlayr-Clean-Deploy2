@@ -656,7 +656,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, [supabase]);
 
-    // Session refresh interval
+    // Session refresh interval - TEMPORARILY COMMENTED OUT FOR DEBUGGING
+    /*
     useEffect(() => {
         if (!initialized || !session) return;
 
@@ -666,6 +667,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return () => clearInterval(refreshInterval);
     }, [initialized, session, refreshSession]);
+    */
 
     const value = {
         user,
