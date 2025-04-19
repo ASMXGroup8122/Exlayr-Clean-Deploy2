@@ -51,7 +51,7 @@ const AiChatInputBar: React.FC<AiChatInputBarProps> = ({ onIntentChange }) => {
     console.log(`[AiChatInputBar] Detected Intent: ${detectedIntent}`);
     onIntentChange(detectedIntent);
 
-  }, [inputValue, onIntentChange]);
+  }, [inputValue]);
 
   // === Handlers ===
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +22,7 @@ interface SocialPostPageProps {
 export default function SocialPostPage({ params }: SocialPostPageProps) {
   const { orgId } = use(params);
   const router = useRouter();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     url: '',
     include_source: true,
@@ -32,8 +34,6 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     twitter_post_type: '',
     instagram_post_type: '',
     add_podcast: false,
-    multiple_news_items: false,
-    podcast_category: '',
     additional_instructions: '',
     platforms: {
       linkedin: false,
@@ -101,6 +101,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     const payload = {
       timestamp: new Date().toISOString(),
       organization_id: orgId,
+      user_id: user?.id,
       ...formData,
       platforms: formData.platforms
     };
@@ -288,40 +289,8 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                   checked={formData.add_podcast}
                   onCheckedChange={(checked) => setFormData({ ...formData, add_podcast: checked })}
                 />
-                <Label htmlFor="add-podcast">Add to podcast</Label>
+                <Label htmlFor="add-podcast">Create podcast</Label>
               </div>
-
-              {formData.add_podcast && (
-                <>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 ml-0 sm:ml-6">
-                    <Switch
-                      id="multiple-news"
-                      checked={formData.multiple_news_items}
-                      onCheckedChange={(checked) => setFormData({ ...formData, multiple_news_items: checked })}
-                    />
-                    <Label htmlFor="multiple-news">Multiple news items (max 6 sources)</Label>
-                  </div>
-
-                  <div className="space-y-2 ml-0 sm:ml-6">
-                    <Label>Podcast Category</Label>
-                    <Select
-                      value={formData.podcast_category}
-                      onValueChange={(value) => setFormData({ ...formData, podcast_category: value })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select podcast category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {podcastCategories.map((category) => (
-                          <SelectItem key={category} value={category.toLowerCase()}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
             </div>
 
             <div className="space-y-2">
