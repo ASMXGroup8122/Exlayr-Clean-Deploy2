@@ -1,66 +1,104 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card"; // Removed CardHeader, CardTitle as they are not used directly in this specific edit
 import { Button } from "@/components/ui/button";
+import Image from 'next/image'; // Import Image component
+import Link from 'next/link'; // Import Link
 
+// Updated Interface based on expected payload
 interface PendingItem {
-  id: string;
-  title: string; // e.g., URL for social, title for video/press release/content
-  submittedBy: string; // Placeholder for user info
-  submittedAt: string; // ISO date string
-  type: 'social' | 'video' | 'press_release' | 'content_creation'; // Added content_creation
-  resumeUrl: string; // <-- Added field for N8N resume URL
-  // Add other relevant preview data later
-  payload: any; // Store the full payload from N8N
+  id: string; // Use resumeUrl as unique ID for now
+  title: string; // Will map from payload.summary or generate default
+  postContent: string; // From payload.post
+  imageUrl?: string; // From payload.image
+  submittedBy: string; // Will map from payload.email or user_id
+  createdAt: string; // From payload.created_at or timestamp
+  type: 'social' | 'video' | 'press_release' | 'content_creation';
+  resumeUrl: string;
+  payload: any; // Keep raw payload for reference if needed
 }
 
 export default function ApprovalsPage() {
+  const { user } = useAuth(); // Get user from auth context
   const [pendingSocial, setPendingSocial] = useState<PendingItem[]>([]);
   const [pendingVideos, setPendingVideos] = useState<PendingItem[]>([]);
   const [pendingPressReleases, setPendingPressReleases] = useState<PendingItem[]>([]);
-  const [pendingContentCreation, setPendingContentCreation] = useState<PendingItem[]>([]); // New state
-  const [loadingItemId, setLoadingItemId] = useState<string | null>(null); // Track loading state per item
-  const [isLoading, setIsLoading] = useState(true); // Loading state for initial fetch
+  const [pendingContentCreation, setPendingContentCreation] = useState<PendingItem[]>([]);
+  const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch approval items when component mounts
   useEffect(() => {
     const fetchApprovalItems = async () => {
+      if (!user?.organization_id) {
+        console.log("Waiting for user organization info...");
+        // Optionally set loading false earlier if user info is missing
+        // setIsLoading(false);
+        return; // Wait until user info is available
+      }
+
+      setIsLoading(true); // Ensure loading is true when fetch starts
       try {
         console.log('Fetching approval items from /api/approvals...');
         const response = await fetch('/api/approvals');
         console.log('Response status:', response.status);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch approvals: ${response.statusText}`);
+        }
         const data = await response.json();
-        console.log('Received data:', data);
+        const allItems = data.approvalItems || [];
+        console.log('Received total items:', allItems.length);
+
+        // Filter by organization_id and Map to PendingItem structure
+        const userOrgId = user.organization_id;
+        const mappedItems = allItems
+          .filter((item: any) => item?.payload?.organization_id === userOrgId)
+          .map((item: any): PendingItem => ({
+            id: item.resumeUrl, // Using resumeUrl as a temporary unique ID
+            title: item.payload?.summary || `Pending ${item.type?.replace('_', ' ') || 'Item'}`,
+            postContent: item.payload?.post || 'No content available.',
+            imageUrl: item.payload?.image,
+            submittedBy: item.payload?.email || `User ID: ${item.payload?.user_id}` || 'Unknown Submitter',
+            createdAt: item.payload?.created_at || item.payload?.timestamp || new Date().toISOString(), // Use created_at or timestamp from payload
+            type: item.type,
+            resumeUrl: item.resumeUrl,
+            payload: item.payload, // Keep raw payload
+          }));
+
+        console.log(`Mapped items for org ${userOrgId}:`, mappedItems.length);
         
         // Sort items into their respective categories
-        const socialItems = data.approvalItems.filter((item: any) => item.type === 'social');
-        const videoItems = data.approvalItems.filter((item: any) => item.type === 'video');
-        const pressReleaseItems = data.approvalItems.filter((item: any) => item.type === 'press_release');
-        const contentCreationItems = data.approvalItems.filter((item: any) => item.type === 'content_creation');
+        setPendingSocial(mappedItems.filter((item: PendingItem) => item.type === 'social'));
+        setPendingVideos(mappedItems.filter((item: PendingItem) => item.type === 'video'));
+        setPendingPressReleases(mappedItems.filter((item: PendingItem) => item.type === 'press_release'));
+        setPendingContentCreation(mappedItems.filter((item: PendingItem) => item.type === 'content_creation'));
 
-        console.log('Sorted items:', {
-          social: socialItems,
-          video: videoItems,
-          pressRelease: pressReleaseItems,
-          contentCreation: contentCreationItems
-        });
-
-        setPendingSocial(socialItems);
-        setPendingVideos(videoItems);
-        setPendingPressReleases(pressReleaseItems);
-        setPendingContentCreation(contentCreationItems);
       } catch (error) {
-        console.error('Error fetching approval items:', error);
+        console.error('Error fetching/processing approval items:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchApprovalItems();
-  }, []);
+    // Only run fetch if we have the user organization ID
+    if (user?.organization_id) {
+        fetchApprovalItems();
+    } else {
+        // Handle case where user/orgId isn't loaded yet
+        const timer = setTimeout(() => {
+             if (!user?.organization_id) {
+                 console.log("User/Org ID still not available after delay");
+                 setIsLoading(false); // Stop loading if info doesn't arrive
+             }
+         }, 3000); // Wait 3 seconds
+         return () => clearTimeout(timer);
+    }
+
+  }, [user]); // Re-run effect if user object changes
 
   // Helper function to remove item from state
   const removeItemFromState = (itemId: string, type: PendingItem['type']) => {
@@ -132,17 +170,45 @@ export default function ApprovalsPage() {
       <div className="space-y-4">
         {items.map((item) => {
           const isLoading = loadingItemId === item.id;
-          const uniqueKey = `${type}-${item.id}-${item.submittedAt}`; // Create a guaranteed unique key
+          // Use a more robust key if possible, resumeUrl is fallback
+          const uniqueKey = item.resumeUrl || `${type}-${item.createdAt}-${Math.random()}`;
           return (
-            <Card key={uniqueKey} className="w-full">
-              <CardContent className="pt-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="w-full md:w-auto">
-                  <p className="text-sm font-medium truncate max-w-xs md:max-w-md lg:max-w-lg" title={item.title}>{item.title}</p>
+            <Card key={uniqueKey} className="w-full overflow-hidden">
+              <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+                {/* Left side: Content */}
+                <div className="flex-grow space-y-3">
+                  <h3 className="text-base font-semibold text-gray-800">{item.title}</h3>
                   <p className="text-xs text-gray-500">
-                    Submitted by {item.submittedBy} on {new Date(item.submittedAt).toLocaleDateString()}
+                    Submitted by: {item.submittedBy} on {new Date(item.createdAt).toLocaleDateString()}
                   </p>
+                  {/* Display AI Post Content */}
+                  <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap">
+                    {item.postContent}
+                  </div>
+                  {/* Display Image if available */}
+                  {item.imageUrl && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-500 block mb-1">Attached Image:</span>
+                      {/* Option 1: Clickable Link 
+                      <Link href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm truncate block">
+                        {item.imageUrl}
+                      </Link>
+                      */} 
+                      {/* Option 2: Thumbnail */}                       
+                      <Link href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="inline-block border rounded hover:opacity-80 transition-opacity">
+                         <Image 
+                            src={item.imageUrl} 
+                            alt="Approval Image" 
+                            width={100} 
+                            height={100} 
+                            className="object-cover rounded"
+                          />
+                      </Link>
+                    </div>
+                  )}
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0 w-full sm:w-auto">
+                {/* Right side: Actions */}
+                <div className="flex flex-col sm:flex-row sm:items-start gap-2 flex-shrink-0 pt-2">
                   <Button 
                     variant="outline" 
                     size="sm" 
