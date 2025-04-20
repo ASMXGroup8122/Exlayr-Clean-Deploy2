@@ -10,7 +10,7 @@ import Image from 'next/image'; // Import Image component
 import Link from 'next/link'; // Import Link
 import { Linkedin } from 'lucide-react'; // Only import Linkedin icon
 
-// Updated Interface based on expected payload (removed payload field)
+// Updated Interface based on expected payload (re-added payload field)
 interface PendingItem {
   id: string; // Use resumeUrl as unique ID for now
   title: string;
@@ -20,6 +20,8 @@ interface PendingItem {
   createdAt: string;
   type: 'social' | 'video' | 'press_release' | 'content_creation';
   resumeUrl: string;
+  payload: any; // Original payload (can be nested or flat)
+  linkedin?: boolean; // Add derived linkedin flag for easier access
 }
 
 export default function ApprovalsPage() {
@@ -56,20 +58,48 @@ export default function ApprovalsPage() {
         // Filter by organization_id and Map to PendingItem structure
         const userOrgId = user.organization_id;
         const mappedItems = allItems
-          // Filter directly on item.organization_id
-          .filter((item: any) => item?.organization_id === userOrgId)
-          // Map directly from item fields
+          // Filter checking both nested payload and flat keys
+          .filter((item: any) => 
+            (item?.payload?.organization_id === userOrgId) || 
+            (item['payload.organization_id'] === userOrgId)
+          )
+          // Map handling both structures
           .map((item: any): PendingItem => {
-            const postSnippet = item.post?.substring(0, 50) + (item.post?.length > 50 ? '...' : '');
+            // Check if payload is nested or flat
+            const isNested = typeof item.payload === 'object' && item.payload !== null;
+            
+            const post = isNested ? item.payload?.post : item['payload.post'];
+            const image = isNested ? item.payload?.image : item['payload.image'];
+            const email = isNested ? item.payload?.email : item['payload.email'];
+            const userId = isNested ? item.payload?.user_id : item['payload.user_id'];
+            const createdAt = isNested ? item.payload?.created_at : (item['payload.created_at'] || item['payload.timestamp']); // Handle potential old timestamp key
+            const linkedin = isNested ? item.payload?.linkedin : item['payload.linkedin'];
+
+            const postSnippet = post?.substring(0, 50) + (post?.length > 50 ? '...' : '');
+
             return {
               id: item.resumeUrl, // Using resumeUrl as a temporary unique ID
               title: postSnippet || `Pending ${item.type?.replace('_', ' ') || 'Item'}`, // Use post snippet for title
-              postContent: item.post || 'No content available.',
-              imageUrl: item.image,
-              submittedBy: item.email || `User ID: ${item.user_id}` || 'Unknown Submitter',
-              createdAt: item.created_at || item.timestamp || new Date().toISOString(), // Use created_at or timestamp from item
+              postContent: post || 'No content available.', // Use determined post
+              imageUrl: image, // Use determined image
+              submittedBy: email || `User ID: ${userId}` || 'Unknown Submitter', // Use determined email/userId
+              createdAt: createdAt || new Date().toISOString(), // Use determined createdAt
               type: item.type,
               resumeUrl: item.resumeUrl,
+              // Keep the original structure (nested or flat) in payload for potential future use/debugging
+              // Note: We could normalize it here, but keeping original is simpler for now.
+              payload: isNested ? item.payload : { /* reconstruct flat object if needed, or leave as is */ 
+                  'payload.organization_id': item['payload.organization_id'],
+                  'payload.user_id': item['payload.user_id'],
+                  'payload.post': item['payload.post'],
+                  'payload.image': item['payload.image'],
+                  'payload.created_at': item['payload.created_at'],
+                  'payload.timestamp': item['payload.timestamp'],
+                  'payload.email': item['payload.email'],
+                  'payload.linkedin': item['payload.linkedin']
+              },
+              // Store the derived linkedin flag separately for direct use in rendering
+              linkedin: linkedin === true // Ensure it's a boolean for the component
             };
           });
 
@@ -176,7 +206,7 @@ export default function ApprovalsPage() {
           const isLoading = loadingItemId === item.id;
           const uniqueKey = item.resumeUrl || `${type}-${item.createdAt}-${Math.random()}`;
           
-          // Check only for linkedin platform flag directly on item
+          // Use the directly derived linkedin flag from the mapping step
           const showLinkedIn = item.linkedin === true;
 
           return (
