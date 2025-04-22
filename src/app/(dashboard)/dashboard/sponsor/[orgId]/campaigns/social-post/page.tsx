@@ -23,6 +23,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   const { orgId } = use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     url: '',
     include_source: true,
@@ -98,6 +99,9 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     const payload = {
       timestamp: new Date().toISOString(),
       organization_id: orgId,
@@ -130,6 +134,8 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
           stack: error.stack
         });
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -347,8 +353,9 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
         <Button 
           type="submit" 
           className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+          disabled={isSubmitting}
         >
-          Create Social Post
+          {isSubmitting ? 'Creating Post...' : 'Create Social Post'}
         </Button>
       </div>
     </form>
