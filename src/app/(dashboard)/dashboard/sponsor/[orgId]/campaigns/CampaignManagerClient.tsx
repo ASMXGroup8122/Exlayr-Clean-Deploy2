@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -16,6 +16,10 @@ import { CampaignScheduler } from '@/components/campaign/CampaignScheduler';
 import { Label } from '@/components/ui/label';
 import { CampaignGoal } from '@/types/campaigns';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface CampaignManagerClientProps {
   orgId: string;
@@ -29,6 +33,9 @@ interface ChatMessage {
 
 export default function CampaignManagerClient({ orgId }: CampaignManagerClientProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const supabase = getSupabaseClient();
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [goal, setGoal] = useState('raise');
   const [client, setClient] = useState('');
   const [showScheduler, setShowScheduler] = useState(false);
@@ -116,6 +123,68 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
     }
   };
 
+  const fetchPendingCount = async () => {
+    if (!user?.organization_id || !supabase) return;
+
+    console.log('[Client] Fetching pending count...');
+    const { count, error } = await supabase
+      .from('social_posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', user.organization_id)
+      .eq('status', 'pending')
+      .eq('deleted', false);
+
+    if (error) {
+      console.error('[Client] Error fetching pending count:', error);
+      setPendingCount(null);
+    } else {
+      console.log(`[Client] Pending count fetched: ${count}`);
+      setPendingCount(count);
+    }
+  };
+
+  useEffect(() => {
+    if (!user?.organization_id || !supabase) {
+      console.log('[Client] useEffect skipped: Supabase or user not ready');
+      return;
+    }
+    console.log('[Client] useEffect running: Setting up fetch and subscription.');
+
+    fetchPendingCount();
+
+    const channelFilter = `organization_id=eq.${user.organization_id}`;
+    const channel = supabase
+      .channel('campaign_manager_client_pending_count')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_posts',
+          filter: channelFilter
+        },
+        (payload) => {
+          console.log('[Client] Realtime event received:', payload);
+          fetchPendingCount();
+        }
+      )
+      .subscribe((status, err) => {
+         if (status === 'SUBSCRIBED') {
+            console.log('[Client] Realtime channel subscribed successfully.');
+         }
+         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error(`[Client] Realtime channel error: ${status}`, err);
+         }
+      });
+
+    return () => {
+      if (channel) {
+        console.log('[Client] Unsubscribing from Realtime channel.');
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [user?.organization_id, supabase]);
+
   return (
     <div className="p-6">
       <Tabs defaultValue={mode} onValueChange={(val) => setMode(val as 'sponsor' | 'client')} className="w-full">
@@ -178,10 +247,23 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
                   >
                     + New Campaign
                   </Button>
-                  <Link href="/dashboard/approvals">
-                    <Button className="bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto">
+                  <Link href="/dashboard/approvals" passHref legacyBehavior>
+                    <Button className="relative bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto">
                       <CheckSquare className="h-4 w-4 mr-2" />
                       View Approvals
+                      {pendingCount !== null && pendingCount > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0.5 text-xs rounded-full"
+                        >
+                          {pendingCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard/social-media-archive" passHref legacyBehavior>
+                    <Button variant="outline" className="text-[#5f6368] border-[#DADCE0] hover:bg-[#E8EAED] hover:text-[#202124] w-full sm:w-auto">
+                       View Archive
                     </Button>
                   </Link>
                 </div>

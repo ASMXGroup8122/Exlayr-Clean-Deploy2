@@ -1,282 +1,309 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card"; // Removed CardHeader, CardTitle as they are not used directly in this specific edit
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Image from 'next/image'; // Import Image component
-import Link from 'next/link'; // Import Link
-import { Linkedin } from 'lucide-react'; // Only import Linkedin icon
+import Image from 'next/image';
+import Link from 'next/link';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { toast } from '@/components/ui/use-toast';
 
-// Updated Interface based on expected payload (re-added payload field)
 interface PendingItem {
-  id: string; // Use resumeUrl as unique ID for now
-  title: string;
-  postContent: string;
-  imageUrl?: string;
-  submittedBy: string;
-  createdAt: string;
-  type: 'social' | 'video' | 'press_release' | 'content_creation';
-  resumeUrl: string;
-  payload: any; // Original payload (can be nested or flat)
-  linkedin?: boolean; // Add derived linkedin flag for easier access
+  id: string;
+  post_text: string;
+  image_url?: string;
+  platform: string;
+  post_status: 'pending' | 'approved' | 'rejected';
+  image_status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'posted';
+  created_at: string;
+  approved_at?: string;
+  approved_by?: string;
+  organization_id: string;
+  user_id: string;
+  deleted: boolean;
+  character_length: number;
 }
 
+const FAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/q0c2np0nt9dayphd8zpposc73gvly4w6';
+
 export default function ApprovalsPage() {
-  const { user } = useAuth(); // Get user from auth context
+  const { user } = useAuth();
   const [pendingSocial, setPendingSocial] = useState<PendingItem[]>([]);
-  const [pendingVideos, setPendingVideos] = useState<PendingItem[]>([]);
-  const [pendingPressReleases, setPendingPressReleases] = useState<PendingItem[]>([]);
-  const [pendingContentCreation, setPendingContentCreation] = useState<PendingItem[]>([]);
-  const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
+  const supabase = getSupabaseClient();
 
-  // Fetch approval items when component mounts
   useEffect(() => {
-    const fetchApprovalItems = async () => {
-      if (!user?.organization_id) {
-        console.log("Waiting for user organization info...");
-        // Optionally set loading false earlier if user info is missing
-        // setIsLoading(false);
-        return; // Wait until user info is available
-      }
+    if (!user?.organization_id) return;
+    setIsLoading(true);
 
-      setIsLoading(true); // Ensure loading is true when fetch starts
-      try {
-        console.log('Fetching approval items from /api/approvals...');
-        const response = await fetch('/api/approvals');
-        console.log('Response status:', response.status);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch approvals: ${response.statusText}`);
-        }
-        const data = await response.json();
-        const allItems = data.approvalItems || [];
-        console.log('Received total items:', allItems.length);
-
-        // Filter by organization_id and Map to PendingItem structure
-        const userOrgId = user.organization_id;
-        const mappedItems = allItems
-          // Filter checking both nested payload and flat keys
-          .filter((item: any) => 
-            (item?.payload?.organization_id === userOrgId) || 
-            (item['payload.organization_id'] === userOrgId)
-          )
-          // Map handling both structures
-          .map((item: any): PendingItem => {
-            // Check if payload is nested or flat
-            const isNested = typeof item.payload === 'object' && item.payload !== null;
-            
-            const post = isNested ? item.payload?.post : item['payload.post'];
-            const image = isNested ? item.payload?.image : item['payload.image'];
-            const email = isNested ? item.payload?.email : item['payload.email'];
-            const userId = isNested ? item.payload?.user_id : item['payload.user_id'];
-            const createdAt = isNested ? item.payload?.created_at : (item['payload.created_at'] || item['payload.timestamp']); // Handle potential old timestamp key
-            const linkedin = isNested ? item.payload?.linkedin : item['payload.linkedin'];
-
-            const postSnippet = post?.substring(0, 50) + (post?.length > 50 ? '...' : '');
-
-            return {
-              id: item.resumeUrl, // Using resumeUrl as a temporary unique ID
-              title: postSnippet || `Pending ${item.type?.replace('_', ' ') || 'Item'}`, // Use post snippet for title
-              postContent: post || 'No content available.', // Use determined post
-              imageUrl: image, // Use determined image
-              submittedBy: email || `User ID: ${userId}` || 'Unknown Submitter', // Use determined email/userId
-              createdAt: createdAt || new Date().toISOString(), // Use determined createdAt
-              type: item.type,
-              resumeUrl: item.resumeUrl,
-              // Keep the original structure (nested or flat) in payload for potential future use/debugging
-              // Note: We could normalize it here, but keeping original is simpler for now.
-              payload: isNested ? item.payload : { /* reconstruct flat object if needed, or leave as is */ 
-                  'payload.organization_id': item['payload.organization_id'],
-                  'payload.user_id': item['payload.user_id'],
-                  'payload.post': item['payload.post'],
-                  'payload.image': item['payload.image'],
-                  'payload.created_at': item['payload.created_at'],
-                  'payload.timestamp': item['payload.timestamp'],
-                  'payload.email': item['payload.email'],
-                  'payload.linkedin': item['payload.linkedin']
-              },
-              // Store the derived linkedin flag separately for direct use in rendering
-              linkedin: linkedin === true // Ensure it's a boolean for the component
-            };
-          });
-
-        console.log(`Mapped items for org ${userOrgId}:`, mappedItems.length);
-        
-        // Sort items into their respective categories
-        setPendingSocial(mappedItems.filter((item: PendingItem) => item.type === 'social'));
-        setPendingVideos(mappedItems.filter((item: PendingItem) => item.type === 'video'));
-        setPendingPressReleases(mappedItems.filter((item: PendingItem) => item.type === 'press_release'));
-        setPendingContentCreation(mappedItems.filter((item: PendingItem) => item.type === 'content_creation'));
-
-      } catch (error) {
-        console.error('Error fetching/processing approval items:', error);
-      } finally {
+    // Initial fetch
+    const fetchInitialPosts = async () => {
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('*')
+        .eq('organization_id', user.organization_id)
+        .eq('status', 'pending')
+        .eq('deleted', false)
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error fetching social posts:', error);
         setIsLoading(false);
+        return;
       }
+      setPendingSocial(data || []);
+      setIsLoading(false);
     };
 
-    // Only run fetch if we have the user organization ID
-    if (user?.organization_id) {
-        fetchApprovalItems();
-    } else {
-        // Handle case where user/orgId isn't loaded yet
-        const timer = setTimeout(() => {
-             if (!user?.organization_id) {
-                 console.log("User/Org ID still not available after delay");
-                 setIsLoading(false); // Stop loading if info doesn't arrive
-             }
-         }, 3000); // Wait 3 seconds
-         return () => clearTimeout(timer);
-    }
-
-  }, [user]); // Re-run effect if user object changes
-
-  // Helper function to remove item from state
-  const removeItemFromState = (itemId: string, type: PendingItem['type']) => {
-    switch (type) {
-      case 'social':
-        setPendingSocial(prev => prev.filter(item => item.id !== itemId));
-        break;
-      case 'video':
-        setPendingVideos(prev => prev.filter(item => item.id !== itemId));
-        break;
-      case 'press_release':
-        setPendingPressReleases(prev => prev.filter(item => item.id !== itemId));
-        break;
-      case 'content_creation':
-        setPendingContentCreation(prev => prev.filter(item => item.id !== itemId));
-        break;
-    }
-  };
-
-  // Updated function to handle approval/rejection and call N8N resumeUrl
-  const handleDecision = async (item: PendingItem, decision: 'approve' | 'reject') => {
-    if (!item.resumeUrl) {
-      console.error('Missing resumeUrl for item:', item.id);
-      alert('Error: Cannot process approval. Resume URL is missing.');
-      return;
-    }
-
-    setLoadingItemId(item.id); // Set loading state for this item
-
-    const payload = {
-      approved: decision === 'approve'
-    };
-
-    try {
-      const response = await fetch(item.resumeUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    // Realtime subscription
+    const channel = supabase
+      .channel('social_posts_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_posts',
+          filter: `organization_id=eq.${user.organization_id}`
         },
-        body: JSON.stringify(payload),
-        mode: 'cors' // Explicitly set cors mode
-      });
+        (payload) => {
+          console.log('Realtime event:', payload);
+          // Type guard to ensure payload.new is a PendingItem
+          const isPendingItem = (obj: any): obj is PendingItem =>
+            obj && typeof obj.id === 'string' && typeof obj.post_text === 'string' && typeof obj.platform === 'string';
+          if (payload.eventType === 'INSERT') {
+            if (isPendingItem(payload.new) && payload.new.status === 'pending' && !payload.new.deleted) {
+              setPendingSocial(prev => [payload.new as PendingItem, ...prev]);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            if (isPendingItem(payload.new)) {
+              if (payload.new.deleted || payload.new.status !== 'pending') {
+                setPendingSocial(prev => prev.filter(item => item.id !== payload.new.id));
+              } else {
+                setPendingSocial(prev => prev.map(item => item.id === payload.new.id ? payload.new as PendingItem : item));
+              }
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (isPendingItem(payload.old)) {
+              setPendingSocial(prev => prev.filter(item => item.id !== payload.old.id));
+            }
+          }
+        }
+      )
+      .subscribe();
 
-      if (response.ok) {
-        console.log(`Successfully notified N8N for item ${item.id}: ${decision}`);
-        removeItemFromState(item.id, item.type); // Remove item from UI on success
-        // Consider adding a success toast notification here
-      } else {
-        // Handle HTTP errors from N8N (e.g., 4xx, 5xx)
-        const errorText = await response.text();
-        console.error(`N8N resume failed for item ${item.id} with status: ${response.status}. Response: ${errorText}`);
-        alert(`Error: Could not ${decision} item. N8N workflow responded with status ${response.status}. Please check N8N logs.`);
-      }
-    } catch (error) {
-      // Handle network errors (failed to fetch)
-      console.error(`Network error resuming N8N workflow for item ${item.id}:`, error);
-      alert(`Error: Could not contact the approval server. Please check your connection and try again.`);
-    } finally {
-      setLoadingItemId(null); // Clear loading state regardless of outcome
+    fetchInitialPosts();
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user?.organization_id]);
+
+  // Helper to group posts by platform
+  const groupByPlatform = (items: PendingItem[]) => {
+    return items.reduce((acc, item) => {
+      if (!acc[item.platform]) acc[item.platform] = [];
+      acc[item.platform].push(item);
+      return acc;
+    }, {} as Record<string, PendingItem[]>);
+  };
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return 'bg-green-100 text-green-800 border-green-300';
+      case 'rejected': return 'bg-red-100 text-red-800 border-red-300';
+      case 'pending':
+      default: return 'bg-yellow-100 text-yellow-800 border-yellow-300';
     }
   };
 
-  const renderPendingList = (items: PendingItem[], type: PendingItem['type']) => {
-    if (items.length === 0) {
-      return <p className="text-sm text-gray-500 text-center py-8">No pending {type.replace('_', ' ')} items.</p>;
+  // Approve/Reject logic for post text or image
+  const handleDecision = async (
+    item: PendingItem,
+    field: 'post' | 'image',
+    decision: 'approve' | 'reject',
+    rejectionMessage?: string
+  ) => {
+    if (!user?.id) return;
+    setLoadingItemId(item.id + field + '_' + decision);
+    try {
+      // Approve: update DB directly, no webhook
+      if (decision === 'approve') {
+        const updateData: any = {};
+        if (field === 'post') updateData.post_status = 'approved';
+        if (field === 'image') updateData.image_status = 'approved';
+        const { error } = await supabase
+          .from('social_posts')
+          .update(updateData)
+          .eq('id', item.id);
+        if (error) throw error;
+        toast({
+          title: `${field === 'post' ? 'Post Text' : 'Image'} approved`,
+          description: `The ${field === 'post' ? 'post text' : 'image'} was approved.`,
+        });
+      } else if (decision === 'reject') {
+        // Reject: send webhook with rejection message
+        // Fetch latest row for payload
+        const { data: updatedRows, error: fetchError } = await supabase
+          .from('social_posts')
+          .select('*')
+          .eq('id', item.id)
+          .single();
+        if (fetchError) throw fetchError;
+        const payload = {
+          timestamp: new Date().toISOString(),
+          organization_id: updatedRows.organization_id,
+          user_id: updatedRows.user_id,
+          post_id: updatedRows.id,
+          url: updatedRows.url || null,
+          include_source: updatedRows.include_source || false,
+          sentiment: updatedRows.sentiment || null,
+          thoughts: updatedRows.thoughts || null,
+          character_length: updatedRows.character_length || null,
+          email: updatedRows.email || null,
+          linkedin_post_type: updatedRows.linkedin_post_type || null,
+          twitter_post_type: updatedRows.twitter_post_type || null,
+          instagram_post_type: updatedRows.instagram_post_type || null,
+          add_podcast: updatedRows.add_podcast || false,
+          additional_instructions: updatedRows.additional_instructions || null,
+          platforms: {
+            linkedin: updatedRows.platforms?.linkedin || false,
+            twitter: updatedRows.platforms?.twitter || false,
+            instagram: updatedRows.platforms?.instagram || false
+          },
+          post_text: updatedRows.post_text || null,
+          platform: updatedRows.platform || null,
+          image_url: updatedRows.image_url || null,
+          post_status: updatedRows.post_status || null,
+          image_status: updatedRows.image_status || null,
+          status: 'reject',
+          field: field,
+          rejection: field
+        };
+        try {
+          const res = await fetch(FAKE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error('Webhook failed');
+          toast({
+            title: `Webhook Sent`,
+            description: `The rejection status has been sent to Make.com.`,
+          });
+        } catch (err: any) {
+          toast({
+            title: 'Webhook Error',
+            description: err.message || 'Failed to send webhook.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to update status.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingItemId(null);
     }
+  };
 
+  const renderPendingList = (items: PendingItem[]) => {
+    if (items.length === 0) {
+      return <p className="text-sm text-gray-500 text-center py-8">No pending social posts.</p>;
+    }
+    const grouped = groupByPlatform(items);
     return (
-      <div className="space-y-4">
-        {items.map((item) => {
-          const isLoading = loadingItemId === item.id;
-          const uniqueKey = item.resumeUrl || `${type}-${item.createdAt}-${Math.random()}`;
-          
-          // Use the directly derived linkedin flag from the mapping step
-          const showLinkedIn = item.linkedin === true;
-
-          return (
-            <Card key={uniqueKey} className="w-full overflow-hidden">
-              <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
-                {/* Left side: Content */}
-                <div className="flex-grow space-y-3">
-                  <h3 className="text-base font-semibold text-gray-800">{item.title}</h3>
-                  <p className="text-xs text-gray-500">
-                    Submitted by: {item.submittedBy} on {new Date(item.createdAt).toLocaleDateString()}
-                  </p>
-                  {/* --- Platform Icons --- START */}
-                  {showLinkedIn && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-500">Platform:</span>
-                      <Linkedin className="h-4 w-4 text-[#0077B5]" />
+      <div className="space-y-8">
+        {Object.entries(grouped).map(([platform, posts]) => (
+          <div key={platform}>
+            <h2 className="text-lg font-bold mb-2 capitalize flex items-center gap-2">
+              {platform}
+            </h2>
+            <div className="space-y-4">
+              {posts.map((item) => (
+                <Card key={item.id} className="w-full overflow-hidden">
+                  <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+                    <div className="flex-grow space-y-3">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-base font-semibold text-gray-800">
+                          {item.post_text.substring(0, 50)}...
+                        </h3>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Created: {new Date(item.created_at).toLocaleDateString()}
+                      </p>
+                      <div className="flex gap-2 items-center mb-2">
+                        <span className={`px-2 py-1 rounded text-xs border ${statusColor(item.post_status)}`}>Post: {item.post_status}</span>
+                        {item.post_status === 'pending' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                              disabled={loadingItemId === item.id + 'post_approve'}
+                              onClick={() => handleDecision(item, 'post', 'approve')}
+                            >
+                              {loadingItemId === item.id + 'post_approve' ? 'Approving...' : 'Approve'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={loadingItemId === item.id + 'post_reject'}
+                              onClick={() => handleDecision(item, 'post', 'reject')}
+                            >
+                              {loadingItemId === item.id + 'post_reject' ? 'Rejecting...' : 'Reject'}
+                            </Button>
+                          </>
+                        )}
+                        {item.image_url && (
+                          <span className={`px-2 py-1 rounded text-xs border ${statusColor(item.image_status)}`}>Image: {item.image_status}</span>
+                        )}
+                        {item.image_url && item.image_status === 'pending' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                              disabled={loadingItemId === item.id + 'image_approve'}
+                              onClick={() => handleDecision(item, 'image', 'approve')}
+                            >
+                              {loadingItemId === item.id + 'image_approve' ? 'Approving...' : 'Approve'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={loadingItemId === item.id + 'image_reject'}
+                              onClick={() => handleDecision(item, 'image', 'reject')}
+                            >
+                              {loadingItemId === item.id + 'image_reject' ? 'Rejecting...' : 'Reject'}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap">
+                        {item.post_text}
+                      </div>
+                      {item.image_url && (
+                        <div className="mt-2">
+                          <span className="text-xs text-gray-500 block mb-1">Attached Image:</span>
+                          <Link href={item.image_url.trim()} target="_blank" rel="noopener noreferrer" className="inline-block border rounded hover:opacity-80 transition-opacity">
+                            <Image src={item.image_url.trim()} alt="Post Image" width={100} height={100} className="object-cover rounded" />
+                          </Link>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {/* --- Platform Icons --- END */}
-                  {/* Display AI Post Content */}
-                  <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap">
-                    {item.postContent}
-                  </div>
-                  {/* Display Image if available */}
-                  {item.imageUrl && (
-                    <div className="mt-2">
-                      <span className="text-xs text-gray-500 block mb-1">Attached Image:</span>
-                      {/* Option 1: Clickable Link 
-                      <Link href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm truncate block">
-                        {item.imageUrl}
-                      </Link>
-                      */} 
-                      {/* Option 2: Thumbnail */}                       
-                      <Link href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="inline-block border rounded hover:opacity-80 transition-opacity">
-                         <Image 
-                            src={item.imageUrl} 
-                            alt="Approval Image" 
-                            width={100} 
-                            height={100} 
-                            className="object-cover rounded"
-                          />
-                      </Link>
-                    </div>
-                  )}
-                </div>
-                {/* Right side: Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-start gap-2 flex-shrink-0 pt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleDecision(item, 'reject')}
-                    disabled={isLoading}
-                    className="w-full sm:w-auto"
-                  >
-                    {isLoading ? 'Rejecting...' : 'Reject'}
-                  </Button>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={() => handleDecision(item, 'approve')}
-                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50 w-full sm:w-auto" 
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Approving...' : 'Approve'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
@@ -284,7 +311,6 @@ export default function ApprovalsPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <h1 className="text-2xl font-bold">Content Approvals</h1>
-
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <p className="text-gray-500">Loading approval items...</p>
@@ -301,34 +327,33 @@ export default function ApprovalsPage() {
             <TabsTrigger value="videos" className="relative">
               Videos
               <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-                {pendingVideos.length}
+                0
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="press_releases" className="relative">
               Press Releases
               <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-                {pendingPressReleases.length}
+                0
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="content_creation" className="relative">
               Content Creation
               <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-                {pendingContentCreation.length}
+                0
               </Badge>
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="social">
-            {renderPendingList(pendingSocial, 'social')}
+            {renderPendingList(pendingSocial)}
           </TabsContent>
           <TabsContent value="videos">
-            {renderPendingList(pendingVideos, 'video')}
+            <p className="text-sm text-gray-500 text-center py-8">No pending videos.</p>
           </TabsContent>
           <TabsContent value="press_releases">
-            {renderPendingList(pendingPressReleases, 'press_release')}
+            <p className="text-sm text-gray-500 text-center py-8">No pending press releases.</p>
           </TabsContent>
           <TabsContent value="content_creation">
-            {renderPendingList(pendingContentCreation, 'content_creation')}
+            <p className="text-sm text-gray-500 text-center py-8">No pending content creation items.</p>
           </TabsContent>
         </Tabs>
       )}

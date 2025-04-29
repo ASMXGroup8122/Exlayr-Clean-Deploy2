@@ -2,8 +2,6 @@
 
 import React from 'react';
 import CampaignManagerClient from './CampaignManagerClient';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, CheckSquare } from 'lucide-react';
 

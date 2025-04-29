@@ -106,12 +106,33 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
       timestamp: new Date().toISOString(),
       organization_id: orgId,
       user_id: user?.id,
-      ...formData,
-      platforms: formData.platforms
+      post_id: null,
+      url: formData.url,
+      include_source: formData.include_source,
+      sentiment: formData.sentiment,
+      thoughts: formData.thoughts,
+      character_length: formData.character_length,
+      email: formData.email,
+      linkedin_post_type: formData.linkedin_post_type,
+      twitter_post_type: formData.twitter_post_type,
+      instagram_post_type: formData.instagram_post_type,
+      add_podcast: formData.add_podcast,
+      additional_instructions: formData.additional_instructions,
+      platforms: {
+        linkedin: formData.platforms.linkedin,
+        twitter: formData.platforms.twitter,
+        instagram: formData.platforms.instagram
+      },
+      post_text: null,
+      platform: null,
+      image_url: null,
+      post_status: 'pending',
+      image_status: 'pending',
+      rejection: null
     };
 
     try {
-      const response = await fetch('https://app.exlayr.ai/webhook/socialpost', {
+      const response = await fetch('https://hook.eu2.make.com/q0c2np0nt9dayphd8zpposc73gvly4w6', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
