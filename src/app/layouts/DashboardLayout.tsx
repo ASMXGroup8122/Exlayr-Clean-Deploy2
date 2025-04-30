@@ -32,7 +32,7 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
     }
 
     return (
-        <div className="min-h-screen flex">
+        <div className="min-h-screen flex overflow-x-hidden">
             {/* Sidebar */}
             <Sidebar 
                 userRole={user.account_type} 
@@ -41,11 +41,11 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
             />
             
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col">
-                <div className="fixed top-0 right-0 left-0 z-10">
+            <div className="flex-1 flex flex-col min-w-0">
+                <div className="fixed top-0 right-0 left-0 z-10 w-full">
                     <Header isCollapsed={sidebarCollapsed} />
                 </div>
-                <main className="bg-[#F8F9FA] pt-16">
+                <main className="bg-[#F8F9FA] pt-16 w-full">
                     <div className="px-2 sm:px-4 py-4 w-full">
                         {children}
                     </div>

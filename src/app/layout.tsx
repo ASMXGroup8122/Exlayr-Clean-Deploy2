@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -10,7 +10,13 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
     title: "Exlayr",
     description: "Exlayr Platform",
-    viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0",
+};
+
+export const viewport: Viewport = {
+    width: "device-width",
+    initialScale: 1.0,
+    maximumScale: 1.0,
+    userScalable: false
 };
 
 export default function RootLayout({
@@ -20,10 +26,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" className="h-full">
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-            </head>
-            <body className={`${inter.className} h-full`}>
+            <body className={`${inter.className} h-full overflow-x-hidden`}>
                 <AuthProvider>
                     <AIAssistantProvider>
                         <main className="min-h-screen bg-[#F8F9FA]">

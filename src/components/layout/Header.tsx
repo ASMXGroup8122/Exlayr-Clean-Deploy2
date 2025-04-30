@@ -14,8 +14,8 @@ export default function Header({ isCollapsed }: { isCollapsed: boolean }) {
     const [profileOpen, setProfileOpen] = useState(false);
 
     return (
-        <header className={`bg-white shadow-sm fixed top-0 right-0 left-0 ${isCollapsed ? 'md:left-16' : 'md:left-[256px]'} transition-[left] duration-200`}>
-            <div className="max-w-full mx-auto px-4">
+        <header className={`bg-white shadow-sm fixed top-0 right-0 left-0 ${isCollapsed ? 'md:left-16' : 'md:left-[256px]'} transition-[left] duration-200 w-full`}>
+            <div className="w-full mx-auto px-2 sm:px-4">
                 <div className="flex justify-end h-16">
                     {/* Notifications */}
                     <NotificationCenter />
