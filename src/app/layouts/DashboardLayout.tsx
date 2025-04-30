@@ -46,7 +46,7 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
                     <Header isCollapsed={sidebarCollapsed} />
                 </div>
                 <main className="bg-[#F8F9FA] pt-16">
-                    <div className="px-4 py-4 max-w-[95%] mx-auto w-full">
+                    <div className="px-2 sm:px-4 py-4 w-full">
                         {children}
                     </div>
                 </main>
