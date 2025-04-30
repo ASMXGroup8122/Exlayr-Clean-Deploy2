@@ -130,15 +130,15 @@ export default function SocialMediaArchivePage() {
                  {posts.map((item) => (
                    <DialogTrigger key={item.id} asChild onClick={() => setSelectedPost(item)}>
                      <Card className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
-                       <CardContent className="p-4 flex items-start gap-4">
+                       <CardContent className="p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
                          {item.image_url && (
                            <div className="flex-shrink-0">
                              <Image 
                                src={item.image_url.trim()} 
                                alt="Post Thumbnail" 
-                               width={60}
-                               height={60} 
-                               className="object-cover rounded border" 
+                               width={50}
+                               height={50} 
+                               className="object-cover rounded border sm:w-[60px] sm:h-[60px]"
                              />
                            </div>
                          )}
@@ -159,7 +159,7 @@ export default function SocialMediaArchivePage() {
            ))}
          </div>
 
-         <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+         <DialogContent className="max-w-3xl max-h-[80vh] w-[95vw] sm:w-full flex flex-col">
            <DialogHeader>
              <DialogTitle>Archived Post Details</DialogTitle>
              {selectedPost && (
@@ -169,7 +169,7 @@ export default function SocialMediaArchivePage() {
              )}
            </DialogHeader>
            {selectedPost && (
-             <div className="flex-grow overflow-y-auto pr-2 space-y-4 py-4">
+             <div className="flex-grow overflow-y-auto pr-1 sm:pr-2 space-y-4 py-4">
                {selectedPost.image_url && (
                  <div>
                    <Image 

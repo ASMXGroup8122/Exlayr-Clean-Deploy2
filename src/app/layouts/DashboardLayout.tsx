@@ -45,8 +45,8 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
                 <div className="fixed top-0 right-0 left-0 z-10">
                     <Header isCollapsed={sidebarCollapsed} />
                 </div>
-                <main className="flex-1 overflow-y-auto bg-[#F8F9FA] pt-16 flex flex-col">
-                    <div className="px-4 py-4 max-w-[95%] mx-auto flex-1 w-full">
+                <main className="bg-[#F8F9FA] pt-16">
+                    <div className="px-4 py-4 max-w-[95%] mx-auto w-full">
                         {children}
                     </div>
                 </main>
