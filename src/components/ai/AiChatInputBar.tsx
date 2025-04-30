@@ -79,10 +79,9 @@ const AiChatInputBar: React.FC<AiChatInputBarProps> = ({ onIntentChange }) => {
   // === Render ===
   return (
     <div className={cn(
-        "bg-white rounded-full border border-gray-200 shadow-lg", // Slightly increased shadow
-        "p-3 w-full max-w-3xl mx-auto", // Increased padding, increased max-width slightly
-        "flex items-center gap-3" // Increased gap
-        // Removed comment about margin - parent will handle positioning
+        "bg-white rounded-full border border-gray-200 shadow-lg", 
+        "p-2 sm:p-3 w-full max-w-3xl mx-auto", // Reduced padding on mobile
+        "flex items-center gap-2 sm:gap-3" // Reduced gap on mobile
     )}>
       <Input
         type="text"
@@ -92,7 +91,7 @@ const AiChatInputBar: React.FC<AiChatInputBarProps> = ({ onIntentChange }) => {
         onKeyPress={handleKeyPress}
         className={cn(
             "flex-grow bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0",
-            "text-lg text-gray-800 placeholder:text-gray-500 pl-4 pr-2 py-3" // Increased font size (text-lg), increased py
+            "text-sm sm:text-lg text-gray-800 placeholder:text-gray-500 pl-2 sm:pl-4 pr-1 sm:pr-2 py-2 sm:py-3" // Smaller text and padding on mobile
         )}
       />
       {/* Microphone Button */}
@@ -100,10 +99,10 @@ const AiChatInputBar: React.FC<AiChatInputBarProps> = ({ onIntentChange }) => {
         variant="ghost"
         size="icon"
         onClick={handleMicClick}
-        className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full w-10 h-10" // Increased size
+        className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full w-8 h-8 sm:w-10 sm:h-10" // Smaller on mobile
         aria-label="Use microphone (not implemented)"
       >
-        <Mic className="h-6 w-6" /> {/* Increased icon size */}
+        <Mic className="h-4 w-4 sm:h-6 sm:w-6" /> {/* Smaller icon on mobile */}
       </Button>
       {/* Send Button */}
       <Button
@@ -111,10 +110,10 @@ const AiChatInputBar: React.FC<AiChatInputBarProps> = ({ onIntentChange }) => {
         size="icon"
         onClick={handleSendClick}
         disabled={!inputValue.trim()}
-        className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-11 h-11 disabled:opacity-60 flex-shrink-0" // Increased size, ensure it doesn't shrink
+        className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-9 h-9 sm:w-11 sm:h-11 disabled:opacity-60 flex-shrink-0" // Smaller on mobile
         aria-label="Send message"
       >
-        <Send className="h-6 w-6" /> {/* Increased icon size */}
+        <Send className="h-4 w-4 sm:h-6 sm:w-6" /> {/* Smaller icon on mobile */}
       </Button>
     </div>
   );

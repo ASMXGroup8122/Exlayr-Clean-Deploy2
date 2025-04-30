@@ -80,50 +80,50 @@ export default function SponsorDashboard() {
     return (
         <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
             {/* Main Content */}
-            <div className="flex-1 p-4 md:p-6 space-y-6">
+            <div className="flex-1 p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
                 {/* Quick Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                    <div className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm border border-[#DADCE0]">
                         <div className="flex items-center">
-                            <div className="p-2 rounded-lg bg-blue-50">
-                                <Building2 className="h-5 w-5 text-blue-600" />
+                            <div className="p-1 sm:p-1.5 md:p-2 rounded-lg bg-blue-50">
+                                <Building2 className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-blue-600" />
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-[#5f6368]">Active Listings</p>
-                                <p className="text-lg font-semibold text-[#202124]">12</p>
+                            <div className="ml-1.5 sm:ml-2 md:ml-3 min-w-0">
+                                <p className="text-[10px] sm:text-xs md:text-sm text-[#5f6368] truncate">Active Listings</p>
+                                <p className="text-sm sm:text-base md:text-lg font-semibold text-[#202124]">12</p>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                    <div className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm border border-[#DADCE0]">
                         <div className="flex items-center">
-                            <div className="p-2 rounded-lg bg-green-50">
-                                <Users className="h-5 w-5 text-green-600" />
+                            <div className="p-1 sm:p-1.5 md:p-2 rounded-lg bg-green-50">
+                                <Users className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-green-600" />
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-[#5f6368]">Total Clients</p>
-                                <p className="text-lg font-semibold text-[#202124]">8</p>
+                            <div className="ml-1.5 sm:ml-2 md:ml-3 min-w-0">
+                                <p className="text-[10px] sm:text-xs md:text-sm text-[#5f6368] truncate">Total Clients</p>
+                                <p className="text-sm sm:text-base md:text-lg font-semibold text-[#202124]">8</p>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                    <div className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm border border-[#DADCE0]">
                         <div className="flex items-center">
-                            <div className="p-2 rounded-lg bg-purple-50">
-                                <Bell className="h-5 w-5 text-purple-600" />
+                            <div className="p-1 sm:p-1.5 md:p-2 rounded-lg bg-purple-50">
+                                <Bell className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-purple-600" />
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-[#5f6368]">Pending Tasks</p>
-                                <p className="text-lg font-semibold text-[#202124]">5</p>
+                            <div className="ml-1.5 sm:ml-2 md:ml-3 min-w-0">
+                                <p className="text-[10px] sm:text-xs md:text-sm text-[#5f6368] truncate">Pending Tasks</p>
+                                <p className="text-sm sm:text-base md:text-lg font-semibold text-[#202124]">5</p>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-[#DADCE0]">
+                    <div className="bg-white p-2 sm:p-3 md:p-4 rounded-lg shadow-sm border border-[#DADCE0]">
                         <div className="flex items-center">
-                            <div className="p-2 rounded-lg bg-yellow-50">
-                                <Clock className="h-5 w-5 text-yellow-600" />
+                            <div className="p-1 sm:p-1.5 md:p-2 rounded-lg bg-yellow-50">
+                                <Clock className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-yellow-600" />
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-[#5f6368]">Due Today</p>
-                                <p className="text-lg font-semibold text-[#202124]">3</p>
+                            <div className="ml-1.5 sm:ml-2 md:ml-3 min-w-0">
+                                <p className="text-[10px] sm:text-xs md:text-sm text-[#5f6368] truncate">Due Today</p>
+                                <p className="text-sm sm:text-base md:text-lg font-semibold text-[#202124]">3</p>
                             </div>
                         </div>
                     </div>
@@ -131,32 +131,49 @@ export default function SponsorDashboard() {
 
                 {/* Recent Listings */}
                 <div className="bg-white rounded-lg shadow-sm border border-[#DADCE0] overflow-hidden">
-                    <div className="p-4 border-b border-[#DADCE0]">
-                        <h2 className="text-lg font-medium text-[#202124]">Recent Listings</h2>
+                    <div className="p-3 border-b border-[#DADCE0]">
+                        <h2 className="text-base sm:text-lg font-medium text-[#202124]">Recent Listings</h2>
                     </div>
+                    
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="min-w-full divide-y divide-[#DADCE0]">
                             <thead className="bg-[#F8F9FA]">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Company</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Status</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Exchange</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-[#5f6368] uppercase tracking-wider">Next Key Date</th>
+                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-[#5f6368] uppercase whitespace-nowrap">
+                                        Company
+                                    </th>
+                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-[#5f6368] uppercase whitespace-nowrap">
+                                        Status
+                                    </th>
+                                    {/* Hide on mobile, show on sm+ */}
+                                    <th scope="col" className="hidden sm:table-cell px-3 py-2 text-left text-xs font-medium text-[#5f6368] uppercase whitespace-nowrap">
+                                        Exchange
+                                    </th>
+                                    {/* Hide on mobile, show on sm+ */}
+                                    <th scope="col" className="hidden sm:table-cell px-3 py-2 text-left text-xs font-medium text-[#5f6368] uppercase whitespace-nowrap">
+                                        Next Key Date
+                                    </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#DADCE0]">
+                            <tbody className="bg-white divide-y divide-[#DADCE0]">
                                 {recentListings.map((listing, index) => (
-                                    <tr key={index}>
-                                        <td className="px-4 py-3 text-sm text-[#202124]">{listing.companyName}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(listing.status)}`}>
+                                    <tr key={index} className="hover:bg-gray-50">
+                                        <td className="px-3 py-2 whitespace-nowrap">
+                                            <div className="text-xs text-[#202124] truncate" title={listing.companyName}>{listing.companyName}</div>
+                                        </td>
+                                        <td className="px-3 py-2 whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(listing.status)}`}>
                                                 {listing.status}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-sm text-[#5f6368]">{listing.exchange}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="text-sm text-[#202124]">{listing.nextKeyDate}</div>
-                                            <div className="text-xs text-[#5f6368]">{listing.keyDateDescription}</div>
+                                        {/* Hide on mobile, show on sm+ */}
+                                        <td className="hidden sm:table-cell px-3 py-2 whitespace-nowrap">
+                                            <div className="text-xs text-[#5f6368] truncate" title={listing.exchange}>{listing.exchange}</div>
+                                        </td>
+                                        {/* Hide on mobile, show on sm+ */}
+                                        <td className="hidden sm:table-cell px-3 py-2 whitespace-nowrap">
+                                            <div className="text-xs text-[#202124] truncate" title={listing.nextKeyDate}>{listing.nextKeyDate}</div>
+                                            <div className="text-xs text-[#5f6368] truncate" title={listing.keyDateDescription}>{listing.keyDateDescription}</div>
                                         </td>
                                     </tr>
                                 ))}
@@ -166,7 +183,7 @@ export default function SponsorDashboard() {
                 </div>
 
                 {/* AI Interface Area */}
-                <div className="w-full max-w-3xl mx-auto">
+                <div className="w-full max-w-3xl mx-auto space-y-4">
                     <AiActionCards intent={intent} orgId={orgId} />
                     <AiChatInputBar onIntentChange={setIntent} />
                 </div>

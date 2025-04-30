@@ -189,7 +189,7 @@ const AiActionCards: React.FC<AiActionCardsProps> = ({ intent, orgId }) => {
       {cards && intent && (
         <motion.div
           key={intent}
-          className="mb-6 flex flex-wrap justify-center items-start gap-4 px-4"
+          className="mb-6 flex flex-col gap-3 px-2"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
@@ -198,25 +198,25 @@ const AiActionCards: React.FC<AiActionCardsProps> = ({ intent, orgId }) => {
           {cards.map((card, index) => (
             <motion.div
               key={`${intent}-${index}`}
-              className={cn(
-                "group bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-lg transition-shadow",
-                "cursor-pointer flex flex-col items-start w-52 text-left",
-                "h-36"
-              )}
+              className="group bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer w-full"
               variants={cardVariants}
               onClick={() => handleCardClick(card.intentAction)}
             >
-              <div className="flex items-center justify-between w-full mb-2 flex-shrink-0">
-                 <card.icon className="h-6 w-6 text-blue-600 flex-shrink-0" />
-                 <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all duration-200 flex-shrink-0"/>
-              </div>
-              <div className="flex flex-col flex-grow justify-start overflow-hidden">
-                 <h4 className="text-base font-semibold text-gray-900 mb-1 truncate">
+              <div className="p-3 flex items-start gap-3">
+                <div className="flex-shrink-0 p-2 rounded-md bg-blue-50">
+                  <card.icon className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-medium text-gray-900 mb-1 truncate">
                     {card.title}
-                 </h4>
-                 <p className="text-sm text-gray-600 leading-snug overflow-hidden line-clamp-3">
+                  </h4>
+                  <p className="text-xs text-gray-600 line-clamp-2 overflow-hidden">
                     {card.description}
-                 </p>
+                  </p>
+                </div>
+                <div className="flex-shrink-0 self-center">
+                  <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all duration-200" />
+                </div>
               </div>
             </motion.div>
           ))}

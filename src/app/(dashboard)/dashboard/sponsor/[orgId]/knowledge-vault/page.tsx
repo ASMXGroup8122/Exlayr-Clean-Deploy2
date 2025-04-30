@@ -52,31 +52,34 @@ export default function SponsorKnowledgeVaultPage() {
     }, [user]);
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">Knowledge Vault</h1>
-                <div className="flex space-x-4">
-                    <div className="relative">
+        <div className="p-4 md:p-6">
+            {/* Responsive Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                {/* Title */}
+                <h1 className="text-xl sm:text-2xl font-bold">Knowledge Vault</h1>
+                {/* Controls */}
+                <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2 sm:gap-4">
+                    <div className="relative w-full sm:w-auto">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
                             type="text"
                             placeholder="Search documents..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 pr-4 py-2"
+                            className="pl-10 pr-4 py-2 h-9 text-sm w-full"
                         />
                     </div>
                     <Button
                         onClick={() => setShowUpload(!showUpload)}
-                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm h-9 w-full sm:w-auto"
                     >
-                        <Plus className="h-5 w-5 mr-2" />
+                        <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                         Add Document
                     </Button>
                 </div>
             </div>
 
-            {showUpload && (
+            {showUpload && user?.organization_id && (
                 <div className="mb-6 p-4 bg-white rounded-lg shadow">
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700">Document Category</label>
@@ -97,7 +100,7 @@ export default function SponsorKnowledgeVaultPage() {
                     </div>
                     <DocumentUpload
                         category={selectedCategory}
-                        organizationId={user?.organization_id}
+                        organizationId={user.organization_id}
                         onUploadComplete={() => {
                             setShowUpload(false);
                             fetchDocuments();
