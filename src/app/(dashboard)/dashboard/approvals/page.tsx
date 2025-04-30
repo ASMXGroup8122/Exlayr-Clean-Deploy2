@@ -262,6 +262,7 @@ export default function ApprovalsPage() {
           case 'twitter': 
             targetWebhookUrl = process.env.NEXT_PUBLIC_TWITTER_APPROVE_WEBHOOK_URL;
             break;
+          case 'insta':
           case 'instagram':
             targetWebhookUrl = process.env.NEXT_PUBLIC_INSTAGRAM_APPROVE_WEBHOOK_URL;
             break;
