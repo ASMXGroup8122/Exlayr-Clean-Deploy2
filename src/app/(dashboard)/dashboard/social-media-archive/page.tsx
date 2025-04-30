@@ -122,28 +122,28 @@ export default function SocialMediaArchivePage() {
 
      return (
        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedPost(null)}>
-         <div className="space-y-8">
+         <div className="space-y-6">
            {Object.entries(grouped).map(([platform, posts]) => (
              <div key={platform}>
-               <h2 className="text-lg font-semibold mb-3 capitalize">{platform}</h2>
-               <div className="space-y-4">
+               <h2 className="text-md sm:text-lg font-semibold mb-2 sm:mb-3 capitalize">{platform}</h2>
+               <div className="space-y-3">
                  {posts.map((item) => (
                    <DialogTrigger key={item.id} asChild onClick={() => setSelectedPost(item)}>
-                     <Card className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
-                       <CardContent className="p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
+                     <Card className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow w-full">
+                       <CardContent className="p-2 sm:p-3 flex flex-col sm:flex-row items-start gap-2 sm:gap-3">
                          {item.image_url && (
-                           <div className="flex-shrink-0">
+                           <div className="w-full sm:w-auto sm:flex-shrink-0 mb-2 sm:mb-0">
                              <Image 
                                src={item.image_url.trim()} 
                                alt="Post Thumbnail" 
-                               width={50}
-                               height={50} 
-                               className="object-cover rounded border sm:w-[60px] sm:h-[60px]"
+                               width={80}
+                               height={80} 
+                               className="object-cover rounded border h-[80px] w-full sm:w-[80px] sm:h-[80px]"
                              />
                            </div>
                          )}
-                         <div className="flex-grow">
-                           <p className="text-sm font-medium text-gray-800 line-clamp-3">
+                         <div className="flex-grow w-full">
+                           <p className="text-sm font-medium text-gray-800 line-clamp-2 sm:line-clamp-3">
                              {item.post_text} 
                            </p>
                            <p className="text-xs text-gray-500 mt-1">
@@ -159,17 +159,17 @@ export default function SocialMediaArchivePage() {
            ))}
          </div>
 
-         <DialogContent className="max-w-3xl max-h-[80vh] w-[95vw] sm:w-full flex flex-col">
+         <DialogContent className="max-w-3xl max-h-[90vh] w-[98vw] sm:w-[95vw] md:w-full flex flex-col">
            <DialogHeader>
              <DialogTitle>Archived Post Details</DialogTitle>
              {selectedPost && (
-                 <DialogDescription>
+                 <DialogDescription className="text-xs sm:text-sm">
                      Platform: {selectedPost.platform || 'N/A'} | Created: {new Date(selectedPost.created_at).toLocaleDateString()}
                  </DialogDescription>
              )}
            </DialogHeader>
            {selectedPost && (
-             <div className="flex-grow overflow-y-auto pr-1 sm:pr-2 space-y-4 py-4">
+             <div className="flex-grow overflow-y-auto py-2 sm:py-4 space-y-3 sm:space-y-4">
                {selectedPost.image_url && (
                  <div>
                    <Image 
@@ -178,11 +178,11 @@ export default function SocialMediaArchivePage() {
                      width={600} 
                      height={600} 
                      className="object-contain rounded border mx-auto max-w-full"
-                     style={{ width: 'auto', height: 'auto' }}
+                     style={{ width: 'auto', height: 'auto', maxHeight: '40vh' }}
                    />
                  </div>
                )}
-               <div className="prose prose-sm max-w-none whitespace-pre-wrap break-words">
+               <div className="prose prose-sm max-w-none whitespace-pre-wrap break-words px-1 sm:px-2">
                   {selectedPost.post_text}
                </div>
              </div>
@@ -193,29 +193,31 @@ export default function SocialMediaArchivePage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Social Media Archive</h1>
+    <div className="flex flex-col items-center w-full">
+      <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-6 space-y-4 sm:space-y-6 w-[92%] sm:w-[88%] md:w-full max-w-5xl">
+        <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Social Media Archive</h1>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          type="text"
-          placeholder="Search archived post text..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 w-full md:w-1/2 lg:w-1/3"
-        />
+        <div className="relative mb-4 w-full">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search archived post text..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 py-1 text-sm h-9 w-full"
+          />
+        </div>
+
+        {isLoadingApproved ? (
+          <div className="flex justify-center items-center h-40 sm:h-64 w-full">
+            <p className="text-gray-500">Loading archived posts...</p>
+          </div>
+        ) : (
+          <div className="w-full">
+            {renderApprovedList(approvedSocial)}
+          </div>
+        )}
       </div>
-
-      {isLoadingApproved ? (
-        <div className="flex justify-center items-center h-64">
-          <p className="text-gray-500">Loading archived posts...</p>
-        </div>
-      ) : (
-        <div>
-          {renderApprovedList(approvedSocial)}
-        </div>
-      )}
     </div>
   );
 } 
