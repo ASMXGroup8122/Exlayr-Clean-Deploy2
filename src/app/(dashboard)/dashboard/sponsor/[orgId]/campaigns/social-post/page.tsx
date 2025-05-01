@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { use } from 'react';
 import Link from 'next/link';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { HelpCircle, Sparkles } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from '@/components/ui/use-toast';
 
 interface SocialPostPageProps {
   params: Promise<{
@@ -19,11 +23,24 @@ interface SocialPostPageProps {
   }>;
 }
 
+interface ToneOfVoice {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export default function SocialPostPage({ params }: SocialPostPageProps) {
   const { orgId } = use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const supabase = getSupabaseClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tones, setTones] = useState<ToneOfVoice[]>([]);
+  const [loadingTones, setLoadingTones] = useState(false);
+  const [selectedTone, setSelectedTone] = useState<ToneOfVoice | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const [formData, setFormData] = useState({
     url: '',
     include_source: true,
@@ -36,12 +53,92 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     instagram_post_type: '',
     add_podcast: false,
     additional_instructions: '',
+    tone_of_voice_id: '',
+    image_type: '',
     platforms: {
       linkedin: false,
       twitter: false,
       instagram: false
     }
   });
+
+  // Fetch tones of voice
+  useEffect(() => {
+    const fetchTones = async () => {
+      if (!orgId) return;
+      
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      try {
+        console.log('Starting to fetch tones...');
+        setLoadingTones(true);
+        setLoadError(null);
+        
+        // Set a timeout to stop loading after 10 seconds
+        timeoutRef.current = setTimeout(() => {
+          console.log('Tone loading timed out after 10 seconds');
+          setLoadingTones(false);
+          setLoadError('Loading timed out. Please try refreshing.');
+        }, 10000);
+        
+        const { data, error } = await supabase
+          .from('tone_of_voice')
+          .select('id, name, description')
+          .eq('organization_id', orgId)
+          .order('name', { ascending: true });
+        
+        // Clear the timeout since the request completed
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+          
+        if (error) {
+          console.error('Supabase error fetching tones:', error);
+          throw error;
+        }
+        
+        console.log(`Loaded ${data?.length || 0} tones successfully`);
+        setTones(data || []);
+        
+        // Find selected tone
+        if (formData.tone_of_voice_id && data) {
+          const tone = data.find(t => t.id === formData.tone_of_voice_id);
+          if (tone) setSelectedTone(tone);
+        }
+      } catch (err) {
+        console.error('Error fetching tones of voice:', err);
+        setLoadError('Failed to load tones');
+        toast({
+          title: "Error",
+          description: "Failed to load tones of voice",
+          variant: "destructive"
+        });
+      } finally {
+        // Ensure loading state is turned off
+        setLoadingTones(false);
+      }
+    };
+
+    fetchTones();
+    
+    // Clean up timeout on component unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [orgId, supabase]);
+
+  // Handle tone selection
+  const handleToneChange = (toneId: string) => {
+    setFormData({ ...formData, tone_of_voice_id: toneId });
+    const tone = tones.find(t => t.id === toneId);
+    setSelectedTone(tone || null);
+  };
 
   const sentimentOptions = [
     'Agree',
@@ -54,6 +151,15 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     '500-800',
     '1100-1300',
     '1500-1800'
+  ];
+
+  const imageTypeOptions = [
+    'photorealistic editorial',
+    'cinematic illustration',
+    'infographic',
+    'cartoon',
+    'surreal',
+    'ai futuristic'
   ];
 
   const linkedinPostTypes = [
@@ -102,6 +208,9 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     if (isSubmitting) return;
     setIsSubmitting(true);
     
+    // Find the selected tone's text content
+    const selectedToneData = tones.find(tone => tone.id === formData.tone_of_voice_id);
+    
     const payload = {
       timestamp: new Date().toISOString(),
       organization_id: orgId,
@@ -118,6 +227,14 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
       instagram_post_type: formData.instagram_post_type,
       add_podcast: formData.add_podcast,
       additional_instructions: formData.additional_instructions,
+      // Include both ID and text content of the tone
+      tone_of_voice_id: formData.tone_of_voice_id || null,
+      tone_of_voice: selectedToneData ? {
+        name: selectedToneData.name,
+        description: selectedToneData.description
+      } : null,
+      // Add image type
+      image_type: formData.image_type || null,
       platforms: {
         linkedin: formData.platforms.linkedin,
         twitter: formData.platforms.twitter,
@@ -132,6 +249,8 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     };
 
     try {
+      console.log('Submitting with tone:', selectedToneData ? selectedToneData.name : 'None');
+      
       const response = await fetch('https://hook.eu2.make.com/q0c2np0nt9dayphd8zpposc73gvly4w6', {
         method: 'POST',
         headers: {
@@ -145,6 +264,11 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
       } else {
         const errorText = await response.text();
         console.error('Failed to submit social post. Status:', response.status, 'Response:', errorText);
+        toast({
+          title: "Submission Failed",
+          description: "There was an error submitting your post. Please try again.",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error submitting social post:', error);
@@ -155,9 +279,82 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
           stack: error.stack
         });
       }
+      toast({
+        title: "Error",
+        description: "Failed to create post. Please check your connection and try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Select component rendering based on loading state
+  const renderToneSelector = () => {
+    return (
+      <Select
+        value={formData.tone_of_voice_id}
+        onValueChange={handleToneChange}
+        disabled={loadingTones}
+      >
+        <SelectTrigger className={`w-full h-10 bg-white ${loadingTones ? 'opacity-70' : ''}`}>
+          {loadingTones ? (
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin h-4 w-4 border-b-2 border-blue-600 rounded-full"></div>
+              <span>Loading tones...</span>
+            </div>
+          ) : (
+            <SelectValue placeholder="Select a tone of voice" />
+          )}
+        </SelectTrigger>
+        <SelectContent 
+          className="max-h-[300px] overflow-y-auto z-50" 
+          position="popper"
+          sideOffset={5}
+          align="start"
+        >
+          {loadError && (
+            <div className="p-3 text-center text-sm">
+              <p className="text-red-500 font-medium">{loadError}</p>
+              <Button
+                onClick={() => window.location.reload()}
+                variant="outline"
+                size="sm"
+                className="mt-2"
+              >
+                Refresh
+              </Button>
+            </div>
+          )}
+          
+          {tones.length === 0 && !loadingTones && !loadError && (
+            <div className="p-3 text-center text-sm">
+              <p className="text-gray-700 font-medium">No tones available</p>
+              <Link 
+                href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 mt-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200"
+              >
+                <Sparkles className="h-3 w-3" />
+                Create with AI
+              </Link>
+            </div>
+          )}
+          
+          {loadingTones && (
+            <div className="p-3 text-center flex items-center justify-center">
+              <div className="animate-spin h-4 w-4 border-b-2 border-blue-600 rounded-full mr-2"></div>
+              <span className="text-sm text-gray-500">Loading tones...</span>
+            </div>
+          )}
+          
+          {tones.map((tone) => (
+            <SelectItem key={tone.id} value={tone.id}>
+              {tone.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
   };
 
   return (
@@ -165,6 +362,45 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="tone-of-voice" className="text-base font-medium">Tone of Voice</Label>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <Sparkles className="h-3 w-3 mr-0.5" />
+                    AI-Powered
+                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs p-3 bg-white shadow-lg rounded-md border border-gray-200">
+                        <p className="text-sm text-gray-700">Choose a tone personality for your content. The AI will use this to match the voice and style.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Link 
+                  href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Create Custom
+                </Link>
+              </div>
+              
+              {renderToneSelector()}
+              
+              {selectedTone && (
+                <div className="mt-1 text-sm text-gray-600">
+                  {selectedTone.description && (
+                    <p className="line-clamp-2">{selectedTone.description}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="url">URL *</Label>
               <Input
@@ -329,6 +565,41 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                 placeholder="Any additional instructions or notes"
                 className="w-full"
               />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-medium">Image Type</Label>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <Sparkles className="h-3 w-3 mr-0.5" />
+                  AI-Generated
+                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs p-3 bg-white shadow-lg rounded-md border border-gray-200">
+                      <p className="text-sm text-gray-700">Select a style for AI-generated images that will accompany your post.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Select
+                value={formData.image_type}
+                onValueChange={(value) => setFormData({ ...formData, image_type: value })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select image style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {imageTypeOptions.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

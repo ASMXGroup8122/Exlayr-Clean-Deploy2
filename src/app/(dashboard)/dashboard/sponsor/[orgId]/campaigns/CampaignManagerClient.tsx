@@ -152,35 +152,64 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
 
     fetchPendingCount();
 
+    // Create channel with a unique name to avoid potential conflicts
+    const channelName = `campaign_manager_client_${user.organization_id}_${Date.now()}`;
     const channelFilter = `organization_id=eq.${user.organization_id}`;
-    const channel = supabase
-      .channel('campaign_manager_client_pending_count')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'social_posts',
-          filter: channelFilter
-        },
-        (payload) => {
-          console.log('[Client] Realtime event received:', payload);
-          fetchPendingCount();
-        }
-      )
-      .subscribe((status, err) => {
-         if (status === 'SUBSCRIBED') {
-            console.log('[Client] Realtime channel subscribed successfully.');
-         }
-         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.error(`[Client] Realtime channel error: ${status}`, err);
-         }
-      });
+    
+    // Store channel reference in a variable for proper cleanup
+    let channel: RealtimeChannel;
+    
+    try {
+      channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'social_posts',
+            filter: channelFilter
+          },
+          (payload) => {
+            console.log('[Client] Realtime event received:', payload);
+            fetchPendingCount();
+          }
+        )
+        .subscribe((status, err) => {
+           if (status === 'SUBSCRIBED') {
+              console.log('[Client] Realtime channel subscribed successfully.');
+           }
+           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.error(`[Client] Realtime channel error: ${status}`, err);
+              // Attempt to reconnect after channel error
+              setTimeout(() => {
+                console.log('[Client] Attempting to reconnect...');
+                if (channel) {
+                  channel.subscribe();
+                }
+              }, 5000); // Retry after 5 seconds
+           }
+           if (status === 'CLOSED') {
+              console.log('[Client] Realtime channel closed.');
+           }
+        });
+      
+      console.log(`[Client] Channel "${channelName}" created and subscribing...`);
+    } catch (error) {
+      console.error('[Client] Error creating channel:', error);
+    }
 
+    // Cleanup function
     return () => {
-      if (channel) {
-        console.log('[Client] Unsubscribing from Realtime channel.');
-        supabase.removeChannel(channel);
+      console.log('[Client] Cleanup: Unsubscribing from Realtime channel.');
+      try {
+        if (channel) {
+          supabase.removeChannel(channel)
+            .then(() => console.log('[Client] Channel removed successfully'))
+            .catch(err => console.error('[Client] Error removing channel:', err));
+        }
+      } catch (err) {
+        console.error('[Client] Error during channel cleanup:', err);
       }
     };
   }, [user?.organization_id, supabase]);

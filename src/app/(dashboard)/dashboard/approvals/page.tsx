@@ -38,6 +38,7 @@ interface SocialPostItem {
   instagram_post_type?: string;
   add_podcast?: boolean;
   additional_instructions?: string;
+  image_type?: string; // Add image type field
   // Supabase JSON object type might differ, adjust if needed
   platforms?: { [key: string]: any } | null; 
 }
@@ -179,6 +180,7 @@ export default function ApprovalsPage() {
           instagram_post_type: updatedRows.instagram_post_type || null,
           add_podcast: updatedRows.add_podcast || false,
           additional_instructions: updatedRows.additional_instructions || null,
+          image_type: updatedRows.image_type || null, // Include image type
           platforms: {
             linkedin: updatedRows.platforms?.linkedin || false,
             twitter: updatedRows.platforms?.twitter || false,
