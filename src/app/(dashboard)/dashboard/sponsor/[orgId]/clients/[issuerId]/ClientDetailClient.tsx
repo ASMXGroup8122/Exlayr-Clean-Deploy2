@@ -160,41 +160,42 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
 
     // --- RENDER LOGIC --- (Adapted from IssuerDetailClient)
     return (
-        <div className="space-y-6">
-            {/* Header - Remove status change select */}
-            <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex justify-between items-center">
+        <div className="space-y-4 md:space-y-6">
+            {/* Responsive Header */}
+            <div className="bg-white shadow rounded-lg p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                        <h1 className="text-2xl font-bold">{issuer.issuer_name}</h1>
-                        <div className="flex items-center gap-4 mt-2">
-                            <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(issuer.status)}`}>
+                        {/* Responsive Title */}
+                        <h1 className="text-xl md:text-2xl font-bold">{issuer.issuer_name}</h1>
+                        <div className="flex items-center gap-2 sm:gap-4 mt-2">
+                            <span className={`px-3 py-1 text-xs sm:text-sm font-semibold rounded-full ${getStatusColor(issuer.status)}`}>
                                 {issuer.status?.toUpperCase() || 'UNKNOWN'}
                             </span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-xs sm:text-sm text-gray-500">
                                 Submitted: {new Date(issuer.created_at).toLocaleDateString()}
                             </span>
                         </div>
                     </div>
-                    {/* Removed Select component for status change */}
                 </div>
             </div>
 
-            {/* Navigation Tabs - Reuse the same tab structure */}
+            {/* Responsive Tabs */}
             <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-8 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                {/* Reduced space on mobile, maintain overflow */}
+                <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                     {[
-                        { key: 'company', label: 'Company Information' },
+                        { key: 'company', label: 'Company Info' }, // Shortened label
                         { key: 'management', label: 'Management' },
-                        { key: 'capital', label: 'Capital Structure' },
-                        { key: 'business', label: 'Business Overview' },
-                        { key: 'legal', label: 'Legal & Advisors' },
+                        { key: 'capital', label: 'Capital' }, // Shortened label
+                        { key: 'business', label: 'Overview' }, // Shortened label
+                        { key: 'legal', label: 'Legal' }, // Shortened label
                         { key: 'regulatory', label: 'Regulatory' },
                         { key: 'documents', label: 'Documents' },
                     ].map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
-                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                            className={`whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm ${
                                 activeTab === tab.key
                                     ? 'border-blue-500 text-blue-600'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -206,14 +207,14 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                 </nav>
             </div>
 
-            {/* Tab Content - Reuse structure, ensure data fields match IssuerDetails */}
-            <div className="bg-white shadow rounded-lg p-6">
+            {/* Tab Content - Apply responsive grid to relevant sections */}
+            <div className="bg-white shadow rounded-lg p-4 md:p-6">
                 {activeTab === 'company' && (
-                    <div className="space-y-8">
-                        {/* Basic Information Section */}
+                    <div className="space-y-6 md:space-y-8">
+                        {/* Basic Information Section - Responsive Grid */}
                         <div>
-                            <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Basic Information</h3>
-                            <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                            <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Basic Information</h3>
+                            <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                 <DataField label="Company Name" value={issuer.issuer_name} />
                                 <DataField label="Registration Number" value={issuer.company_registration_number} />
                                 <DataField label="Incorporation Date" value={issuer.incorporation_date ? new Date(issuer.incorporation_date).toLocaleDateString() : 'N/A'} />
@@ -226,7 +227,7 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                         </div>
                          {/* Address Section */}
                         <div>
-                            <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Address</h3>
+                            <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Address</h3>
                             <dl>
                                 <DataField label="Registered Address" value={issuer.registered_address} fullWidth={true} />
                             </dl>
@@ -235,11 +236,11 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                 )}
 
                 {activeTab === 'management' && (
-                    <div className="space-y-8">
-                        {/* CEO Section */}
+                    <div className="space-y-6 md:space-y-8">
+                        {/* CEO Section - Responsive Grid */}
                         <div>
-                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Chief Executive Officer</h3>
-                             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                             <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Chief Executive Officer</h3>
+                             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                 <DataField label="Name" value={issuer.chief_executiveofficer} />
                                 <DataField label="Title" value={issuer.ceo_title} />
                                 <DataField label="Nationality" value={issuer.ceo_nationality} />
@@ -250,8 +251,8 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                         </div>
                         {/* Financial Director Section */}
                         <div>
-                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Financial Director</h3>
-                             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                             <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Financial Director</h3>
+                             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                 <DataField label="Name" value={issuer.financial_director} />
                                 <DataField label="Title" value={issuer.fd_title} />
                                 <DataField label="Nationality" value={issuer.fd_nationality} />
@@ -263,8 +264,8 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                          {/* Other Directors (Example for Director 3) - Extend dynamically if needed */}
                          {issuer.director_3 && (
                             <div>
-                                <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Director 3</h3>
-                                <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                                <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Director 3</h3>
+                                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                     <DataField label="Name" value={issuer.director_3} />
                                     <DataField label="Title" value={issuer.d3_title} />
                                     <DataField label="Nationality" value={issuer.d3_nationality} />
@@ -280,8 +281,8 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
 
                 {activeTab === 'capital' && (
                      <div>
-                        <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Capital Structure</h3>
-                         <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                        <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Capital Structure</h3>
+                         <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                             <DataField label="Nominal Share Price" value={issuer.nominal_share_price} />
                             <DataField label="Authorised Share Capital" value={issuer.authorised_share_capital} />
                             <DataField label="Shares in Issue" value={issuer.shares_in_issue} />
@@ -299,15 +300,15 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
 
                 {activeTab === 'business' && (
                     <div>
-                        <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Business Overview</h3>
+                        <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Business Overview</h3>
                         <div className="prose max-w-none text-sm text-gray-700">
                             <p>{issuer.business_overview || 'N/A'}</p>
                         </div>
-                         <h3 className="text-lg font-semibold leading-6 text-gray-900 mt-6 mb-4">Company Prospects</h3>
+                         <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mt-3 md:mt-4 mb-3 md:mb-4">Company Prospects</h3>
                         <div className="prose max-w-none text-sm text-gray-700">
                             <p>{issuer.company_prospects || 'N/A'}</p>
                         </div>
-                         <h3 className="text-lg font-semibold leading-6 text-gray-900 mt-6 mb-4">Recent Performance</h3>
+                         <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mt-3 md:mt-4 mb-3 md:mb-4">Recent Performance</h3>
                         <div className="prose max-w-none text-sm text-gray-700">
                             <p>{issuer.recent_performance || 'N/A'}</p>
                         </div>
@@ -315,19 +316,19 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                 )}
 
                 {activeTab === 'legal' && (
-                    <div className="space-y-8">
+                    <div className="space-y-6 md:space-y-8">
                          {/* Legal Advisors */}
                         <div>
-                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Legal Advisors</h3>
-                             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                             <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Legal Advisors</h3>
+                             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                 <DataField label="Name" value={issuer.legal_advisors_name} />
                                 <DataField label="Address" value={issuer.legal_advisors_address} fullWidth={true}/>
                             </dl>
                         </div>
                          {/* Auditors */}
                         <div>
-                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Auditors</h3>
-                             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                             <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Auditors</h3>
+                             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                 <DataField label="Name" value={issuer.auditors_name} />
                                 <DataField label="Address" value={issuer.auditors_address} fullWidth={true}/>
                             </dl>
@@ -335,14 +336,14 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
                         {/* Trustee, Accountant, Administrators, Company Secretary sections */}
                         {/* ... Add similar dl blocks for these roles ... */}
                         <div>
-                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Company Secretary</h3>
-                             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                             <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Company Secretary</h3>
+                             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                                 <DataField label="Name" value={issuer.company_secretary} />
                                 <DataField label="Address" value={issuer.co_sec_address} fullWidth={true}/>
                             </dl>
                         </div>
                          <div>
-                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Exchange Sponsor</h3>
+                             <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Exchange Sponsor</h3>
                              <DataField label="Name" value={issuer.exchange_sponsor} />
                         </div>
                     </div>
@@ -350,8 +351,8 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
 
                  {activeTab === 'regulatory' && (
                     <div>
-                        <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Regulatory Information</h3>
-                         <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                        <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Regulatory Information</h3>
+                         <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                              <DataField label="Regulated Company?" value={issuer.does_the_company_have_regulators ? 'Yes' : 'No'} />
                             {issuer.does_the_company_have_regulators && (
                                 <>
@@ -367,7 +368,7 @@ export default function ClientDetailClient({ initialIssuer, initialDocuments, or
 
                 {activeTab === 'documents' && (
                     <div>
-                        <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-4">Associated Documents</h3>
+                        <h3 className="text-base md:text-lg font-semibold leading-6 text-gray-900 mb-3 md:mb-4">Associated Documents</h3>
                         {documents.length > 0 ? (
                              <ul className="divide-y divide-gray-200">
                                 {documents.map(doc => (
