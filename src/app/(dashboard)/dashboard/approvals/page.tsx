@@ -345,6 +345,78 @@ export default function ApprovalsPage() {
     }
   };
 
+  // Handle delete post function
+  const handleDeletePost = async (item: SocialPostItem) => {
+    if (!user?.id) return;
+    
+    // Set loading state for delete operation
+    const currentLoadingId = item.id + 'delete';
+    setLoadingItemId(currentLoadingId);
+    
+    console.log(`[handleDeletePost START] Deleting post ID: ${item.id}`);
+    
+    try {
+      // First check if the post exists and if we have read permissions
+      const { data: existingPost, error: fetchError } = await supabase
+        .from('social_posts')
+        .select('*')
+        .eq('id', item.id)
+        .single();
+        
+      if (fetchError) {
+        console.error(`[handleDeletePost FETCH ERROR] Post ID: ${item.id}`, fetchError);
+        throw new Error(`Failed to find post: ${fetchError.message || 'Unknown error'}`);
+      }
+      
+      if (!existingPost) {
+        throw new Error(`Post with ID ${item.id} not found`);
+      }
+      
+      console.log(`[handleDeletePost INFO] Found post: ${JSON.stringify(existingPost)}`);
+      
+      // Only update the deleted field to avoid constraint violations
+      console.log(`[handleDeletePost UPDATE] Setting deleted=true for post ID: ${item.id}`);
+      
+      const { error: deleteError } = await supabase
+        .from('social_posts')
+        .update({ deleted: true })
+        .eq('id', item.id);
+      
+      if (deleteError) {
+        console.error(`[handleDeletePost UPDATE ERROR] Failed to set deleted=true for post ID: ${item.id}`, deleteError);
+        console.error(`Error details: ${JSON.stringify(deleteError)}`);
+        throw new Error(`Failed to delete post: ${deleteError.message || 'Could not update deleted field'}`);
+      }
+      
+      // If we get here, the deleted field was updated successfully
+      console.log(`[handleDeletePost SUCCESS] Post marked as deleted successfully for post ID: ${item.id}`);
+      
+      // Apply optimistic UI update - immediately remove the item from the pendingSocial state
+      setPendingSocial(prev => prev.filter(post => post.id !== item.id));
+      
+      // Show success notification
+      toast({
+        title: "Post Deleted",
+        description: "The social post has been deleted and removed from the list.",
+        variant: "default"
+      });
+      
+    } catch (err: any) {
+      console.error(`[handleDeletePost ERROR] Post ID: ${item.id}, Error:`, err);
+      toast({
+        title: 'Delete Failed',
+        description: err.message || 'Failed to delete the post.',
+        variant: 'destructive',
+      });
+    } finally {
+      // Clear loading state
+      setTimeout(() => {
+        setLoadingItemId(null);
+        console.log(`[handleDeletePost FINALLY] Cleared loading state for Post ID: ${item.id}`);
+      }, 100);
+    }
+  };
+
   const renderPendingList = (items: SocialPostItem[]) => {
     if (items.length === 0) {
       return <p className="text-sm text-gray-500 text-center py-8">No pending social posts.</p>;
@@ -400,7 +472,7 @@ export default function ApprovalsPage() {
                            </div>
                         )}
                       </div>
-                      <div className="pt-2 border-t border-gray-100">
+                      <div className="pt-2 border-t border-gray-100 flex gap-2">
                           <Button
                               size="sm"
                               variant="default"
@@ -409,6 +481,14 @@ export default function ApprovalsPage() {
                               onClick={() => handleDecision(item, 'full_post', 'approve_and_post')}
                           >
                               {loadingItemId === item.id + 'approve_and_post' ? 'Approving & Posting...' : 'Approve & Post'}
+                          </Button>
+                          <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={loadingItemId === item.id + 'delete'}
+                              onClick={() => handleDeletePost(item)}
+                          >
+                              {loadingItemId === item.id + 'delete' ? 'Deleting...' : 'Delete Post'}
                           </Button>
                       </div>
                       <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap min-h-0">
