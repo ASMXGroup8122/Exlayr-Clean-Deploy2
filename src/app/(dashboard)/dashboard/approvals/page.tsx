@@ -282,13 +282,9 @@ export default function ApprovalsPage() {
                 platform === 'twitter' ? 'NEXT_PUBLIC_TWITTER_APPROVE_WEBHOOK_URL' :
                 platform === 'instagram' ? 'NEXT_PUBLIC_INSTAGRAM_APPROVE_WEBHOOK_URL' :
                 'APPROVE_WEBHOOK_URL'; // Fallback
-            console.error(`Error: Environment variable ${missingVar} is not defined in .env.local file`);
-            toast({ 
-              title: 'Configuration Error', 
-              description: `Approval webhook for ${item.platform} is not configured. Please add ${missingVar} to your environment variables.`, 
-              variant: 'destructive' 
-            });
-            throw new Error(`Approval webhook configuration missing for ${item.platform}. Please add ${missingVar} to your environment variables.`);
+            console.error(`Error: Environment variable ${missingVar} is not defined, despite platform match.`);
+            toast({ title: 'Configuration Error', description: `Approval webhook for ${item.platform} is not configured correctly in .env.local.`, variant: 'destructive' });
+            throw new Error(`Approval webhook configuration missing for ${item.platform}.`);
         }
         // <--- End Env Var Usage --->
 

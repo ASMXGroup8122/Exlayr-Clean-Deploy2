@@ -251,18 +251,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     try {
       console.log('Submitting with tone:', selectedToneData ? selectedToneData.name : 'None');
       
-      const webhookUrl = process.env.NEXT_PUBLIC_SOCIAL_POST_CREATION_WEBHOOK;
-      if (!webhookUrl) {
-        console.error('Missing social post creation webhook URL');
-        toast({
-          title: "Configuration Error",
-          description: "Social post creation webhook is not configured.",
-          variant: "destructive"
-        });
-        throw new Error('Social post creation webhook missing');
-      }
-      
-      const response = await fetch(webhookUrl, {
+      const response = await fetch('https://hook.eu2.make.com/q0c2np0nt9dayphd8zpposc73gvly4w6', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
