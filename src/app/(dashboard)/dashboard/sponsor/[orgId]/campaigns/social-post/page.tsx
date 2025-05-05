@@ -1097,11 +1097,11 @@ Keep your response conversational but focused on the task. Follow the same style
             <div className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <Label htmlFor="script" className="text-base font-medium">Your Generated Script</Label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
                   <Button
                     type="button"
                     onClick={() => setIsEditDialogOpen(true)}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700"
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 mb-1 sm:mb-0"
                   >
                     <PenSquare className="h-3 w-3" />
                     Edit with AI
@@ -1166,19 +1166,9 @@ Keep your response conversational but focused on the task. Follow the same style
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="email">Send a copy to this email</Label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          placeholder="Enter your email"
-          className="w-full"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Platforms *</Label>
+        <Label>
+          {activeTab === 'podcast' ? 'Promote on these Platforms when Approved' : 'Platforms *'}
+        </Label>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
           <div className="flex items-center gap-2">
             <Switch
@@ -1276,40 +1266,43 @@ Keep your response conversational but focused on the task. Follow the same style
         </div>
       )}
       
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Label className="text-base font-medium">Image Type</Label>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            <Sparkles className="h-3 w-3 mr-0.5" />
-            AI-Generated
-          </span>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xs p-3 bg-white shadow-lg rounded-md border border-gray-200">
-                <p className="text-sm text-gray-700">Select a style for AI-generated images that will accompany your post.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+      {/* Image Type - Only show for non-podcast tabs */}
+      {activeTab !== 'podcast' && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Label className="text-base font-medium">Image Type</Label>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              <Sparkles className="h-3 w-3 mr-0.5" />
+              AI-Generated
+            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs p-3 bg-white shadow-lg rounded-md border border-gray-200">
+                  <p className="text-sm text-gray-700">Select a style for AI-generated images that will accompany your post.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <Select
+            value={formData.image_type}
+            onValueChange={(value) => setFormData({ ...formData, image_type: value })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select image style" />
+            </SelectTrigger>
+            <SelectContent>
+              {imageTypeOptions.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select
-          value={formData.image_type}
-          onValueChange={(value) => setFormData({ ...formData, image_type: value })}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select image style" />
-          </SelectTrigger>
-          <SelectContent>
-            {imageTypeOptions.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      )}
     </div>
   );
 
@@ -1418,19 +1411,6 @@ Keep your response conversational but focused on the task. Follow the same style
         </Select>
       </div>
 
-      {/* Email Input */}
-      <div className="space-y-2">
-        <Label htmlFor="email-image">Send a copy to this email</Label>
-        <Input
-          id="email-image"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          placeholder="Enter your email"
-          className="w-full"
-        />
-      </div>
-      
       {/* Platform Toggles */}
       <div className="space-y-2">
         <Label>Platforms *</Label>
@@ -1774,40 +1754,41 @@ ${generatedScript}`;
               className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Submitting Request...' : 'Submit Request'}
+              {isSubmitting ? 'Submitting Request...' : activeTab === 'podcast' ? 'Create Podcast' : 'Submit Request'}
             </Button>
           </div>
         </form>
 
         {/* AI Script Editing Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Podcast Script with AI</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="sm:max-w-md p-4 sm:p-6">
+            <DialogHeader className="pb-2">
+              <DialogTitle className="text-lg">Edit Podcast Script with AI</DialogTitle>
+              <DialogDescription className="pt-2">
                 Describe the changes you want to make to your script. The AI will generate a new version based on your instructions.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-3 sm:py-4">
               <Textarea
                 placeholder="E.g., Make it more conversational, add a section about sustainability, remove technical jargon, etc."
                 value={editInstruction}
                 onChange={(e) => setEditInstruction(e.target.value)}
                 rows={5}
-                className="w-full"
+                className="w-full p-3 border border-gray-300 rounded-md"
               />
             </div>
-            <div className="flex justify-end space-x-2">
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 pt-2">
               <Button 
                 variant="outline" 
                 onClick={() => setIsEditDialogOpen(false)}
+                className="w-full sm:w-auto order-1 sm:order-none"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleScriptEdit}
                 disabled={!editInstruction.trim() || isEditing}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
               >
                 {isEditing ? (
                   <>
