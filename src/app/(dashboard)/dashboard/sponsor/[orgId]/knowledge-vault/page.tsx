@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { 
@@ -22,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from '@/components/ui/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { LinkedInIcon } from '@/components/icons/linkedin-icon';
+import { cn } from '@/lib/utils';
 
 type DocumentCategory = 
     | 'sponsor_guidelines'
@@ -104,6 +107,150 @@ export default function SponsorKnowledgeVaultPage() {
     const [loadingConnections, setLoadingConnections] = useState(false);
     const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<Record<string, string>>({});
+    
+    // Add LinkedIn connection states
+    const [linkedinConnected, setLinkedinConnected] = useState(false);
+    const [linkedinLoading, setLinkedinLoading] = useState(false);
+    
+    // Add function to check LinkedIn connection status
+    const checkLinkedInConnection = async () => {
+        if (!user?.organization_id) return;
+        
+        try {
+            console.log('Checking LinkedIn connection status for organization:', user.organization_id);
+            
+            const { data, error } = await supabase
+                .from('oauth_tokens')
+                .select('*')
+                .eq('organization_id', user.organization_id)
+                .eq('provider', 'linkedin')
+                .single();
+                
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // No data found - not an error, just not connected
+                    console.log('No LinkedIn connection found');
+                    setLinkedinConnected(false);
+                } else {
+                    // Actual database error
+                    console.error('Error checking LinkedIn connection status:', error);
+                    setLinkedinConnected(false);
+                }
+            } else if (data) {
+                console.log('LinkedIn connection found:', data);
+                setLinkedinConnected(true);
+            } else {
+                console.log('No LinkedIn connection data available');
+                setLinkedinConnected(false);
+            }
+        } catch (err) {
+            console.error('Exception checking LinkedIn connection status:', err);
+            setLinkedinConnected(false);
+        }
+    };
+    
+    // Add function to handle LinkedIn connection 
+    const handleConnectLinkedIn = () => {
+        if (!user?.organization_id) {
+            toast({
+                title: "Error",
+                description: "Organization ID is missing. Please reload the page.",
+                variant: "destructive"
+            });
+            return;
+        }
+        
+        setLinkedinLoading(true);
+        try {
+            // Construct the authentication URL
+            const authUrl = `/api/auth/linkedin/authorize?organizationId=${user.organization_id}`;
+            
+            // Open a popup window for authorization
+            const width = 600;
+            const height = 700;
+            const left = window.screen.width / 2 - width / 2;
+            const top = window.screen.height / 2 - height / 2;
+            
+            const authWindow = window.open(
+                authUrl,
+                'LinkedIn Authorization',
+                `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+            );
+            
+            // Poll periodically to check if popup closed
+            const checkPopupInterval = setInterval(() => {
+                if (authWindow?.closed) {
+                    clearInterval(checkPopupInterval);
+                    setLinkedinLoading(false);
+                    // Check connection status after popup closes
+                    checkLinkedInConnection();
+                }
+            }, 500);
+            
+        } catch (err) {
+            console.error('Error connecting to LinkedIn:', err);
+            toast({
+                title: "Error",
+                description: "Failed to connect to LinkedIn. Please try again.",
+                variant: "destructive"
+            });
+            setLinkedinLoading(false);
+        }
+    };
+    
+    // Add function to disconnect LinkedIn
+    const handleDisconnectLinkedIn = async () => {
+        if (!user?.organization_id) return;
+        
+        setLinkedinLoading(true);
+        try {
+            console.log("Attempting to disconnect LinkedIn for organization:", user.organization_id);
+            
+            const { data, error } = await supabase
+                .from('oauth_tokens')
+                .delete()
+                .eq('organization_id', user.organization_id)
+                .eq('provider', 'linkedin');
+                
+            if (error) {
+                console.error('Error disconnecting LinkedIn:', error);
+                throw error;
+            }
+            
+            console.log("LinkedIn disconnected successfully:", data);
+            setLinkedinConnected(false);
+            toast({
+                title: "LinkedIn Disconnected",
+                description: "Your LinkedIn account has been disconnected successfully.",
+                variant: "default"
+            });
+        } catch (err) {
+            console.error('Error disconnecting LinkedIn:', err);
+            toast({
+                title: "Error",
+                description: "Failed to disconnect LinkedIn. Please try again.",
+                variant: "destructive"
+            });
+        } finally {
+            setLinkedinLoading(false);
+        }
+    };
+
+    // Add function to handle managing LinkedIn connection
+    const handleManageLinkedIn = () => {
+        // Create and show a dialog for managing LinkedIn connection
+        const confirmed = window.confirm('Do you want to disconnect your LinkedIn account? This will prevent posting to LinkedIn until you reconnect.');
+        
+        if (confirmed) {
+            console.log("User confirmed LinkedIn disconnection");
+            handleDisconnectLinkedIn().catch(err => {
+                console.error("Error in handleDisconnectLinkedIn:", err);
+                setLinkedinLoading(false);
+            });
+        } else {
+            console.log("User cancelled LinkedIn disconnection");
+        }
+    };
 
     // AI-assisted tone generation with real API
     const generateToneWithAI = async () => {
@@ -671,12 +818,48 @@ export default function SponsorKnowledgeVaultPage() {
             fetchDocuments();
             fetchTones();
             fetchVoices();
-            
-            // These will be implemented later when the database tables are created
-            // For now, they're placeholders
-            // fetchConnections();
+            checkLinkedInConnection();
         }
     }, [user]);
+    
+    // Check for success/error parameters from LinkedIn auth flow
+    useEffect(() => {
+        // Check URL parameters to show the appropriate toast for LinkedIn connection
+        const urlParams = new URLSearchParams(window.location.search);
+        const success = urlParams.get('success');
+        const error = urlParams.get('error');
+        const tab = urlParams.get('tab');
+        
+        if (success === 'linkedin') {
+            toast({
+                title: "LinkedIn Connected",
+                description: "Your LinkedIn account has been connected successfully.",
+                variant: "default"
+            });
+            // Remove parameters from URL
+            const url = new URL(window.location.href);
+            url.searchParams.delete('success');
+            window.history.replaceState({}, '', url);
+            checkLinkedInConnection();
+        }
+        
+        if (error && error.startsWith('linkedin')) {
+            toast({
+                title: "LinkedIn Connection Failed",
+                description: "Failed to connect to LinkedIn. Please try again.",
+                variant: "destructive"
+            });
+            // Remove parameters from URL
+            const url = new URL(window.location.href);
+            url.searchParams.delete('error');
+            window.history.replaceState({}, '', url);
+        }
+        
+        // Switch to connections tab if specified
+        if (tab === 'connections') {
+            setActiveTab('connections');
+        }
+    }, []);
 
     // Fetch available voices when API key is valid
     useEffect(() => {
@@ -684,6 +867,53 @@ export default function SponsorKnowledgeVaultPage() {
             fetchAvailableVoices();
         }
     }, [hasValidApiKey, organizationApiKey]);
+
+    // Listen for LinkedIn popup messages
+    useEffect(() => {
+        const handleAuthComplete = (event: MessageEvent) => {
+            // Only accept messages from our own origin
+            if (event.origin !== window.location.origin) return;
+            
+            // Check if this is a LinkedIn auth message
+            if (event.data?.type === 'LINKEDIN_AUTH_COMPLETE') {
+                const success = event.data.status;
+                console.log('LinkedIn auth completed with status:', success);
+                if (success) {
+                    toast({
+                        title: "LinkedIn Connected",
+                        description: "Your LinkedIn account has been connected successfully.",
+                        variant: "default"
+                    });
+                } else {
+                    toast({
+                        title: "LinkedIn Connection Failed",
+                        description: "Failed to connect to LinkedIn. Please try again.",
+                        variant: "destructive"
+                    });
+                }
+                
+                // Refresh the connection status
+                checkLinkedInConnection();
+                setLinkedinLoading(false);
+            }
+        };
+        
+        // Add event listener
+        window.addEventListener('message', handleAuthComplete);
+        
+        // Clean up
+        return () => {
+            window.removeEventListener('message', handleAuthComplete);
+        };
+    }, []);
+
+    // Add effect to check LinkedIn connection on mount
+    useEffect(() => {
+        // Check LinkedIn connection when the page loads
+        if (user?.organization_id) {
+            checkLinkedInConnection();
+        }
+    }, [user?.organization_id]);
 
     return (
         <div className="p-4 md:p-6">
@@ -726,7 +956,7 @@ export default function SponsorKnowledgeVaultPage() {
                     <TabsTrigger value="connections">Connections</TabsTrigger>
                 </TabsList>
                 
-                {/* Documents Tab */}
+                {/* Document Tab Content */}
                 <TabsContent value="documents">
                     <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
                         <div className="relative w-full sm:w-80">
@@ -831,7 +1061,7 @@ export default function SponsorKnowledgeVaultPage() {
                     </div>
                 </TabsContent>
                 
-                {/* Tones of Voice Tab */}
+                {/* Tones of Voice Tab Content */}
                 <TabsContent value="tones-of-voice">
                     <div className="mb-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -947,7 +1177,7 @@ export default function SponsorKnowledgeVaultPage() {
                     </div>
                 </TabsContent>
                 
-                {/* Spoken Voice Tab */}
+                {/* Spoken Voice Tab Content */}
                 <TabsContent value="spoken-voice">
                     <div className="mb-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -1194,7 +1424,7 @@ export default function SponsorKnowledgeVaultPage() {
                     </div>
                 </TabsContent>
                 
-                {/* Connections Tab */}
+                {/* Connections Tab Content */}
                 <TabsContent value="connections">
                     <div className="mb-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -1236,7 +1466,7 @@ export default function SponsorKnowledgeVaultPage() {
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600" viewBox="0 0 24 24">
-                                                <path fill="currentColor" d="M14.334 9.75c.069 0 .136.011.201.033l2.5.834c.246.081.416.305.416.565v1.636c0 .26-.17.484-.416.565l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.565v-1.636c0-.26.17-.484.416-.565l2.5-.834a.625.625 0 0 1 .2-.033zM3.665 11.826c.068 0 .136.011.2.033l2.5.834c.246.082.417.305.417.565v1.636c0 .26-.17.484-.416.565l-2.5.834a.618.618 0 0 1-.401 0l-2.5-.834A.624.624 0 0 1 .55 14.894v-1.636c0-.26.17-.484.416-.565l2.5-.834a.625.625 0 0 1 .2-.033zm10.668-6.752c.069 0 .136.011.2.033l2.5.834c.247.082.417.306.417.566v1.636c0 .26-.17.483-.416.565l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.565V6.507c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033zm-5.335 3.376c.069 0 .136.011.2.033l2.5.834c.247.082.417.305.417.566v1.635c0 .26-.17.484-.416.566l-2.5.834a.625.625 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.566v-1.635c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033zm0 6.752c.069 0 .136.011.2.033l2.5.834c.247.082.417.305.417.566v1.635c0 .26-.17.484-.416.566l-2.5.834a.625.625 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.566v-1.635c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033zm5.335-3.376c.069 0 .136.011.2.033l2.5.834c.247.082.417.306.417.566v1.635c0 .26-.17.484-.416.566l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.566v-1.635c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033z"/>
+                                                <path fill="currentColor" d="M14.334 9.75c.069 0 .136.011.201.033l2.5.834c.246.081.416.305.416.565v1.636c0 .26-.17.484-.416.565l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.565v-1.636c0-.26.17-.484.416-.565l2.5-.834a.625.625 0 0 1 .2-.033zM3.665 11.826c.068 0 .136.011.2.033l2.5.834c.246.082.417.305.417.565v1.636c0 .26-.17.484-.416.565l-2.5.834a.618.618 0 0 1-.401 0l-2.5-.834A.624.624 0 0 1 .55 14.894v-1.636c0-.26.17-.484.416-.565l2.5-.834a.625.625 0 0 1 .2-.033zm10.668-6.752c.069 0 .136.011.2.033l2.5.834c.247.082.417.306.417.566v1.636c0 .26-.17.483-.416.565l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.565V6.507c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033zm-5.335 3.376c.069 0 .136.011.2.033l2.5.834c.247.082.417.305.417.566v1.635c0 .26-.17.484-.416.566l-2.5.834a.625.625 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.566v-1.635c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033zm0 6.752c.069 0 .136.011.2.033l2.5.834c.247.082.417.305.417.566v1.635c0 .26-.17.484-.416.566l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.566v-1.635c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033zm5.335-3.376c.069 0 .136.011.2.033l2.5.834c.247.082.417.306.417.566v1.635c0 .26-.17.484-.416.566l-2.5.834a.624.624 0 0 1-.401 0l-2.5-.834a.624.624 0 0 1-.416-.566v-1.635c0-.26.17-.484.416-.566l2.5-.834a.625.625 0 0 1 .2-.033z"/>
                                             </svg>
                                             ElevenLabs
                                             {hasValidApiKey && (
@@ -1284,27 +1514,73 @@ export default function SponsorKnowledgeVaultPage() {
                                 </Card>
                                 
                                 {/* LinkedIn Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
-                                    <CardHeader className="pb-2 p-4 sm:p-6">
-                                        <CardTitle className="text-lg flex items-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 24 24">
-                                                <path fill="currentColor" d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77Z"/>
-                                            </svg>
-                                            LinkedIn
-                                        </CardTitle>
+                                <Card className={cn("overflow-hidden", linkedinConnected ? "border-green-200 bg-green-50" : "")}>
+                                    <CardHeader className="pb-2 p-4 sm:p-6 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600 mr-2" viewBox="0 0 24 24">
+                                                    <path fill="currentColor" d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77Z"/>
+                                                </svg>
+                                                <CardTitle className="text-lg">
+                                                    LinkedIn
+                                                </CardTitle>
+                                            </div>
+                                            {linkedinConnected && (
+                                                <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
+                                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                                    Connected
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </CardHeader>
                                     <CardContent className="pb-2 px-4 sm:px-6">
                                         <p className="text-sm text-gray-600">
-                                            Connect your LinkedIn profile to post updates, articles, and content directly to your feed.
+                                            {linkedinConnected
+                                                ? "Your LinkedIn company page is connected. You can post content to your company page."
+                                                : "Connect your LinkedIn account to post professional updates to your company's LinkedIn account (you must be a LinkedIn page admin)"
+                                            }
                                         </p>
+                                        {linkedinConnected && (
+                                            <p className="text-xs text-green-600 mt-1.5">
+                                                <CheckCircle className="h-3 w-3 inline mr-1" />
+                                                Ready to publish posts to your organization's page
+                                            </p>
+                                        )}
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
+                                        {linkedinLoading && !linkedinConnected && (
+                                            <div className="mr-3 flex items-center text-gray-500">
+                                                <div className="animate-spin mr-2 h-4 w-4 border-2 border-gray-500 border-t-transparent rounded-full"></div>
+                                                <span className="text-sm">Processing...</span>
+                                            </div>
+                                        )}
                                         <Button 
-                                            variant="default" 
+                                            variant={linkedinConnected ? "outline" : "default"}
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            className={cn(
+                                                "h-10 rounded-md",
+                                                linkedinConnected
+                                                    ? "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                    : "bg-blue-600 hover:bg-blue-700"
+                                            )}
+                                            onClick={linkedinConnected ? handleManageLinkedIn : handleConnectLinkedIn}
+                                            disabled={linkedinLoading}
                                         >
-                                            Connect Account
+                                            {linkedinConnected ? (
+                                                linkedinLoading ? (
+                                                    <>
+                                                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                                                        <span>Disconnecting...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Trash2 className="h-4 w-4 mr-1.5" />
+                                                        <span>Disconnect</span>
+                                                    </>
+                                                )
+                                            ) : (
+                                                linkedinLoading ? 'Connecting...' : 'Connect Account'
+                                            )}
                                         </Button>
                                     </CardFooter>
                                 </Card>
