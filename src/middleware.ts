@@ -1,7 +1,8 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+// import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'; // OLD
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { Database } from '@/types/supabase';
+// import { Database } from '@/types/supabase'; // No longer needed here
+import { updateSession } from '@/utils/supabase/middleware'; // NEW
 
 // Constants for path matching
 const PUBLIC_PATHS = ['/sign-in', '/sign-up', '/auth/callback', '/auth/error'];
@@ -29,79 +30,24 @@ function redirectToSignIn(request: NextRequest) {
 }
 
 export async function middleware(request: NextRequest) {
-    try {
-        // Check if this is a webhook request to /api/approvals first
-        if (request.nextUrl.pathname === '/api/approvals' && request.method === 'POST') {
-            return NextResponse.next();
-        }
-
-        // Create a response early to modify later
-        const response = NextResponse.next();
-
-        // Skip auth for public paths
-        if (shouldSkipAuth(request)) {
-            return response;
-        }
-
-        // Create supabase client
-        const supabase = createMiddlewareClient<Database>({ req: request, res: response });
-
-        // Get session and handle refresh if needed
-        const {
-            data: { session },
-        } = await supabase.auth.getSession();
-
-        // No session - redirect to sign in
-        if (!session) {
-            return redirectToSignIn(request);
-        }
-
-        // Get user profile
-        const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-        if (!profile) {
-            console.error('No user profile found for session user');
-            return redirectToSignIn(request);
-        }
-
-        // Special handling for admin users
-        if (profile.account_type === 'admin' && profile.status === 'active') {
-            return response;
-        }
-
-        // Special handling for organization admins
-        if (profile.metadata?.is_org_admin === true && profile.status === 'active') {
-            return response;
-        }
-
-        // Handle regular users based on status
-        if (profile.status !== 'active') {
-            const redirectUrl = new URL('/approval-pending', request.url);
-            return NextResponse.redirect(redirectUrl);
-        }
-
-        // All checks passed
-        return response;
-
-    } catch (error) {
-        console.error('Middleware error:', error);
-        return redirectToSignIn(request);
-    }
+  // updateSession handles refreshing the session and returning the response
+  return await updateSession(request);
 }
 
 export const config = {
     matcher: [
         /*
-         * Match all request paths except:
+         * Match all request paths except for the ones starting with:
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - public folder
+         * Feel free to modify this pattern to include more paths.
          */
-        '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 }; 
+
+// Removed old logic for checking public paths, redirecting, checking profiles etc.
+// This simplified middleware focuses only on session refreshing.
+// Auth checks should be done within specific pages/routes using createClient from server.ts
+// // ... existing code ... 
