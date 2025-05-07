@@ -1,38 +1,73 @@
 import OpenAI from 'openai';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { AIMessage } from './types';
 
-// Initialize OpenAI client
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Log environment variables for debugging (redacted for security)
-if (typeof window === 'undefined') {
-  console.log('Pinecone Environment Variables:');
-  console.log('- PINECONE_API_KEY:', process.env.PINECONE_API_KEY ? 'Set (redacted)' : 'Not set');
-  console.log('- PINECONE_INDEX:', process.env.PINECONE_INDEX || 'Not set');
-}
-
-// Initialize Pinecone client with proper error handling
+// Create singleton instances that are only initialized when needed
+let openaiInstance: OpenAI | null = null;
 let pineconeInstance: Pinecone | null = null;
-try {
-  if (!process.env.PINECONE_API_KEY) {
-    console.error('PINECONE_API_KEY is not set in environment variables');
-  } else {
-    pineconeInstance = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY as string,
-      // Pinecone no longer requires region in the latest SDK version
-      // The API key is associated with a specific environment
+
+/**
+ * Get the OpenAI client - lazy initialization
+ * Only creates the client when actually needed
+ */
+export function getOpenAI(): OpenAI {
+  if (!openaiInstance) {
+    console.log('Initializing OpenAI client on first use');
+    openaiInstance = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
     });
-    console.log('Pinecone client initialized successfully');
   }
-} catch (error) {
-  console.error('Error initializing Pinecone client:', error);
+  return openaiInstance;
 }
 
-export const pinecone = pineconeInstance || new Pinecone({
-  apiKey: 'dummy-key-for-fallback',
-});
+/**
+ * Get the Pinecone client - lazy initialization
+ * Only creates the client when actually needed
+ */
+export function getPinecone(): Pinecone {
+  if (!pineconeInstance) {
+    console.log('Initializing Pinecone client on first use');
+    
+    if (!process.env.PINECONE_API_KEY) {
+      console.error('PINECONE_API_KEY is not set in environment variables');
+      // Return a dummy instance to prevent crashes
+      return new Pinecone({
+        apiKey: 'dummy-key-for-fallback',
+      });
+    }
+    
+    try {
+      pineconeInstance = new Pinecone({
+        apiKey: process.env.PINECONE_API_KEY as string,
+        // Pinecone no longer requires region in the latest SDK version
+      });
+      console.log('Pinecone client initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Pinecone client:', error);
+      // Return a dummy instance to prevent crashes
+      return new Pinecone({
+        apiKey: 'dummy-key-for-fallback',
+      });
+    }
+  }
+  return pineconeInstance;
+}
+
+// Provide backwards compatibility for existing code
+// These proxy objects ensure lazy initialization
+export const openai = {
+  get embeddings() { return getOpenAI().embeddings; },
+  get chat() { return getOpenAI().chat; },
+  get completions() { return getOpenAI().completions; },
+  // Add other properties as needed for compatibility
+};
+
+export const pinecone = {
+  index: (indexName?: string) => {
+    const client = getPinecone();
+    return client.index(indexName || process.env.PINECONE_INDEX || 'exchangedocs');
+  }
+};
 
 // Constants for AI configuration
 export const AI_CONFIG = {
@@ -71,30 +106,4 @@ RESPONSE FORMAT:
 - Keep your entire response under 150 words unless the section is extremely complex
 
 Remember: Be specific, brief, and conversational. The user wants practical insights, not a lecture.`,
-};
-
-// Types for AI responses
-export interface AIAnalysisResult {
-  compliance: 'compliant' | 'non-compliant' | 'partially-compliant';
-  issues: Array<{
-    rule: string;
-    description: string;
-    severity: 'high' | 'medium' | 'low';
-  }>;
-  suggestions: string[];
-  explanation: string;
-}
-
-export interface AIMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
-export interface AIConversation {
-  messages: AIMessage[];
-  documentContext?: {
-    sectionId: string;
-    sectionTitle: string;
-    sectionContent: string;
-  };
-} 
+}; 

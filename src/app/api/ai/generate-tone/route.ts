@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAI } from '@/lib/ai/config';
 
 export async function POST(request: Request) {
   try {
@@ -36,6 +31,9 @@ export async function POST(request: Request) {
     
     Return only the description text, without any explanations or sections.`;
 
+    // Get the OpenAI client using lazy initialization
+    const openai = getOpenAI();
+    
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",

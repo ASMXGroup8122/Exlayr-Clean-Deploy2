@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { Database } from '@/types/supabase';
 
@@ -7,10 +6,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const cookieStore = await cookies();
-        const supabase = createRouteHandlerClient<Database>({ 
-            cookies: () => cookieStore 
-        });
+        const supabase = await createClient();
+        
+        // Check authentication
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         // Get issuers with all fields
         const { data: issuers, error: issuersError } = await supabase
@@ -20,31 +22,19 @@ export async function GET() {
 
         if (issuersError) {
             console.error('Error fetching issuers:', issuersError);
-            return new NextResponse(
-                JSON.stringify({ error: issuersError.message }),
-                { 
-                    status: 500,
-                    headers: { 'Content-Type': 'application/json' }
-                }
+            return NextResponse.json(
+                { error: issuersError.message },
+                { status: 500 }
             );
         }
 
-        return new NextResponse(
-            JSON.stringify(issuers || []),
-            { 
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            }
-        );
+        return NextResponse.json(issuers || []);
 
     } catch (error) {
         console.error('Error in issuers API:', error);
-        return new NextResponse(
-            JSON.stringify({ error: 'Failed to fetch issuers' }),
-            { 
-                status: 500,
-                headers: { 'Content-Type': 'application/json' }
-            }
+        return NextResponse.json(
+            { error: 'Failed to fetch issuers' },
+            { status: 500 }
         );
     }
 } 

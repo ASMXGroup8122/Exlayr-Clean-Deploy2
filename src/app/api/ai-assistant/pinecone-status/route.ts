@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pinecone, AI_CONFIG } from '@/lib/ai/config';
+import { getPinecone, AI_CONFIG } from '@/lib/ai/config';
 
 export async function GET() {
   try {
@@ -24,8 +24,9 @@ export async function GET() {
       });
     }
     
-    // Get the Pinecone index
+    // Get the Pinecone index using lazy initialization
     const indexName = process.env.PINECONE_INDEX || AI_CONFIG.pineconeIndex;
+    const pinecone = getPinecone();
     const index = pinecone.index(indexName);
     console.log(`Using Pinecone index: ${indexName}`);
     
@@ -53,10 +54,10 @@ export async function GET() {
       });
     }
   } catch (error) {
-    console.error('Error checking Pinecone status:', error);
+    console.error('Error in Pinecone status API:', error);
     return NextResponse.json({ 
       status: 'error', 
-      message: `Error checking Pinecone status: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
       initialized: false 
     });
   }

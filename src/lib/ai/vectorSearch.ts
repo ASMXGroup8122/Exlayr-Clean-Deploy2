@@ -1,7 +1,8 @@
-import { openai, pinecone, AI_CONFIG } from './config';
+import { getOpenAI, getPinecone, AI_CONFIG } from './config';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { extractRuleFromText } from './ruleUtils';
 import { aiLogger } from './logger';
+import { ListingRule } from './types';
 
 // Interface for section analysis result
 export interface SectionAnalysisResult {
@@ -17,20 +18,10 @@ export interface SectionAnalysisResult {
   };
 }
 
-// Interface for listing rules (kept for backward compatibility)
-/** @deprecated Use SectionAnalysisResult instead */
-export interface ListingRule {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  severity: 'high' | 'medium' | 'low';
-}
-
 // Function to generate embeddings for text
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await openai.embeddings.create({
+    const response = await getOpenAI().embeddings.create({
       model: AI_CONFIG.embeddingModel,
       input: text,
     });
@@ -90,170 +81,86 @@ function determineSeverity(text: string): 'high' | 'medium' | 'low' {
 }
 
 /**
- * Find relevant examples and check compliance for a document section
- * @param sectionContent The content of the document section
- * @param limit The maximum number of examples to compare against
- * @param knowledgeBase Optional knowledge base name to query (defaults to environment variable)
- * @param isTrainingMode Whether the request is in training mode
- * @param sectionTitle Optional section title for context
- * @returns Analysis result with compliance status and suggestions
+ * Find the most relevant rules for a given section of text
+ * @param text The section text to find rules for
+ * @param limit The maximum number of rules to return (default: 5)
+ * @param knowledgeBase The name of the knowledge base to search (default: based on AI_CONFIG)
+ * @param isTrainingMode Whether to return example documents in training mode
+ * @param sectionTitle Optional section title for better context
+ * @returns A list of relevant rules
  */
 export async function findRelevantRules(
-  sectionContent: string,
-  limit: number = 5,
+  text: string,
+  limit = 5,
   knowledgeBase?: string,
   isTrainingMode?: boolean,
   sectionTitle?: string
-): Promise<SectionAnalysisResult> {
-  console.log('Using Pinecone for vector search');
-  console.log(`Training mode: ${isTrainingMode ? 'enabled' : 'disabled'}`);
-  
-  // Check if running in a browser environment
-  if (typeof window !== 'undefined') {
-    console.error('Cannot perform vector search in browser environment');
-    aiLogger.logActivity('error', 'Cannot perform vector search in browser environment', {
-      isCompliant: false,
-      score: 0,
-      suggestions: ['Unable to perform analysis in browser environment']
-    });
-    return {
-      isCompliant: false,
-      suggestions: ['Unable to perform analysis in browser environment'],
-      score: 0
-    };
-  }
-  
+): Promise<ListingRule[]> {
   try {
-    aiLogger.logActivity('analysis', 'Generating embeddings for content...');
-    const embedding = await generateEmbedding(sectionContent);
+    console.log('Finding relevant rules with knowledge base:', knowledgeBase || AI_CONFIG.pineconeIndex);
     
-    // Get the Pinecone index name from the environment or use the provided knowledgeBase
-    const indexName = knowledgeBase || process.env.PINECONE_INDEX || AI_CONFIG.pineconeIndex;
+    // Add the section title to the query if provided
+    const queryText = sectionTitle ? `${sectionTitle}:\n${text}` : text;
     
-    // Initialize Pinecone client
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY || '',
+    // Get embeddings for the text using OpenAI API
+    const openai = getOpenAI();
+    const embeddings = await openai.embeddings.create({
+      model: AI_CONFIG.embeddingModel,
+      input: queryText.slice(0, 8000), // Limit input to prevent token limits
+      encoding_format: 'float',
     });
     
-    // Ensure indexName is never undefined
-    const index = pinecone.Index(indexName || '');
+    // Parameters for vector search
+    const indexName = knowledgeBase || AI_CONFIG.pineconeIndex;
     
-    aiLogger.logActivity('analysis', 'Querying Pinecone index...');
-    const queryResponse = await index.query({
-      vector: embedding,
-      topK: limit,
-      includeMetadata: true
-    });
+    // Get the index from Pinecone
+    const pinecone = getPinecone();
+    const index = pinecone.index(indexName);
     
-    if (!queryResponse.matches || queryResponse.matches.length === 0) {
-      aiLogger.logActivity('analysis', 'No similar examples found for comparison', {
-        isCompliant: false,
-        score: 0,
-        suggestions: ['No similar examples found for comparison']
+    // Perform vector search to find relevant rules or examples
+    // Default namespace is "rules"
+    // In training mode, we also include example documents (namespace "examples")
+    let matchesPromise;
+    
+    if (isTrainingMode) {
+      console.log('Searching both rules and examples in training mode');
+      matchesPromise = index.query({
+        vector: embeddings.data[0].embedding,
+        topK: limit,
+        includeMetadata: true,
+        includeValues: false,
       });
-      return {
-        isCompliant: false,
-        suggestions: ['No similar examples found for comparison'],
-        score: 0
-      };
-    }
-    
-    // Get the best matching examples
-    const matches = queryResponse.matches;
-    const bestMatch = matches[0];
-    const score = bestMatch.score || 0;
-    const metadata = bestMatch.metadata as any;
-    
-    // Only store if in training mode
-    if (isTrainingMode && score > 0.8) {
-      await upsertFeedbackToVectorDB({
-        originalQuery: sectionContent,
-        improvedResponse: metadata.text || '',
-        metadata: {
-          ...metadata,
-          source: 'training_mode'
-        }
+    } else {
+      matchesPromise = index.query({
+        vector: embeddings.data[0].embedding,
+        topK: limit,
+        includeMetadata: true,
+        includeValues: false,
+        filter: { category: "rule" } // Only include rules, not examples
       });
     }
     
-    // Semantic analysis of content
-    const suggestions: string[] = [];
-    let isCompliant = true;
+    // Debug logging
+    console.log(`Search operation started on index: ${indexName}`);
     
-    // Check for required elements based on section type
-    if (sectionTitle) {
-      const sectionType = sectionTitle.toLowerCase();
-      
-      // Risk sections should discuss potential risks
-      if (sectionType.includes('risk')) {
-        aiLogger.logActivity('analysis', `Analyzing risk section: ${sectionTitle}`);
-        if (!sectionContent.toLowerCase().includes('risk') && 
-            !sectionContent.toLowerCase().includes('potential') && 
-            !sectionContent.toLowerCase().includes('may') && 
-            !sectionContent.toLowerCase().includes('could')) {
-          suggestions.push('Consider adding discussion of potential risks and their impact');
-          isCompliant = false;
-        }
-        aiLogger.logActivity('analysis', `Risk analysis complete for section: ${sectionTitle}`, {
-          isCompliant,
-          score,
-          suggestionCount: suggestions.length
-        });
-      }
-      
-      // Financial sections should include numbers and key metrics
-      if (sectionType.includes('financial')) {
-        aiLogger.logActivity('analysis', `Analyzing financial section: ${sectionTitle}`);
-        if (!sectionContent.match(/\d+/) || 
-            (!sectionContent.toLowerCase().includes('revenue') && 
-             !sectionContent.toLowerCase().includes('profit') && 
-             !sectionContent.toLowerCase().includes('expense'))) {
-          suggestions.push('Consider adding key financial metrics and numerical data');
-          isCompliant = false;
-        }
-        aiLogger.logActivity('analysis', `Financial analysis complete for section: ${sectionTitle}`, {
-          isCompliant,
-          score,
-          suggestionCount: suggestions.length
-        });
-      }
-    }
+    // Execute the search
+    const matches = await matchesPromise;
     
-    // Add suggestions based on vector search results
-    if (score < 0.7) {
-      suggestions.push('Content may need improvement to better match listing requirements');
-      isCompliant = false;
-    }
+    // Debug logging: log the number of matches
+    console.log(`Found ${matches.matches?.length || 0} matches for relevance search`);
     
-    // Return analysis result
-    const result: SectionAnalysisResult = {
-      isCompliant,
-      suggestions,
-      score,
-      matchedExample: metadata.text,
-      metadata
-    };
-    
-    aiLogger.logActivity('analysis', 'Vector search analysis complete', {
-      isCompliant,
-      score,
-      suggestionCount: suggestions.length
-    });
-    
-    return result;
-    
+    // Return results, mapped to rule structures
+    return (matches.matches || []).map(match => ({
+      id: match.id,
+      title: match.metadata?.title as string || 'Untitled Rule',
+      description: match.metadata?.description as string || 'No description available',
+      category: match.metadata?.category as string || 'general',
+      severity: match.metadata?.severity as string || 'medium',
+      sourceDoc: match.metadata?.sourceDoc as string || undefined
+    }));
   } catch (error) {
-    console.error('Error finding relevant examples:', error);
-    aiLogger.logActivity('error', 'Error occurred during analysis', {
-      isCompliant: false,
-      score: 0,
-      suggestions: ['Error occurred during analysis']
-    });
-    return {
-      isCompliant: false,
-      suggestions: ['Error occurred during analysis'],
-      score: 0
-    };
+    console.error('Error finding relevant rules:', error);
+    return [];
   }
 }
 
@@ -396,13 +303,10 @@ export async function initializePineconeWithRules(rules: ListingRule[]): Promise
       throw new Error('PINECONE_INDEX is not set in environment variables');
     }
     
-    // Get the Pinecone index
+    // Get the Pinecone index using the lazy-loaded client
     console.log(`Using Pinecone index: ${AI_CONFIG.pineconeIndex}`);
-    const pineconeClient = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY || '',
-    });
-    
-    const index = pineconeClient.Index(AI_CONFIG.pineconeIndex || '');
+    const pinecone = getPinecone();
+    const index = pinecone.index(AI_CONFIG.pineconeIndex || '');
     
     // Verify the index exists by checking stats
     try {
@@ -550,14 +454,10 @@ export async function upsertFeedbackToVectorDB({
       ...metadata
     };
     
-    // Get the Pinecone index
+    // Get the Pinecone index using the lazy-loaded client
     const indexName = knowledgeBase || process.env.PINECONE_INDEX;
-    const pineconeClient = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY || '',
-    });
-    
-    // Ensure indexName is never undefined
-    const index = pineconeClient.Index(indexName || '');
+    const pinecone = getPinecone();
+    const index = pinecone.index(indexName || '');
     
     // Upsert the feedback
     await index.upsert([{

@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers';
 import { Suspense } from 'react';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/utils/supabase/server';
+import { redirect } from 'next/navigation';
 import ClientDetailClient from './ClientDetailClient'; // Updated import name
 import type { Database } from '@/types/supabase'; // Assuming Database types are defined here
 
@@ -23,22 +23,17 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Fetches detailed data for a specific issuer (client) and their associated documents.
- * Uses server-side Supabase client with cookie handling.
+ * Uses server-side Supabase client.
  * @param issuerId - The ID of the issuer to fetch data for.
  * @returns A promise that resolves to an object containing the issuer and documents data.
  * @throws If authentication fails, issuer is not found, or a database error occurs.
  */
 async function getIssuerData(issuerId: string) {
-    const cookieStore = cookies();
-    // Explicitly type the Supabase client
-    const supabase = createServerComponentClient<Database>({
-        cookies: () => cookieStore
-    });
+    const supabase = await createClient();
 
-    // Optional: Ensure session exists if needed for authorization, though sponsor context might be enough
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-        // Handle appropriately - redirect or error
+    // Ensure session exists if needed for authorization
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
         throw new Error('Authentication required.');
     }
 
@@ -111,7 +106,13 @@ export default async function ClientDetailPage({ params }: PageProps) {
         );
     } catch (error: any) {
         console.error('Error in ClientDetailPage:', error);
-        // Provide a user-friendly error message
+        
+        // Redirect to sign-in if auth error
+        if (error.message === 'Authentication required.') {
+            redirect('/sign-in');
+        }
+        
+        // Provide a user-friendly error message for other errors
         let errorMessage = 'Error loading client details. Please try refreshing the page.';
         if (error.message === 'Issuer (Client) not found') {
             errorMessage = 'The requested client could not be found.';

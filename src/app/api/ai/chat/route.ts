@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAI } from '@/lib/ai/config';
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +15,9 @@ export async function POST(request: Request) {
 
     // Optional logging for analytics
     console.log(`Processing AI chat request for orgId: ${orgId}`);
+
+    // Get the OpenAI client (lazy initialization)
+    const openai = getOpenAI();
 
     // Call OpenAI API
     const response = await openai.chat.completions.create({

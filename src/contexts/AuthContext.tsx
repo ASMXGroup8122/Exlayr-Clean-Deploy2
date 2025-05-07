@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter, usePathname } from 'next/navigation';
 import { Database } from '@/types/supabase';
 import { AuthError, Session, User, AuthChangeEvent } from '@supabase/supabase-js';
@@ -97,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [initialized, setInitialized] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
-    const supabase = createClientComponentClient<Database>();
+    const supabase = getSupabaseClient();
     const initializationRef = useRef(false);
 
     const getDashboardPath = (accountType: string) => {
@@ -656,18 +655,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, [supabase]);
 
-    // Session refresh interval - TEMPORARILY COMMENTED OUT FOR DEBUGGING
-    /*
+    // Session refresh interval - Re-enabled to prevent token expiration
     useEffect(() => {
         if (!initialized || !session) return;
 
+        // Calculate refresh interval - 3.5 minutes (210000ms)
+        // This is less than the typical 4-minute expiration to ensure tokens are always fresh
         const refreshInterval = setInterval(() => {
+            console.log('Running periodic session refresh');
             refreshSession();
-        }, 4 * 60 * 1000); // Refresh every 4 minutes
+        }, 210000);
 
-        return () => clearInterval(refreshInterval);
+        // Also refresh when the window regains focus to handle returning from idle
+        const handleFocus = () => {
+            console.log('Window focused - refreshing session');
+            refreshSession();
+        };
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(refreshInterval);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [initialized, session, refreshSession]);
-    */
 
     const value = {
         user,

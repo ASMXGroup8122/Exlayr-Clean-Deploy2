@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pinecone, AI_CONFIG, openai } from '@/lib/ai/config';
+import { getOpenAI, getPinecone, AI_CONFIG } from '@/lib/ai/config';
 
 export async function POST() {
   try {
@@ -29,7 +29,8 @@ export async function POST() {
       }, { status: 500 });
     }
     
-    // Get the Pinecone index
+    // Get the Pinecone index using lazy loading
+    const pinecone = getPinecone();
     const index = pinecone.index(indexName);
     
     // Test 1: Describe index stats
@@ -41,7 +42,8 @@ export async function POST() {
     console.log('Generating test embedding...');
     const testText = 'Test query for Pinecone';
     
-    // Generate embedding for the test text
+    // Generate embedding for the test text using lazy loading
+    const openai = getOpenAI();
     const embeddingResponse = await openai.embeddings.create({
       model: AI_CONFIG.embeddingModel,
       input: testText,
@@ -50,39 +52,32 @@ export async function POST() {
     const embedding = embeddingResponse.data[0].embedding;
     console.log('Embedding generated successfully');
     
-    // Query Pinecone with the embedding
-    console.log('Querying Pinecone...');
+    // Test 3: Query Pinecone with the embedding
+    console.log('Querying Pinecone with embedding...');
     const queryResponse = await index.query({
       vector: embedding,
       topK: 3,
       includeMetadata: true
     });
     
-    console.log('Pinecone query response:', queryResponse);
+    console.log('Pinecone query successful!');
+    console.log(`Found ${queryResponse.matches?.length || 0} matches`);
     
     return NextResponse.json({ 
       success: true, 
-      message: 'Pinecone connection successful',
-      stats: indexStats,
-      queryResponse: queryResponse,
-      config: {
-        indexName: indexName,
-        apiKeySet: !!process.env.PINECONE_API_KEY,
-        vectorCount: indexStats.totalRecordCount || 0,
-        hasVectors: (indexStats.totalRecordCount || 0) > 0
+      message: 'Pinecone connection test passed',
+      stats: {
+        totalVectorCount: indexStats.totalRecordCount,
+        matches: queryResponse.matches?.length || 0
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error testing Pinecone connection:', error);
     
     return NextResponse.json({ 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error',
-      message: 'Failed to connect to Pinecone',
-      config: {
-        indexName: process.env.PINECONE_INDEX || AI_CONFIG.pineconeIndex,
-        apiKeySet: !!process.env.PINECONE_API_KEY
-      }
+      error: error.message || 'Unknown error',
+      message: 'Pinecone connection test failed'
     }, { status: 500 });
   }
 } 

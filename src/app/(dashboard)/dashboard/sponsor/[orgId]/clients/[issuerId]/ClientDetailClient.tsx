@@ -3,7 +3,6 @@
 // Keep necessary imports, remove status-change related ones if not needed elsewhere
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation'; // Keep if navigation is needed
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'; // Keep for potential client-side actions
 import { useAuth } from '@/contexts/AuthContext'; // Keep for user context
 import { Building2, Mail, Phone, Globe, User, Calendar, FileText, CreditCard, Shield, BarChart, Download, Eye, ExternalLink } from 'lucide-react'; // Keep used icons
 import { Button } from "@/components/ui/button";

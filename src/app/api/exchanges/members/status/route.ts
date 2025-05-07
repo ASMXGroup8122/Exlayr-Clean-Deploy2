@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { Database } from '@/types/supabase';
 
@@ -38,10 +37,13 @@ export async function PUT(request: Request) {
       );
     }
     
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookieStore 
-    });
+    const supabase = await createClient();
+    
+    // Check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     console.log('Using standard authenticated client for operations');
     

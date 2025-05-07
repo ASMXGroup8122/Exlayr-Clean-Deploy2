@@ -1,38 +1,6 @@
-import OpenAI from 'openai';
 import { AgentType, AgentRequest, AgentResponse, agentDefinitions } from './agents';
-import { AIAnalysisResult, AIMessage } from './config';
-
-// Initialize the OpenAI client with a function to get the API key
-let openaiClient: OpenAI | null = null;
-
-/**
- * Gets or creates an OpenAI client instance
- */
-async function getOpenAIClient(): Promise<OpenAI> {
-  if (openaiClient) {
-    return openaiClient;
-  }
-
-  try {
-    // Use the environment variable directly
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || '';
-    
-    if (!apiKey) {
-      throw new Error('OpenAI API key is not set in environment variables');
-    }
-    
-    // Create a new client
-    openaiClient = new OpenAI({
-      apiKey: apiKey,
-      dangerouslyAllowBrowser: true, // Allow usage in browser environment
-    });
-    
-    return openaiClient;
-  } catch (error) {
-    console.error('Error initializing OpenAI client:', error);
-    throw error;
-  }
-}
+import { getOpenAI } from './config';
+import { AIAnalysisResult, AIMessage } from './types';
 
 /**
  * Calls the OpenAI API directly to execute an agent
@@ -42,7 +10,7 @@ async function getOpenAIClient(): Promise<OpenAI> {
 export async function callDirectOpenAI(request: AgentRequest): Promise<AgentResponse> {
   try {
     // Get the OpenAI client
-    const openai = await getOpenAIClient();
+    const openai = getOpenAI();
     
     // Get the agent instructions based on the agent type
     const instructions = getAgentInstructions(request.agentType);

@@ -1,5 +1,5 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import { AI_CONFIG } from './config';
+import { getPinecone, AI_CONFIG } from './config';
 
 /**
  * Utility function to clean up mock rules from the Pinecone database
@@ -30,12 +30,9 @@ export async function cleanupMockRulesFromPinecone(): Promise<void> {
     
     console.log(`Using Pinecone index: ${indexName}`);
     
-    // Initialize Pinecone client
-    const pineconeClient = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY || '',
-    });
-    
-    const index = pineconeClient.Index(indexName);
+    // Get Pinecone client using lazy initialization
+    const pinecone = getPinecone();
+    const index = pinecone.index(indexName);
     
     // Define the IDs of mock rules to delete
     const mockRuleIds = [];

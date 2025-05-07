@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, Check, X } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Notification {
   id: string;
@@ -20,44 +21,93 @@ export default function NotificationCenter() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
   const supabase = getSupabaseClient();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const { session, refreshSession } = useAuth();
+  
+  // Function to set up the realtime subscription
+  const setupRealtimeSubscription = () => {
+    // Clean up existing subscription if any
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+    
+    try {
+      // Create a new subscription
+      const channel = supabase
+        .channel('notifications')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+          },
+          (payload) => {
+            // Check if the notification is for the current user
+            const newNotification = payload.new as Notification;
+            setNotifications(prev => [newNotification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            setError(null); // Clear any previous errors
+          }
+        )
+        .on('error', (err: Error) => {
+          console.error('Realtime subscription error:', err);
+          
+          // Handle token expiration errors
+          if (err.message && err.message.includes('Token has expired')) {
+            setError('Session expired. Refreshing...');
+            
+            // Try to refresh the session
+            refreshSession().then(() => {
+              console.log('Session refreshed, reconnecting realtime subscription');
+              // Re-setup the subscription after a brief delay
+              setTimeout(() => {
+                setupRealtimeSubscription();
+                fetchNotifications();
+              }, 1000);
+            });
+          }
+        })
+        .subscribe();
+      
+      // Store the channel reference for cleanup
+      channelRef.current = channel;
+    } catch (err) {
+      console.error('Error setting up realtime subscription:', err);
+      setError('Failed to set up notifications. Please refresh the page.');
+    }
+  };
   
   useEffect(() => {
     fetchNotifications();
+    setupRealtimeSubscription();
     
-    // Set up real-time subscription for new notifications
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-        },
-        (payload) => {
-          // Check if the notification is for the current user
-          const newNotification = payload.new as Notification;
-          setNotifications(prev => [newNotification, ...prev]);
-          setUnreadCount(prev => prev + 1);
-        }
-      )
-      .subscribe();
-      
+    // Cleanup function
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
     };
-  }, []);
+  }, [session?.access_token]); // Re-subscribe when token changes
   
   const fetchNotifications = async () => {
     setLoading(true);
     try {
       // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        setError('Authentication error. Please refresh the page.');
+        return;
+      }
       
       if (!user) {
         console.error('No user found');
+        setError('User not found. Please sign in again.');
         return;
       }
       
@@ -71,13 +121,16 @@ export default function NotificationCenter() {
         
       if (error) {
         console.error('Error fetching notifications:', error);
+        setError('Failed to load notifications');
         return;
       }
       
       setNotifications(data || []);
       setUnreadCount(data?.filter(n => !n.read).length || 0);
+      setError(null); // Clear any errors on successful fetch
     } catch (error) {
       console.error('Error in fetchNotifications:', error);
+      setError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -208,6 +261,21 @@ export default function NotificationCenter() {
           </div>
           
           <div className="max-h-96 overflow-y-auto">
+            {error && (
+              <div className="p-3 text-center text-sm text-red-600 bg-red-50">
+                {error}
+                <button 
+                  className="ml-2 underline text-red-700"
+                  onClick={() => {
+                    refreshSession();
+                    fetchNotifications();
+                    setupRealtimeSubscription();
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             {loading ? (
               <div className="p-4 text-center text-gray-500">
                 Loading notifications...
