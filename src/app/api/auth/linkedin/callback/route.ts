@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       <html>
         <head>
           <title>LinkedIn Authorization</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
           <style>
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -34,17 +35,21 @@ export async function GET(request: NextRequest) {
               flex-direction: column;
               justify-content: center;
               align-items: center;
-              height: 100vh;
+              min-height: 100vh;
               margin: 0;
+              padding: 16px;
               background-color: #f4f7fa;
               color: #333;
+              box-sizing: border-box;
             }
             .status {
               padding: 20px;
               border-radius: 8px;
               margin-bottom: 20px;
               text-align: center;
+              width: 100%;
               max-width: 500px;
+              box-sizing: border-box;
             }
             .success {
               background-color: #d4edda;
@@ -63,7 +68,9 @@ export async function GET(request: NextRequest) {
               padding: 20px;
               border-radius: 8px;
               margin-bottom: 20px;
+              width: 100%;
               max-width: 500px;
+              box-sizing: border-box;
             }
             .note {
               background-color: #fff3cd;
@@ -76,50 +83,89 @@ export async function GET(request: NextRequest) {
             }
             h2 {
               margin-top: 0;
+              font-size: 1.5rem;
             }
             p {
               margin: 10px 0 0;
+              font-size: 1rem;
             }
             ol {
               text-align: left;
               padding-left: 20px;
+              margin-bottom: 0;
             }
             code {
               background: #f0f0f0;
               padding: 2px 4px;
               border-radius: 3px;
               font-family: monospace;
+              word-break: break-all;
             }
             #form {
               display: ${success ? 'block' : 'none'};
               margin-bottom: 20px;
               text-align: left;
-              width: 500px;
+              width: 100%;
+              max-width: 500px;
+              box-sizing: border-box;
             }
             label {
               display: block;
               margin-bottom: 6px;
               font-weight: bold;
+              font-size: 1rem;
             }
             input {
               width: 100%;
-              padding: 8px;
+              padding: 12px 8px;
               border: 1px solid #ccc;
               border-radius: 4px;
-              margin-bottom: 10px;
+              margin-bottom: 16px;
               box-sizing: border-box;
+              font-size: 16px; /* Prevent zoom on mobile */
             }
             button {
               background-color: #0077b5;
               color: white;
               border: none;
-              padding: 10px 15px;
+              padding: 12px 16px;
               border-radius: 4px;
               cursor: pointer;
               font-weight: bold;
+              width: 100%;
+              font-size: 16px;
             }
             button:hover {
               background-color: #005e93;
+            }
+            
+            /* Mobile specific adjustments */
+            @media (max-width: 600px) {
+              body {
+                padding: 12px;
+              }
+              .status, .instructions, #form {
+                padding: 16px;
+              }
+              h2 {
+                font-size: 1.3rem;
+              }
+              p, label {
+                font-size: 0.95rem;
+              }
+              ol {
+                padding-left: 16px;
+              }
+              li {
+                margin-bottom: 8px;
+              }
+              .note {
+                padding: 10px;
+                font-size: 0.9rem;
+              }
+              input, button {
+                font-size: 16px; /* Important for mobile to prevent zoom */
+              }
             }
           </style>
         </head>
@@ -147,24 +193,69 @@ export async function GET(request: NextRequest) {
           
           <div id="form">
             <label for="linkedinOrgId">LinkedIn Organization ID:</label>
-            <input type="text" id="linkedinOrgId" placeholder="Enter number from your LinkedIn company URL (e.g., 12345678)" />
+            <input 
+              type="text" 
+              id="linkedinOrgId" 
+              inputmode="numeric" 
+              pattern="[0-9]*" 
+              placeholder="Enter LinkedIn company ID (e.g., 12345678)" 
+            />
             <button onclick="saveOrgId()">Save Organization ID</button>
           </div>
           ` : ''}
           
           <script>
+            // Show error message in a more user-friendly way
+            function showMessage(message, isError = false) {
+              // Create or get message element
+              let msgEl = document.getElementById('statusMessage');
+              if (!msgEl) {
+                msgEl = document.createElement('div');
+                msgEl.id = 'statusMessage';
+                msgEl.style.padding = '12px';
+                msgEl.style.borderRadius = '4px';
+                msgEl.style.marginBottom = '16px';
+                msgEl.style.fontWeight = 'bold';
+                msgEl.style.textAlign = 'center';
+                msgEl.style.width = '100%';
+                document.getElementById('form').insertBefore(msgEl, document.querySelector('button'));
+              }
+              
+              // Style based on error state
+              msgEl.style.backgroundColor = isError ? '#f8d7da' : '#d4edda';
+              msgEl.style.color = isError ? '#721c24' : '#155724';
+              msgEl.style.border = isError ? '1px solid #f5c6cb' : '1px solid #c3e6cb';
+              
+              // Set message
+              msgEl.textContent = message;
+              
+              // Scroll to message
+              msgEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            
             // Save the organization ID to the token
             async function saveOrgId() {
-              const orgId = document.getElementById('linkedinOrgId').value.trim();
+              const input = document.getElementById('linkedinOrgId');
+              const orgId = input.value.trim();
+              
+              // Validation
               if (!orgId) {
-                alert('Please enter your LinkedIn Organization ID');
+                showMessage('Please enter your LinkedIn Organization ID', true);
+                input.focus();
                 return;
               }
               
               if (!/^\\d+$/.test(orgId)) {
-                alert('Please enter only the numeric ID from your LinkedIn company URL');
+                showMessage('Please enter only the numeric ID from your LinkedIn company URL', true);
+                input.focus();
                 return;
               }
+              
+              // Disable form while submitting
+              const button = document.querySelector('button');
+              input.disabled = true;
+              button.disabled = true;
+              button.textContent = 'Saving...';
               
               try {
                 const response = await fetch('/api/auth/linkedin/save-org-id', {
@@ -179,24 +270,49 @@ export async function GET(request: NextRequest) {
                 });
                 
                 if (response.ok) {
-                  document.getElementById('form').innerHTML = '<p style="color: green; font-weight: bold;">Organization ID saved successfully!</p>';
-                  setTimeout(() => {
-                    window.close();
-                  }, 2000);
+                  showMessage('Organization ID saved successfully!');
+                  
+                  // Show success with countdown
+                  let seconds = 3;
+                  button.textContent = \`Closing in \${seconds}s...\`;
+                  
+                  const countdown = setInterval(() => {
+                    seconds--;
+                    button.textContent = \`Closing in \${seconds}s...\`;
+                    
+                    if (seconds <= 0) {
+                      clearInterval(countdown);
+                      window.close();
+                    }
+                  }, 1000);
                 } else {
-                  const error = await response.text();
-                  alert('Error saving organization ID: ' + error);
+                  const errorText = await response.text();
+                  showMessage('Error saving organization ID: ' + errorText, true);
+                  input.disabled = false;
+                  button.disabled = false;
+                  button.textContent = 'Save Organization ID';
                 }
               } catch (error) {
-                alert('Network error. Please try again.');
+                showMessage('Network error. Please try again.', true);
                 console.error(error);
+                input.disabled = false;
+                button.disabled = false;
+                button.textContent = 'Save Organization ID';
               }
             }
             
-            // Close the window automatically after 60 seconds (if user doesn't enter org ID)
+            // Listen for form submission with enter key
+            document.getElementById('linkedinOrgId').addEventListener('keyup', function(event) {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                saveOrgId();
+              }
+            });
+            
+            // Close the window automatically after 2 minutes (if user doesn't enter org ID)
             setTimeout(() => {
               window.close();
-            }, 60000);
+            }, 120000); // 2 minutes
           </script>
         </body>
       </html>
@@ -417,4 +533,4 @@ export async function GET(request: NextRequest) {
     console.error('[LinkedIn Callback] Unexpected error:', error.message || error);
     return new Response('Authorization error. Please try again.', { status: 500 });
   }
-} 
+}
