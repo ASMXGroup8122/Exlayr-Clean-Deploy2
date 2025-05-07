@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    output: 'standalone',
     images: {
         remotePatterns: [
             {
@@ -25,6 +26,32 @@ const nextConfig = {
             ...config.resolve.alias,
             '@': require('path').resolve(__dirname, './src'),
         };
+        
+        // Optimize chunks for more reliable loading
+        config.optimization.splitChunks = {
+            chunks: 'all',
+            cacheGroups: {
+                default: false,
+                vendors: false,
+                // Vendor chunk for node_modules
+                vendor: {
+                    name: 'vendor',
+                    chunks: 'all',
+                    test: /node_modules/,
+                    priority: 20,
+                },
+                // Common chunk for shared code
+                common: {
+                    name: 'common',
+                    minChunks: 2,
+                    chunks: 'all',
+                    priority: 10,
+                    reuseExistingChunk: true,
+                    enforce: true,
+                },
+            },
+        };
+        
         return config;
     },
 
@@ -36,6 +63,24 @@ const nextConfig = {
     // 2) Skip ESLint errors
     eslint: {
         ignoreDuringBuilds: true,
+    },
+    
+    // Disable react-strict mode for production
+    reactStrictMode: false,
+    
+    // Add cache control headers
+    async headers() {
+        return [
+            {
+                source: '/_next/static/(.*)',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=31536000, immutable',
+                    },
+                ],
+            },
+        ];
     },
 };
 
