@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from '@/components/ui/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LinkedInIcon } from '@/components/icons/linkedin-icon';
+import LinkedInIcon from '@/components/icons/linkedin-icon';
 import { cn } from '@/lib/utils';
 
 type DocumentCategory = 
