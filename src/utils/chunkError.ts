@@ -4,7 +4,7 @@
  * Utility to help handle JavaScript chunk loading errors
  */
 
-// Define window.chunkLoadError to help track chunk loading issues globally
+// Define global type for window.chunkLoadError
 declare global {
   interface Window {
     chunkLoadError?: {
@@ -15,13 +15,16 @@ declare global {
   }
 }
 
+// Check if we're in a browser environment safely
+const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+
 /**
  * Initialize the global chunk error handler
  * To be called in client components early in the application lifecycle
  */
 export function initChunkErrorHandler() {
-  // Skip if already initialized or not in browser
-  if (typeof window === 'undefined' || window.chunkLoadError) return;
+  // Skip if not in browser or already initialized
+  if (!isBrowser || window.chunkLoadError) return;
 
   // Initialize error tracking object
   window.chunkLoadError = {
@@ -88,7 +91,7 @@ export function initChunkErrorHandler() {
  */
 export function preloadCriticalChunks(chunkIds: string[] = []) {
   // Skip if not in browser
-  if (typeof window === 'undefined') return;
+  if (!isBrowser) return;
   
   // Get the current origin
   const origin = window.location.origin;

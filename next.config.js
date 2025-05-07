@@ -17,7 +17,7 @@ const nextConfig = {
             },
         ],
     },
-    webpack: (config) => {
+    webpack: (config, { isServer }) => {
         config.ignoreWarnings = [
             { module: /node_modules\/node-fetch\/lib\/index\.js/ },
             { file: /node_modules\/node-fetch\/lib\/index\.js/ },
@@ -27,30 +27,45 @@ const nextConfig = {
             '@': require('path').resolve(__dirname, './src'),
         };
         
-        // Optimize chunks for more reliable loading
-        config.optimization.splitChunks = {
-            chunks: 'all',
-            cacheGroups: {
-                default: false,
-                vendors: false,
-                // Vendor chunk for node_modules
-                vendor: {
-                    name: 'vendor',
-                    chunks: 'all',
-                    test: /node_modules/,
-                    priority: 20,
+        // Optimize chunks for more reliable loading - only apply to client builds
+        if (!isServer) {
+            config.optimization.splitChunks = {
+                chunks: 'all',
+                cacheGroups: {
+                    default: false,
+                    vendors: false,
+                    // Vendor chunk for node_modules
+                    vendor: {
+                        name: 'vendor',
+                        chunks: 'all',
+                        test: /node_modules/,
+                        priority: 20,
+                    },
+                    // Common chunk for shared code
+                    common: {
+                        name: 'common',
+                        minChunks: 2,
+                        chunks: 'all',
+                        priority: 10,
+                        reuseExistingChunk: true,
+                        enforce: true,
+                    },
                 },
-                // Common chunk for shared code
-                common: {
-                    name: 'common',
-                    minChunks: 2,
-                    chunks: 'all',
-                    priority: 10,
-                    reuseExistingChunk: true,
-                    enforce: true,
-                },
-            },
-        };
+            };
+        }
+        
+        // Polyfill `self` for the server build
+        if (isServer) {
+            config.resolve.fallback = {
+                ...config.resolve.fallback,
+                // Ensure browser globals aren't used in server builds
+                'navigator': false,
+                'window': false,
+                'document': false,
+                'localStorage': false,
+                'sessionStorage': false,
+            };
+        }
         
         return config;
     },
@@ -81,6 +96,12 @@ const nextConfig = {
                 ],
             },
         ];
+    },
+    
+    // Handle browser polyfills
+    experimental: {
+        // Ensure proper isolation of server/client code
+        serverComponentsExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone'],
     },
 };
 
