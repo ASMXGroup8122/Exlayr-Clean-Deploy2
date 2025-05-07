@@ -8,16 +8,9 @@ import dynamic from "next/dynamic";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Dynamically import ErrorBoundary to prevent it from affecting server components
-const ErrorBoundary = dynamic(
-    () => import("@/components/ui/error-boundary").then(mod => mod.ErrorBoundary),
-    { ssr: false }
-);
-
-// Dynamically import ChunkErrorHandler
-const ChunkErrorHandler = dynamic(
-    () => import("@/components/ui/chunk-error-handler").then(mod => mod.ChunkErrorHandler),
-    { ssr: false }
+// Dynamically import the ClientErrorWrapper component
+const ClientErrorWrapper = dynamic(
+    () => import("@/components/ui/client-error-wrapper").then(mod => mod.ClientErrorWrapper)
 );
 
 // Known problematic chunks that we want to preload
@@ -43,15 +36,12 @@ export default function RootLayout({
     return (
         <html lang="en" className="h-full">
             <body className={`${inter.className} h-full overflow-x-hidden`}>
-                {/* Initialize chunk error handling */}
-                <ChunkErrorHandler chunkIds={CRITICAL_CHUNKS} />
-                
                 <AuthProvider>
                     <AIAssistantProvider>
                         <main className="min-h-screen bg-[#F8F9FA]">
-                            <ErrorBoundary>
+                            <ClientErrorWrapper chunkIds={CRITICAL_CHUNKS}>
                                 {children}
-                            </ErrorBoundary>
+                            </ClientErrorWrapper>
                         </main>
                     </AIAssistantProvider>
                 </AuthProvider>
