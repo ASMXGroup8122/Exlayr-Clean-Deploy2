@@ -138,7 +138,10 @@ export default function SponsorKnowledgeVaultPage() {
                 }
             } else if (data) {
                 console.log('LinkedIn connection found:', data);
-                setLinkedinConnected(true);
+                // Make sure we update the state to reflect the connection
+                if (!linkedinConnected) {
+                    setLinkedinConnected(true);
+                }
             } else {
                 console.log('No LinkedIn connection data available');
                 setLinkedinConnected(false);
@@ -149,7 +152,7 @@ export default function SponsorKnowledgeVaultPage() {
         }
     };
     
-    // Add function to handle LinkedIn connection 
+    // Update the handleConnectLinkedIn function to force a page reload after the popup closes
     const handleConnectLinkedIn = () => {
         if (!user?.organization_id) {
             toast({
@@ -182,8 +185,14 @@ export default function SponsorKnowledgeVaultPage() {
                 if (authWindow?.closed) {
                     clearInterval(checkPopupInterval);
                     setLinkedinLoading(false);
+                    
                     // Check connection status after popup closes
                     checkLinkedInConnection();
+                    
+                    // Force a page reload after a short delay to ensure DB updates are reflected
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
                 }
             }, 500);
             
@@ -841,6 +850,9 @@ export default function SponsorKnowledgeVaultPage() {
             url.searchParams.delete('success');
             window.history.replaceState({}, '', url);
             checkLinkedInConnection();
+            
+            // Set the active tab to connections
+            setActiveTab('connections');
         }
         
         if (error && error.startsWith('linkedin')) {
@@ -859,7 +871,7 @@ export default function SponsorKnowledgeVaultPage() {
         if (tab === 'connections') {
             setActiveTab('connections');
         }
-    }, []);
+    }, [checkLinkedInConnection, setActiveTab, toast]);
 
     // Fetch available voices when API key is valid
     useEffect(() => {
@@ -879,11 +891,19 @@ export default function SponsorKnowledgeVaultPage() {
                 const success = event.data.status;
                 console.log('LinkedIn auth completed with status:', success);
                 if (success) {
+                    // Immediately update the UI state to show connected
+                    setLinkedinConnected(true);
+                    
                     toast({
                         title: "LinkedIn Connected",
                         description: "Your LinkedIn account has been connected successfully.",
                         variant: "default"
                     });
+                    
+                    // Force a page reload to ensure all states are refreshed
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
                 } else {
                     toast({
                         title: "LinkedIn Connection Failed",
@@ -905,7 +925,7 @@ export default function SponsorKnowledgeVaultPage() {
         return () => {
             window.removeEventListener('message', handleAuthComplete);
         };
-    }, []);
+    }, [checkLinkedInConnection, setLinkedinConnected, setLinkedinLoading, toast]);
 
     // Add effect to check LinkedIn connection on mount
     useEffect(() => {
@@ -949,11 +969,31 @@ export default function SponsorKnowledgeVaultPage() {
                     // Add more connection checks here as needed in the future
                 }
             }} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="documents">Documents</TabsTrigger>
-                    <TabsTrigger value="tones-of-voice">Tones of Voice</TabsTrigger>
-                    <TabsTrigger value="spoken-voice">Spoken Voice</TabsTrigger>
-                    <TabsTrigger value="connections">Connections</TabsTrigger>
+                <TabsList className="w-full flex overflow-x-auto p-0.5 mb-2 space-x-1">
+                    <TabsTrigger 
+                        value="documents" 
+                        className="flex-1 min-w-[85px] px-2 py-2 text-xs sm:text-sm whitespace-nowrap"
+                    >
+                        Docs
+                    </TabsTrigger>
+                    <TabsTrigger 
+                        value="tones-of-voice" 
+                        className="flex-1 min-w-[85px] px-2 py-2 text-xs sm:text-sm whitespace-nowrap"
+                    >
+                        Tones
+                    </TabsTrigger>
+                    <TabsTrigger 
+                        value="spoken-voice" 
+                        className="flex-1 min-w-[85px] px-2 py-2 text-xs sm:text-sm whitespace-nowrap"
+                    >
+                        Voice
+                    </TabsTrigger>
+                    <TabsTrigger 
+                        value="connections" 
+                        className="flex-1 min-w-[85px] px-2 py-2 text-xs sm:text-sm whitespace-nowrap"
+                    >
+                        Connect
+                    </TabsTrigger>
                 </TabsList>
                 
                 {/* Document Tab Content */}
@@ -1563,7 +1603,7 @@ export default function SponsorKnowledgeVaultPage() {
                                                     ? "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                                                     : "bg-blue-600 hover:bg-blue-700"
                                             )}
-                                            onClick={linkedinConnected ? handleManageLinkedIn : handleConnectLinkedIn}
+                                            onClick={linkedinConnected ? handleDisconnectLinkedIn : handleConnectLinkedIn}
                                             disabled={linkedinLoading}
                                         >
                                             {linkedinConnected ? (

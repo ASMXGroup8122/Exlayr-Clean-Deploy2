@@ -170,6 +170,17 @@ export async function GET(request: NextRequest) {
           </style>
         </head>
         <body>
+          <script>
+            // Notify parent window immediately on successful authentication
+            if (${success} && window.opener) {
+              window.opener.postMessage({ 
+                type: 'LINKEDIN_AUTH_COMPLETE', 
+                status: true 
+              }, window.location.origin);
+              console.log("Sent success message to parent window");
+            }
+          </script>
+
           <div class="status ${success ? 'success' : 'error'}">
             <h2>${success ? 'Connection Successful' : 'Connection Failed'}</h2>
             <p>${message}</p>
@@ -275,6 +286,14 @@ export async function GET(request: NextRequest) {
                   // Show success with countdown
                   let seconds = 3;
                   button.textContent = \`Closing in \${seconds}s...\`;
+                  
+                  // Send message to parent window that auth was successful
+                  if (window.opener) {
+                    window.opener.postMessage({ 
+                      type: 'LINKEDIN_AUTH_COMPLETE', 
+                      status: true 
+                    }, window.location.origin);
+                  }
                   
                   const countdown = setInterval(() => {
                     seconds--;
