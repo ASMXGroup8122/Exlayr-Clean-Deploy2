@@ -101,8 +101,10 @@ const nextConfig = {
     // Handle browser polyfills
     experimental: {
         // Ensure proper isolation of server/client code
-        serverComponentsExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone'],
     },
+    
+    // Moved from experimental to root level as per Next.js 15+ requirements
+    serverExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone'],
 };
 
 module.exports = nextConfig;

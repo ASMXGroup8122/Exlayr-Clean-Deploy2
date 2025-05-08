@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { toast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import PostFromUrlTab from './PostFromUrlTab';
 
 interface SocialPostPageProps {
   params: Promise<{
@@ -31,11 +32,22 @@ interface ToneOfVoice {
   description: string;
 }
 
-// Define available AI models
+// Define available AI models with more details
+// Values should correspond to what the backend expects for each model provider
 const AI_MODELS = {
-  GPT4: "gpt-4",
-  GEMINI: "gemini-2.5-pro"
+  GPT4: { name: "GPT-4 (OpenAI)", value: "gpt-4" },
+  GEMINI: { name: "Gemini 1.5 Pro (Google)", value: "gemini-1.5-pro" }, 
+  CLAUDE_OPUS: { name: "Claude 3 Opus (Anthropic)", value: "claude-3-opus-20240229" }, // Example value
+  DEEPSEEK_CHAT: { name: "DeepSeek Chat (DeepSeek)", value: "deepseek-chat" } // Example value
 };
+
+// Specific AI Models for the Podcast Feature - REMOVING THIS
+/*
+const AI_MODELS_PODCAST = {
+  GPT4: AI_MODELS.GPT4,
+  GEMINI: AI_MODELS.GEMINI
+};
+*/
 
 export default function SocialPostPage({ params }: SocialPostPageProps) {
   const { orgId } = use(params);
@@ -60,7 +72,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   const [isChatProcessing, setIsChatProcessing] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [selectedAIModel, setSelectedAIModel] = useState<string>(AI_MODELS.GPT4);
+  const [selectedAIModel, setSelectedAIModel] = useState<string>(AI_MODELS.GPT4.value);
   
   const [formData, setFormData] = useState({
     url: '',
@@ -329,7 +341,7 @@ REMEMBER: The script MUST be a COMPLETE ${minutes}-minute podcast with appropria
       let scriptContent = "";
       
       // Generate with either GPT-4 or Gemini based on selection
-      if (selectedAIModel === AI_MODELS.GPT4) {
+      if (selectedAIModel === AI_MODELS.GPT4.value) {
         // Use OpenAI GPT-4
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -356,7 +368,7 @@ REMEMBER: The script MUST be a COMPLETE ${minutes}-minute podcast with appropria
         const data = await response.json();
         scriptContent = data.choices[0].message.content.trim();
       } 
-      else if (selectedAIModel === AI_MODELS.GEMINI) {
+      else if (selectedAIModel === AI_MODELS.GEMINI.value) {
         // Use Google's Gemini 2.5 Pro
         const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
         if (!apiKey) {
@@ -425,7 +437,7 @@ Add substantial detail, examples, stories, expert opinions, additional talking p
 Original short script:
 ${shortScript}`;
 
-        if (selectedAIModel === AI_MODELS.GPT4) {
+        if (selectedAIModel === AI_MODELS.GPT4.value) {
           // Use OpenAI for expansion
           const expansionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -455,7 +467,7 @@ ${shortScript}`;
             }
           }
         }
-        else if (selectedAIModel === AI_MODELS.GEMINI) {
+        else if (selectedAIModel === AI_MODELS.GEMINI.value) {
           // Use Gemini for expansion
           const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
           
@@ -1031,36 +1043,23 @@ Keep your response conversational but focused on the task. Follow the same style
             
             <div className="my-4">
               <Label htmlFor="ai-model">AI Model</Label>
-              <div className="flex gap-4 mt-2">
-                <div className="flex items-center">
-                  <input
-                    type="radio"
-                    id="model-gpt4"
-                    name="ai-model"
-                    value={AI_MODELS.GPT4}
-                    checked={selectedAIModel === AI_MODELS.GPT4}
-                    onChange={(e) => setSelectedAIModel(e.target.value)}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                  <Label htmlFor="model-gpt4" className="ml-2 text-sm font-medium">
-                    GPT-4 (OpenAI)
-                  </Label>
-                </div>
-                
-                <div className="flex items-center">
-                  <input
-                    type="radio"
-                    id="model-gemini"
-                    name="ai-model"
-                    value={AI_MODELS.GEMINI}
-                    checked={selectedAIModel === AI_MODELS.GEMINI}
-                    onChange={(e) => setSelectedAIModel(e.target.value)}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                  <Label htmlFor="model-gemini" className="ml-2 text-sm font-medium">
-                    Gemini 2.5 Pro (Google)
-                  </Label>
-                </div>
+              <div className="flex gap-4 mt-2 flex-wrap">
+                {Object.entries(AI_MODELS).map(([_, modelDetails]) => (
+                  <div key={`podcast-${modelDetails.value}`} className="flex items-center">
+                    <input
+                      type="radio"
+                      id={`model-podcast-${modelDetails.value}`}
+                      name="ai-model-podcast"
+                      value={modelDetails.value}
+                      checked={selectedAIModel === modelDetails.value}
+                      onChange={(e) => setSelectedAIModel(e.target.value)}
+                      className="h-4 w-4 text-blue-600"
+                    />
+                    <Label htmlFor={`model-podcast-${modelDetails.value}`} className="ml-2 text-sm font-medium">
+                      {modelDetails.name}
+                    </Label>
+                  </div>
+                ))}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 Different models may produce better results for different topics and lengths.
@@ -1200,7 +1199,8 @@ Keep your response conversational but focused on the task. Follow the same style
         </div>
       </div>
 
-      {formData.platforms.linkedin && (
+      {/* Conditionally render platform-specific post type selectors */}
+      {activeTab !== 'podcast' && formData.platforms.linkedin && (
         <div className="space-y-2">
           <Label>LinkedIn Post Type *</Label>
           <Select
@@ -1222,7 +1222,7 @@ Keep your response conversational but focused on the task. Follow the same style
         </div>
       )}
 
-      {formData.platforms.twitter && (
+      {activeTab !== 'podcast' && formData.platforms.twitter && (
         <div className="space-y-2">
           <Label>Twitter Post Type</Label>
           <Select
@@ -1244,7 +1244,7 @@ Keep your response conversational but focused on the task. Follow the same style
         </div>
       )}
 
-      {formData.platforms.instagram && (
+      {activeTab !== 'podcast' && formData.platforms.instagram && (
         <div className="space-y-2">
           <Label>Instagram Post Type</Label>
           <Select
@@ -1728,7 +1728,25 @@ ${generatedScript}`;
               
               {/* Tab content area */}
               <div className="p-6 bg-white">
-                {activeTab === 'url' && renderFormContent()}
+                {activeTab === 'url' && (
+                  <PostFromUrlTab 
+                    orgId={orgId}
+                    formData={formData}
+                    setFormData={setFormData}
+                    tones={tones}
+                    loadingTones={loadingTones}
+                    loadError={loadError}
+                    handleToneChange={handleToneChange}
+                    selectedTone={selectedTone}
+                    characterLengthOptions={characterLengthOptions}
+                    sentimentOptions={sentimentOptions}
+                    imageTypeOptions={imageTypeOptions} 
+                    linkedinPostTypes={linkedinPostTypes}
+                    twitterPostTypes={twitterPostTypes}
+                    instagramPostTypes={instagramPostTypes}
+                    aiModels={AI_MODELS}
+                  />
+                )}
                 {activeTab === 'image' && renderImageFormContent()}
                 {activeTab === 'podcast' && (
                   <>
