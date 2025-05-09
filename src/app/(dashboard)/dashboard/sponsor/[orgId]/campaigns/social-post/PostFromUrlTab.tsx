@@ -105,6 +105,17 @@ export default function PostFromUrlTab({
     setIsGenerating(true);
     setGeneratedContent({});
 
+    // TEST: Verify API endpoints are accessible
+    try {
+      // Quick test to verify API endpoint is accessible
+      const imageApiTest = await fetch('/api/ai/generate-social-post-image', { 
+        method: 'HEAD'
+      });
+      console.log('Image API route accessibility test:', imageApiTest.status, imageApiTest.ok);
+    } catch (error) {
+      console.error('Image API endpoint test failed:', error);
+    }
+
     const selectedPlatforms = Object.entries(formData.platforms)
       .filter(([_, isSelected]) => isSelected)
       .map(([platform]) => platform);
@@ -151,27 +162,109 @@ export default function PostFromUrlTab({
         throw new Error(data.message || 'Failed to generate text content.');
       }
 
-      console.log("API Response:", data);
+      console.log("API Response (Text Gen):", data);
 
-      const newGeneratedContent: any = {};
-      if (data.generatedTexts) {
-        Object.entries(data.generatedTexts).forEach(([platform, text]) => {
-          if (platform === 'linkedin' || platform === 'twitter' || platform === 'instagram') {
-             newGeneratedContent[platform] = {
-               text: text as string,
-               imageUrl: `https://via.placeholder.com/${platform === 'linkedin' ? '1200x627' : platform === 'twitter' ? '1600x900' : '1080x1080'}.png?text=${platform}+Image+Placeholder`,
-               saved: false,
-             };
-          }
+      // Update state with received texts FIRST
+      const newGeneratedContent: any = {}; // Using any temporarily for easier state update
+      const generatedPlatforms = Object.keys(data.generatedTexts || {});
+
+      if (generatedPlatforms.length > 0 && data.generatedTexts) {
+        for (const platform of generatedPlatforms) {
+            if (platform === 'linkedin' || platform === 'twitter' || platform === 'instagram') {
+               newGeneratedContent[platform] = {
+                 text: data.generatedTexts[platform],
+                 imageUrl: '', // Initialize image URL as empty
+                 saved: false,
+               };
+            }
+        }
+        setGeneratedContent(newGeneratedContent);
+        toast({ 
+          title: "Text Generated", 
+          description: "Now generating images...",
+          variant: "default"
         });
-      }
-      setGeneratedContent(newGeneratedContent);
 
-      toast({ 
-        title: "Content Generated", 
-        description: "AI has generated text for the selected platforms.",
-        variant: "default"
-      });
+        // --- Now trigger image generation for each platform --- 
+        const imagePromises = generatedPlatforms.map(platform => {
+            if (platform !== 'linkedin' && platform !== 'twitter' && platform !== 'instagram') return Promise.resolve(); // Skip invalid platforms
+            
+            const imagePayload = {
+              // Use generated text as base for image prompt, plus image type
+              promptText: newGeneratedContent[platform].text, 
+              imageType: formData.image_type || 'photorealistic editorial', // Default if none selected
+              platform: platform
+            };
+            console.log(`Calling image API for ${platform} with payload:`, imagePayload);
+            
+            // Add timestamp to track API response time
+            const startTime = Date.now();
+            
+            try {
+              return fetch('/api/ai/generate-social-post-image', { // Correct endpoint
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(imagePayload)
+              })
+              .then(res => {
+                // Log response status before parsing
+                console.log(`Image API ${platform} response status:`, res.status, res.statusText);
+                if (!res.ok) {
+                  console.error(`Error response from image API for ${platform}:`, res.status, res.statusText);
+                }
+                return res.json();
+              })
+              .then(imgData => {
+                // Log response time
+                console.log(`Image API ${platform} response time: ${Date.now() - startTime}ms`);
+                console.log(`Image API ${platform} response data:`, imgData);
+                
+                if (imgData.success && imgData.imageUrl) {
+                  console.log(`Received image URL for ${platform}:`, imgData.imageUrl);
+                  // Update the specific platform's imageUrl in state
+                  setGeneratedContent(prev => ({
+                      ...prev,
+                      [platform]: { 
+                          ...(prev[platform] as object),
+                          imageUrl: imgData.imageUrl 
+                      }
+                  }));
+                } else {
+                    console.error(`Image generation failed for ${platform}:`, imgData.message);
+                    // Optionally update state to show an error image or message?
+                    toast({ title: `Image Error (${platform})`, description: imgData.message || 'Failed', variant: "destructive" });
+                }
+              })
+              .catch(error => {
+                   console.error(`Fetch error during image generation for ${platform}:`, error);
+                   toast({ title: `Image Error (${platform})`, description: error.message || 'Network error', variant: "destructive" });
+              });
+            } catch (error) {
+              console.error(`Exception during image API setup for ${platform}:`, error);
+              toast({ 
+                title: `Image API Setup Error (${platform})`, 
+                description: error instanceof Error ? error.message : 'Unknown error', 
+                variant: "destructive" 
+              });
+              return Promise.resolve(); // Return a resolved promise to continue with other platforms
+            }
+        });
+
+        await Promise.all(imagePromises);
+        console.log("Finished all image generation requests.");
+        toast({ title: "Images Generated", description: "Images ready for review.", variant: "default" });
+        // --- End image generation trigger --- 
+
+      } else {
+        // Handle case where text generation returned no platforms/texts
+        console.warn("Text generation did not return any texts.");
+        toast({ 
+            title: "Generation Issue", 
+            description: "No text content was generated.", 
+            variant: "default"
+        }); 
+        setGeneratedContent({}); // Ensure it's cleared
+      }
 
     } catch (error) {
       console.error("Error calling generation API:", error);
@@ -217,6 +310,20 @@ export default function PostFromUrlTab({
             }
         };
     });
+  };
+
+  // Placeholder handler for the final submission
+  const handleApproveAndPost = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Approve and Post clicked!");
+    console.log("Final content to post:", generatedContent);
+    // TODO: 
+    // 1. Add validation (e.g., ensure content exists for selected platforms)
+    // 2. Call the new backend API route (/api/social/publish-post)
+    // 3. Pass the generatedContent (potentially only the 'text' and 'imageUrl' parts)
+    // 4. Handle response (success/error, maybe redirect or show confirmation)
+    alert("Approve and Post clicked! Check console. Backend API call not yet implemented."); 
   };
 
   const renderLocalToneSelector = () => (
@@ -626,12 +733,16 @@ export default function PostFromUrlTab({
                   {generatedContent.linkedin.text.length} characters
                 </p>
                 <Label>Generated Image:</Label>
-                {generatedContent.linkedin.imageUrl && (
+                {generatedContent.linkedin.imageUrl ? (
                   <img 
                     src={generatedContent.linkedin.imageUrl} 
                     alt="LinkedIn Image Preview" 
                     className="w-full max-w-md border border-gray-300 rounded"
                   />
+                ) : (
+                  <div className="flex items-center justify-center h-40 bg-gray-100 border border-gray-300 rounded">
+                    <p className="text-gray-500 text-center">Generating image...</p>
+                  </div>
                 )}
                 {/* Save/Edit Button */}
                 <Button 
@@ -663,12 +774,16 @@ export default function PostFromUrlTab({
                   {generatedContent.twitter.text.length} / 280 characters
                 </p>
                 <Label>Generated Image:</Label>
-                {generatedContent.twitter.imageUrl && (
+                {generatedContent.twitter.imageUrl ? (
                   <img 
                     src={generatedContent.twitter.imageUrl} 
                     alt="Twitter/X Image Preview" 
                     className="w-full max-w-md border border-gray-300 rounded"
                   />
+                ) : (
+                  <div className="flex items-center justify-center h-40 bg-gray-100 border border-gray-300 rounded">
+                    <p className="text-gray-500 text-center">Generating image...</p>
+                  </div>
                 )}
                 {/* Save/Edit Button */}
                 <Button 
@@ -700,12 +815,16 @@ export default function PostFromUrlTab({
                   {generatedContent.instagram.text.length} / 2200 characters
                 </p>
                 <Label>Generated Image:</Label>
-                {generatedContent.instagram.imageUrl && (
+                {generatedContent.instagram.imageUrl ? (
                   <img 
                     src={generatedContent.instagram.imageUrl} 
                     alt="Instagram Image Preview" 
                     className="w-full max-w-xs border border-gray-300 rounded" 
                   />
+                ) : (
+                  <div className="flex items-center justify-center h-40 bg-gray-100 border border-gray-300 rounded">
+                    <p className="text-gray-500 text-center">Generating image...</p>
+                  </div>
                 )}
                 {/* Save/Edit Button */}
                 <Button 
@@ -719,6 +838,21 @@ export default function PostFromUrlTab({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* --- Approve and Post Button (Appears after content generation) --- */}
+      {Object.keys(generatedContent).length > 0 && (
+        <div className="mt-8 pt-6 border-t border-gray-300 flex justify-end">
+          <Button
+            type="button" // Important: type="button" to prevent default form submission initially
+            onClick={handleApproveAndPost} // Placeholder handler
+            className="bg-green-600 hover:bg-green-700 text-white text-base px-6 py-3"
+            // Add disabled logic later based on whether content exists and is saved?
+          >
+             {/* Add icon? e.g., <Send className="h-5 w-5 mr-2" /> */} 
+            Approve and Post
+          </Button>
         </div>
       )}
     </div>
