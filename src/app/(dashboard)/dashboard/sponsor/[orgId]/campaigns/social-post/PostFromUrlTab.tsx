@@ -535,7 +535,7 @@ export default function PostFromUrlTab({
         
         // Redirect to the social media archive page after a brief delay
         setTimeout(() => {
-          router.push(`/dashboard/sponsor/${orgId}/social-media-archive`);
+          router.push(`/dashboard/social-media-archive?orgId=${orgId}`);
         }, 1500); // 1.5 second delay to allow the user to see the success message
       } else {
         // Create message showing which platforms succeeded/failed
@@ -553,7 +553,7 @@ export default function PostFromUrlTab({
         const atLeastOneSuccess = Object.values(platformResults).some(result => result.success);
         if (atLeastOneSuccess) {
           setTimeout(() => {
-            router.push(`/dashboard/sponsor/${orgId}/social-media-archive`);
+            router.push(`/dashboard/social-media-archive?orgId=${orgId}`);
           }, 2500); // Longer delay (2.5 seconds) for partial success to give user time to read the error
         }
       }

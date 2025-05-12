@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Search } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 // Define the structure for social posts (can be shared type later)
 interface SocialPostItem {
@@ -37,22 +38,45 @@ interface SocialPostItem {
 
 export default function SocialMediaArchivePage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [approvedSocial, setApprovedSocial] = useState<SocialPostItem[]>([]);
   const [isLoadingApproved, setIsLoadingApproved] = useState(true);
   const [selectedPost, setSelectedPost] = useState<SocialPostItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
   const supabase = getSupabaseClient();
 
+  // Set the current organization ID based on URL parameter or user's organization
+  useEffect(() => {
+    const urlOrgId = searchParams.get('orgId');
+    
+    if (urlOrgId) {
+      console.log('[SocialMediaArchive] Using organization ID from URL:', urlOrgId);
+      setCurrentOrgId(urlOrgId);
+    } else if (user?.organization_id) {
+      console.log('[SocialMediaArchive] Using user\'s organization ID:', user.organization_id);
+      setCurrentOrgId(user.organization_id);
+    } else {
+      console.log('[SocialMediaArchive] No organization ID available');
+      setCurrentOrgId(null);
+    }
+  }, [searchParams, user?.organization_id]);
+
   const fetchApprovedPosts = async (searchTerm: string) => {
-    if (!user?.organization_id || !supabase) return;
+    if (!currentOrgId || !supabase) {
+      console.error('[ArchivePage] Cannot fetch posts - missing organization ID or supabase client');
+      setIsLoadingApproved(false);
+      return;
+    }
+    
     setIsLoadingApproved(true);
-    console.log(`[ArchivePage] Fetching approved posts... Search: "${searchTerm}"`);
+    console.log(`[ArchivePage] Fetching approved posts for organization ID ${currentOrgId}. Search: "${searchTerm}"`);
 
     let query = supabase
       .from('social_posts')
       .select('*')
-      .eq('organization_id', user.organization_id)
+      .eq('organization_id', currentOrgId)
       .eq('deleted', false)
       .eq('post_status', 'approved')
       .or('image_status.eq.approved,image_url.is.null'); // Keep initial OR
@@ -98,13 +122,13 @@ export default function SocialMediaArchivePage() {
   }, [searchTerm]);
 
   useEffect(() => {
-    if (user?.organization_id && supabase) {
-        console.log('[ArchivePage] useEffect running for data fetch');
+    if (currentOrgId && supabase) {
+        console.log('[ArchivePage] useEffect running for data fetch with organization ID:', currentOrgId);
         fetchApprovedPosts(debouncedSearchTerm);
     } else {
-        console.log('[ArchivePage] useEffect skipped: user or supabase not ready');
+        console.log('[ArchivePage] useEffect skipped: currentOrgId or supabase not ready');
     }
-  }, [user?.organization_id, supabase, debouncedSearchTerm]);
+  }, [currentOrgId, supabase, debouncedSearchTerm]);
 
   // Updated rendering logic
   const renderApprovedList = (items: SocialPostItem[]) => {
