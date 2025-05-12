@@ -717,35 +717,90 @@ Keep your response conversational but focused on the task. Follow the same style
       post_text: null,
       platform: null,
       image_url: null,
-      post_status: 'pending',
-      image_status: 'pending',
+      post_status: activeTab === 'podcast' ? 'pending' : 'approved', // Immediately approve social posts
+      image_status: activeTab === 'podcast' ? 'pending' : 'approved', // Immediately approve social posts
       rejection: null
     };
 
     try {
       console.log('Submitting with tone:', selectedToneData ? selectedToneData.name : 'None');
       
-      const response = await fetch('https://hook.eu2.make.com/q0c2np0nt9dayphd8zpposc73gvly4w6', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        router.push(`/dashboard/sponsor/${orgId}/campaigns`);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to submit social post. Status:', response.status, 'Response:', errorText);
-        toast({
-          title: "Submission Failed",
-          description: "There was an error submitting your post. Please try again.",
-          variant: "destructive"
+      // For podcasts, use the webhook to go through approvals
+      if (activeTab === 'podcast') {
+        const response = await fetch('https://hook.eu2.make.com/q0c2np0nt9dayphd8zpposc73gvly4w6', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
         });
+
+        if (response.ok) {
+          toast({
+            title: "Podcast Request Submitted",
+            description: "Your podcast request has been sent for approval.",
+            variant: "default"
+          });
+          router.push(`/dashboard/sponsor/${orgId}/campaigns`);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to submit podcast request. Status:', response.status, 'Response:', errorText);
+          toast({
+            title: "Submission Failed",
+            description: "There was an error submitting your podcast request. Please try again.",
+            variant: "destructive"
+          });
+        }
+      } 
+      // For social posts (URL and Image tabs), directly save to social_posts table as approved
+      else {
+        const supabase = getSupabaseClient();
+        
+        // Create record in social_posts table with status='approved'
+        const { data, error } = await supabase
+          .from('social_posts')
+          .insert({
+            organization_id: orgId,
+            user_id: user?.id,
+            platform: Object.entries(formData.platforms)
+              .filter(([_, enabled]) => enabled)
+              .map(([platform]) => platform)
+              .join(','), // Store all platforms in one field
+            post_text: payload.thoughts, // Use thoughts as post text for now
+            url: payload.url,
+            sentiment: payload.sentiment,
+            thoughts: payload.thoughts,
+            character_length: payload.character_length,
+            linkedin_post_type: formData.platforms.linkedin ? payload.linkedin_post_type : null,
+            twitter_post_type: formData.platforms.twitter ? payload.twitter_post_type : null,
+            instagram_post_type: formData.platforms.instagram ? payload.instagram_post_type : null,
+            image_type: payload.image_type,
+            post_status: 'approved',
+            image_status: 'approved',
+            status: 'approved',
+            created_at: new Date().toISOString(),
+            approved_at: new Date().toISOString() // Auto-approve
+          })
+          .select();
+
+        if (error) {
+          console.error('Failed to save social post:', error);
+          toast({
+            title: "Posting Failed",
+            description: "There was an error saving your social post. Please try again.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Post Created",
+            description: "Your post has been created and will be published shortly.",
+            variant: "default"
+          });
+          router.push(`/dashboard/sponsor/${orgId}/campaigns`);
+        }
       }
     } catch (error) {
-      console.error('Error submitting social post:', error);
+      console.error('Error submitting:', error);
       if (error instanceof Error) {
         console.error('Error details:', {
           name: error.name,
@@ -755,7 +810,7 @@ Keep your response conversational but focused on the task. Follow the same style
       }
       toast({
         title: "Error",
-        description: "Failed to create post. Please check your connection and try again.",
+        description: "Failed to process your request. Please check your connection and try again.",
         variant: "destructive"
       });
     } finally {
@@ -1764,16 +1819,20 @@ ${generatedScript}`;
           </Card>
 
           <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-4 mt-6">
-            <Link href="/dashboard/approvals" className="text-sm text-blue-600 hover:underline w-full sm:w-auto text-center">
-              View Pending Approvals
-            </Link>
-            <Button 
-              type="submit" 
-              className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Submitting Request...' : activeTab === 'podcast' ? 'Create Podcast' : 'Submit Request'}
-            </Button>
+            {activeTab === 'podcast' && (
+              <>
+                <Link href="/dashboard/approvals" className="text-sm text-blue-600 hover:underline w-full sm:w-auto text-center">
+                  View Pending Approvals
+                </Link>
+                <Button 
+                  type="submit" 
+                  className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Create Podcast'}
+                </Button>
+              </>
+            )}
           </div>
         </form>
 

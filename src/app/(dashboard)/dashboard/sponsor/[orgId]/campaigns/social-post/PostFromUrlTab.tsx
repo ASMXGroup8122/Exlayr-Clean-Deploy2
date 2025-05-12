@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Sparkles, HelpCircle } from 'lucide-react';
+import { Sparkles, HelpCircle, Send } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Link from 'next/link'; 
 import { toast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 interface ToneOfVoice {
   id: string;
@@ -69,6 +70,7 @@ export default function PostFromUrlTab({
     twitter?: { text: string, imageUrl: string, saved: boolean },
     instagram?: { text: string, imageUrl: string, saved: boolean }
   }>({});
+  const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
@@ -189,11 +191,28 @@ export default function PostFromUrlTab({
         const imagePromises = generatedPlatforms.map(platform => {
             if (platform !== 'linkedin' && platform !== 'twitter' && platform !== 'instagram') return Promise.resolve(); // Skip invalid platforms
             
+            // Extract keywords from the first 100 words of text to help with theme identification
+            const textSample = newGeneratedContent[platform].text.split(' ').slice(0, 100).join(' ');
+            const extractTextContext = (text: string): string => {
+              // Extract the first few sentences for context
+              const sentences = text.split(/[.!?]+/).slice(0, 3).join('. ');
+              return sentences;
+            };
+
             const imagePayload = {
               // Use generated text as base for image prompt, plus image type
               promptText: newGeneratedContent[platform].text, 
               imageType: formData.image_type || 'photorealistic editorial', // Default if none selected
-              platform: platform
+              platform: platform,
+              // Add more context to help with theme extraction
+              additionalContext: {
+                userThoughts: formData.thoughts,
+                contentSummary: extractTextContext(textSample),
+                sentiment: formData.sentiment,
+                topic: platform === 'linkedin' ? formData.linkedin_post_type : 
+                       platform === 'twitter' ? formData.twitter_post_type : 
+                       platform === 'instagram' ? formData.instagram_post_type : null
+              }
             };
             console.log(`Calling image API for ${platform} with payload:`, imagePayload);
             
@@ -221,14 +240,28 @@ export default function PostFromUrlTab({
                 
                 if (imgData.success && imgData.imageUrl) {
                   console.log(`Received image URL for ${platform}:`, imgData.imageUrl);
+                  
+                  // Verify the image URL is accessible
+                  fetch(imgData.imageUrl, { method: 'HEAD' })
+                    .then(imgCheckResponse => {
+                      console.log(`Image URL check for ${platform}: Status ${imgCheckResponse.status}, Content-Type: ${imgCheckResponse.headers.get('content-type')}`);
+                    })
+                    .catch(imgCheckError => {
+                      console.error(`Error checking image URL for ${platform}:`, imgCheckError);
+                    });
+                  
                   // Update the specific platform's imageUrl in state
-                  setGeneratedContent(prev => ({
+                  setGeneratedContent(prev => {
+                    const updated = {
                       ...prev,
-                      [platform]: { 
-                          ...(prev[platform] as object),
-                          imageUrl: imgData.imageUrl 
+                      [platform]: {
+                        ...(prev[platform] || {}),
+                        imageUrl: imgData.imageUrl
                       }
-                  }));
+                    };
+                    console.log('Updated generatedContent state:', updated);
+                    return updated;
+                  });
                 } else {
                     console.error(`Image generation failed for ${platform}:`, imgData.message);
                     // Optionally update state to show an error image or message?
@@ -318,12 +351,223 @@ export default function PostFromUrlTab({
     e.stopPropagation();
     console.log("Approve and Post clicked!");
     console.log("Final content to post:", generatedContent);
-    // TODO: 
-    // 1. Add validation (e.g., ensure content exists for selected platforms)
-    // 2. Call the new backend API route (/api/social/publish-post)
-    // 3. Pass the generatedContent (potentially only the 'text' and 'imageUrl' parts)
-    // 4. Handle response (success/error, maybe redirect or show confirmation)
-    alert("Approve and Post clicked! Check console. Backend API call not yet implemented."); 
+    
+    // Track overall publishing status
+    let overallSuccess = true;
+    const platformResults: {[key: string]: {success: boolean, message: string}} = {};
+    
+    try {
+      setIsGenerating(true); // Reuse loading state for posting
+      
+      // First, check if LinkedIn is selected and has content
+      if (formData.platforms.linkedin && generatedContent.linkedin) {
+        try {
+          console.log("Posting to LinkedIn...");
+          
+          // Add detailed logging of what we're sending to LinkedIn API
+          console.log("LinkedIn API request details:", {
+            url: '/api/linkedin/post',
+            method: 'POST',
+            bodyData: {
+              organizationId: orgId,
+              message: generatedContent.linkedin.text,
+              imageUrl: generatedContent.linkedin.imageUrl || undefined,
+              altText: "AI-generated image for social media post"
+            }
+          });
+          
+          const linkedinResponse = await fetch('/api/linkedin/post', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              organizationId: orgId,
+              message: generatedContent.linkedin.text,
+              imageUrl: generatedContent.linkedin.imageUrl || undefined,
+              altText: "AI-generated image for social media post"
+            }),
+          });
+          
+          const linkedinData = await linkedinResponse.json();
+          console.log("LinkedIn post response:", linkedinData);
+          
+          // Log the full request details for debugging
+          console.log("LinkedIn post request:", {
+            organizationId: orgId,
+            textLength: generatedContent.linkedin.text.length,
+            hasImage: !!generatedContent.linkedin.imageUrl,
+            imageUrl: generatedContent.linkedin.imageUrl
+          });
+          
+          if (linkedinData.success) {
+            platformResults.linkedin = { 
+              success: true, 
+              message: linkedinData.message || 'Posted successfully to LinkedIn' 
+            };
+            
+            // Save successful post to social_posts table with proper approval fields
+            try {
+              const currentTime = new Date().toISOString();
+              const saveResponse = await fetch('/api/social/save-post', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  organizationId: orgId,
+                  platform: 'linkedin',
+                  postText: generatedContent.linkedin.text,
+                  imageUrl: generatedContent.linkedin.imageUrl || null,
+                  url: formData.url || null,
+                  thoughts: formData.thoughts || null,
+                  postStatus: 'approved',
+                  imageStatus: 'approved',
+                  status: 'approved',
+                  approvedAt: currentTime,
+                  posted_at: currentTime, 
+                  sentiment: formData.sentiment || null,
+                  linkedin_post_type: formData.linkedin_post_type || null,
+                  postId: linkedinData.postId || null
+                }),
+              });
+              
+              console.log("Save post response:", await saveResponse.json());
+            } catch (saveError) {
+              console.error("Error saving post to database:", saveError);
+            }
+          } else {
+            overallSuccess = false;
+            platformResults.linkedin = { 
+              success: false, 
+              message: linkedinData.error || 'Failed to post to LinkedIn' 
+            };
+          }
+        } catch (error) {
+          console.error("Error posting to LinkedIn:", error);
+          overallSuccess = false;
+          platformResults.linkedin = { 
+            success: false, 
+            message: error instanceof Error ? error.message : 'Failed to post to LinkedIn'
+          };
+        }
+      }
+      
+      // TODO: Add similar implementation for Twitter/X when API integration is ready
+      if (formData.platforms.twitter && generatedContent.twitter) {
+        platformResults.twitter = { 
+          success: false, 
+          message: 'Twitter/X posting not yet implemented' 
+        };
+        
+        // Even though we can't post to Twitter yet, save the post in our database as a draft
+        try {
+          const currentTime = new Date().toISOString();
+          await fetch('/api/social/save-post', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              organizationId: orgId,
+              platform: 'twitter',
+              postText: generatedContent.twitter.text,
+              imageUrl: generatedContent.twitter.imageUrl || null,
+              url: formData.url || null,
+              thoughts: formData.thoughts || null,
+              postStatus: 'planned', // Use 'planned' instead of 'draft' to avoid appearing in approval queue
+              imageStatus: 'planned', // Use 'planned' instead of 'draft'
+              status: 'planned', // Use 'planned' instead of 'draft'
+              approvedAt: currentTime, // Mark it as already approved
+              posted_at: null, // But not yet posted
+              sentiment: formData.sentiment || null,
+              twitter_post_type: formData.twitter_post_type || null
+            }),
+          });
+        } catch (error) {
+          console.error("Error saving Twitter post to database:", error);
+        }
+      }
+      
+      // TODO: Add similar implementation for Instagram when API integration is ready
+      if (formData.platforms.instagram && generatedContent.instagram) {
+        platformResults.instagram = { 
+          success: false, 
+          message: 'Instagram posting not yet implemented' 
+        };
+        
+        // Even though we can't post to Instagram yet, save the post in our database as a draft
+        try {
+          const currentTime = new Date().toISOString();
+          await fetch('/api/social/save-post', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              organizationId: orgId,
+              platform: 'instagram',
+              postText: generatedContent.instagram.text,
+              imageUrl: generatedContent.instagram.imageUrl || null,
+              url: formData.url || null,
+              thoughts: formData.thoughts || null,
+              postStatus: 'planned', // Use 'planned' instead of 'draft' to avoid appearing in approval queue
+              imageStatus: 'planned', // Use 'planned' instead of 'draft'
+              status: 'planned', // Use 'planned' instead of 'draft'
+              approvedAt: currentTime, // Mark it as already approved
+              posted_at: null, // But not yet posted
+              sentiment: formData.sentiment || null,
+              instagram_post_type: formData.instagram_post_type || null
+            }),
+          });
+        } catch (error) {
+          console.error("Error saving Instagram post to database:", error);
+        }
+      }
+      
+      // Show appropriate toast notifications based on results
+      if (overallSuccess) {
+        toast({
+          title: "Posts Successfully Published",
+          description: "Your content has been posted to the selected platforms.",
+          variant: "default"
+        });
+        
+        // Redirect to the social media archive page after a brief delay
+        setTimeout(() => {
+          router.push(`/dashboard/sponsor/${orgId}/social-media-archive`);
+        }, 1500); // 1.5 second delay to allow the user to see the success message
+      } else {
+        // Create message showing which platforms succeeded/failed
+        const resultsSummary = Object.entries(platformResults)
+          .map(([platform, result]) => `${platform}: ${result.success ? 'Success' : 'Failed'}`)
+          .join(', ');
+          
+        toast({
+          title: "Some Posts Failed to Publish",
+          description: `Results: ${resultsSummary}`,
+          variant: "destructive"
+        });
+        
+        // Even if some posts failed, we'll still redirect if at least one was successful
+        const atLeastOneSuccess = Object.values(platformResults).some(result => result.success);
+        if (atLeastOneSuccess) {
+          setTimeout(() => {
+            router.push(`/dashboard/sponsor/${orgId}/social-media-archive`);
+          }, 2500); // Longer delay (2.5 seconds) for partial success to give user time to read the error
+        }
+      }
+      
+    } catch (error) {
+      console.error("Error in post approval process:", error);
+      toast({
+        title: "Publishing Failed",
+        description: "An unexpected error occurred while publishing your posts.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const renderLocalToneSelector = () => (
@@ -733,16 +977,24 @@ export default function PostFromUrlTab({
                   {generatedContent.linkedin.text.length} characters
                 </p>
                 <Label>Generated Image:</Label>
-                {generatedContent.linkedin.imageUrl ? (
-                  <img 
+                {generatedContent.linkedin && generatedContent.linkedin.imageUrl ? (
+                  <img
+                    key={generatedContent.linkedin.imageUrl}
                     src={generatedContent.linkedin.imageUrl} 
-                    alt="LinkedIn Image Preview" 
+                    alt="LinkedIn Image Preview"
                     className="w-full max-w-md border border-gray-300 rounded"
+                    loading="eager"
+                    crossOrigin="anonymous"
                   />
                 ) : (
                   <div className="flex items-center justify-center h-40 bg-gray-100 border border-gray-300 rounded">
                     <p className="text-gray-500 text-center">Generating image...</p>
                   </div>
+                )}
+                {generatedContent.linkedin && generatedContent.linkedin.imageUrl && (
+                  <p className="text-xs text-gray-500 mt-1 break-all">
+                    {generatedContent.linkedin.imageUrl}
+                  </p>
                 )}
                 {/* Save/Edit Button */}
                 <Button 
@@ -845,13 +1097,22 @@ export default function PostFromUrlTab({
       {Object.keys(generatedContent).length > 0 && (
         <div className="mt-8 pt-6 border-t border-gray-300 flex justify-end">
           <Button
-            type="button" // Important: type="button" to prevent default form submission initially
-            onClick={handleApproveAndPost} // Placeholder handler
-            className="bg-green-600 hover:bg-green-700 text-white text-base px-6 py-3"
-            // Add disabled logic later based on whether content exists and is saved?
+            type="button"
+            onClick={handleApproveAndPost}
+            disabled={isGenerating}
+            className={`${isGenerating ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white text-base px-6 py-3 flex items-center gap-2`}
           >
-             {/* Add icon? e.g., <Send className="h-5 w-5 mr-2" /> */} 
-            Approve and Post
+            {isGenerating ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                Posting!
+              </>
+            ) : (
+              <>
+                <Send className="h-5 w-5" />
+                Approve and Post
+              </>
+            )}
           </Button>
         </div>
       )}

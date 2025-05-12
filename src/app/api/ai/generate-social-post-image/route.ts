@@ -23,20 +23,67 @@ const supabaseAdmin = createClient<Database>(
 );
 
 // Function to generate optimized prompt using OpenAI
-async function generateOptimizedPrompt(platform: string, promptText: string, imageType: string): Promise<string> {
+async function generateOptimizedPrompt(platform: string, promptText: string, imageType: string, additionalContext?: any): Promise<string> {
   try {
-    // Create a prompt engineering template based on the provided guidance
-    const promptEngineeringTemplate = `You are an expert image prompt generator for a visual AI.
+    // First, extract the key themes from the text before generating the image prompt
+    const themeExtractionPrompt = `You are an expert at extracting visual themes from text for image generation.
 
-Your task is to read the provided article and user commentary, and generate a visually stunning, emotionally charged, and technically precise image prompt. The image must reflect the provided image style.
+Read the following text carefully and identify 1-3 VERY SPECIFIC visual themes that would make compelling, relevant images:
 
-Use the guidance below to shape the final result based on the image style: ${imageType}.
+TEXT CONTENT:
+"${promptText.substring(0, 1500)}"
+
+${additionalContext ? `
+ADDITIONAL CONTEXT:
+- User's thoughts/commentary: "${additionalContext.userThoughts}"
+- Content summary: "${additionalContext.contentSummary}"
+- Sentiment: "${additionalContext.sentiment}"
+- Topic/category: "${additionalContext.topic}"
+` : ''}
+
+For example:
+- For an article about "non-doms fleeing the UK due to tax changes" → themes might include "luxury private jet taking off", "wealthy businessman looking at London skyline from penthouse", "moving boxes in mansion hallway"
+- For content about "regulating financial markets" → themes might include "frustrated trader at multiple screens", "SEC officials examining documents", "Wall Street with regulatory barriers"
+- For a post about "AI in healthcare" → themes might include "doctor reviewing scan with AI overlay", "robot arm assisting in surgery", "patient with medical wearable technology"
+
+EXTRACT SPECIFIC VISUAL SCENES related to ${platform} platform's audience.
+Your output should be 1-3 specific visual themes that capture the essence of the text.
+Be extremely specific and vivid. Focus on scenes, not concepts.
+Make sure the themes are VARIED and DIFFERENT from generic corporate imagery.
+
+IMPORTANT: For LinkedIn specifically, AVOID standard office settings, handshakes, or generic business people at computers unless directly relevant to the specific content.
+`;
+
+    // First call to extract themes
+    console.log("Extracting specific themes from content...");
+    const themeResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are an expert at extracting visual themes from text." },
+        { role: "user", content: themeExtractionPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 150
+    });
+
+    const extractedThemes = themeResponse.choices[0]?.message?.content?.trim() || "Professional business setting";
+    console.log("Extracted themes:", extractedThemes);
+
+    // Create a prompt engineering template with the extracted themes
+    const promptEngineeringTemplate = `You are an expert image prompt engineer for a professional AI image generator.
+
+EXTRACTED THEMES FROM CONTENT:
+${extractedThemes}
+
+Your task is to craft ONE specific, vivid image prompt based on these themes and the following criteria.
+
+For LinkedIn specifically, create unique, attention-grabbing professional images. AVOID GENERIC OFFICE SETTINGS unless specifically relevant to the content.
 
 ---
 
 If ${imageType} is **photorealistic editorial** or **cinematic illustration**:
 
-Create a scene with extreme realism and cinematic tension.  
+Create a scene with extreme realism and cinematic tension that incorporates one of the extracted themes above.
 Use the following visual criteria:
 • Shot on a Canon EOS R5 or Sony A7R IV with an 85mm f/1.4 lens  
 • Shallow depth of field — blurred background, sharp foreground  
@@ -44,101 +91,91 @@ Use the following visual criteria:
 • Moody, directional lighting or soft backlight (e.g., window or lamp)  
 • Emotion: visible tension, worry, resolve, frustration, ambition  
 • Colour grade like a prestige drama (Succession, Blade Runner 2049)  
-• Dust in sunlight, fingerprints on glass, crumpled paper on desks  
-• Weather effects: rain on glass, foggy skyline, golden hour glow  
-• Background elements must reflect reality — clutter, cables, post-its, signage  
-• Scene should look like a movie still — clean, real, intentional
+• IMPORTANT: Avoid generic business people at computers or in meetings unless directly relevant to the theme
+• IMPORTANT: Create specific, unique scenes based on the extracted themes
+• Use perspective, camera angle, and framing to create visual interest
 
-These images will look like those 
-
+These images will look like:
 "As seen in Bloomberg Magazine"
 "Editorial photography for Financial Times, 2025"
 "Corporate marketing brochure photo"
 "Photographed by Annie Leibovitz for TIME Business"
-Avoid anything stylised, sepia, painterly, or soft. No artistic blur.
 
 ---
 
-If ${imageType} type is **infographic**:
+If ${imageType} is **infographic**:
 
-Design a high-end editorial infographic, like those published in The Economist or McKinsey reports.  
+Design a high-end editorial infographic based on the extracted themes, like those published in The Economist or McKinsey reports.
 Include:
-• Authentic chart types: bar, pie, line, stacked area  
+• Authentic chart types directly related to the themes: bar, pie, line, stacked area  
 • Clean colour palette: navy, red, grey, teal — corporate, not playful  
 • Bold, legible fonts and crisp labelling  
 • Grid-based layout with balanced whitespace  
 • Legends, captions, and icons placed professionally  
 • Light background with sharp contrast (white, off-grey, or soft blue)  
-• Optional overlay of real exchange names, ticker codes, or data points  
-• Visual focus on clarity and data precision
--Professional 3d depth/shadow where appropriate
-
-Avoid childish icons or decorative elements.
+• Visual elements that specifically illustrate the extracted themes
+• Professional 3d depth/shadow where appropriate
 
 ---
 
 If the ${imageType} is **cartoon**:
 
-Create a sharp, high-contrast cartoon or editorial satire illustration.  
+Create a sharp, high-contrast cartoon or editorial satire illustration based on the extracted themes.
 Use:
-• Exaggerated characters (e.g., greedy bankers, panicked investors)  
+• Characters and scenes that specifically illustrate the extracted themes
+• Exaggerated characters that represent the key concepts (e.g., greedy bankers, tech innovators)  
 • Bold ink outlines, flat colour fills  
-• Visual metaphors (e.g., collapsing ladders, golden parachutes, empty IPO boxes)  
-• Speech bubbles, placards, ticker tape with sarcasm or satire  
+• Visual metaphors directly related to the themes
 • Heavy shadows or spot colour lighting for drama  
 • New Yorker or Politico editorial cartoon style
-
-Avoid realism. It should be expressive, stylised, and confrontational.
 
 ---
 
 If the ${imageType} is **surreal**:
 
-Create a dreamlike and symbolic image that bends physical laws.  
+Create a dreamlike and symbolic image that bends physical laws based on the extracted themes.
 Use:
-• Juxtaposition of incompatible elements (e.g., stock charts melting into sand, oil barrels floating in space)  
-• Impossible structures (e.g., staircases to nowhere, glass domes underwater)  
+• Juxtaposition of incompatible elements directly related to the themes
+• Impossible structures that represent the key concepts
 • Fog, glowing light, reflections, broken physics  
 • Strange emotional tones — fear, awe, detachment  
 • Stylised realism with absurd logic — like Salvador Dalí meets sci-fi
-
-Avoid anything literal. It should make viewers feel disoriented and curious.
 
 ---
 
 If ${imageType} type is **ai futuristic**:
 
-Create a high-tech futuristic scene with next-gen aesthetics.  
+Create a high-tech futuristic scene with next-gen aesthetics based on the extracted themes.
 Use:
 • Chrome, glass, carbon-fibre, neon, synthetic textures  
 • Blue, orange, and white lighting  
-• Robotic figures, digital interfaces, AR overlays  
-• Floating data, symmetrical compositions, ultra-clean UI  
-• AI-human hybrids, digital avatars, token vaults  
-• Massive control rooms, LED tickers, quantum computing labs  
-• Branding or interface elements with real depth
-
-Avoid messy cyberpunk grunge unless the theme demands it. Prioritise clean power and elegance.
+• High-tech elements directly related to the themes (e.g., advanced analytics dashboards for finance, medical tech for healthcare)
+• Floating data, symmetrical compositions, ultra-clean UI directly related to the themes
+• Massive control rooms, LED tickers, futuristic lab settings as relevant to the themes
 
 ---
 
-Article/Post Content: ${promptText}
+Article/Post Content (Summary): ${promptText.substring(0, 300)}...
+Extracted Themes: ${extractedThemes}
 Platform: ${platform} (optimize for this platform's aesthetic)
 Image Style: ${imageType}
 
-Now write a **single final prompt** for the AI image model that captures all this in one sentence or paragraph. Be visually vivid, technically precise, and focused on delivering a wow factor image.
-IMPORTANT: You must ensure that the image prompt is safe and passes OpenAI's content filters.  
+Now write a **single final prompt** for the AI image model that captures all this in one sentence or paragraph. Be visually vivid, technically precise, and focused on one of the extracted themes to create a unique, attention-grabbing image.
+
+IMPORTANT: You must ensure that the image prompt is safe and passes content filters.
 Do NOT include anything that could be interpreted as:
 - Falling people
 - Danger, harm, panic, or physical struggle
 - Death, injury, weapons, or risk of harm
 - Excessive emotional distress
-If you want to express difficulty or challenge, use metaphors like heavy weather, complex architecture, abstract visuals, or posture — not literal falling, collapsing, or distress.`;
+If you want to express difficulty or challenge, use metaphors like heavy weather, complex architecture, abstract visuals, or posture — not literal falling, collapsing, or distress.
+
+IMPORTANT: ADD RANDOM CREATIVE ELEMENTS to ensure variety (unique lighting, unusual perspective, specific props, distinctive setting, etc.)`;
 
     // Call OpenAI to generate an optimized prompt
-    console.log("Generating optimized prompt using GPT-4...");
+    console.log("Generating optimized prompt using GPT-4o-mini...");
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Use a more affordable model for prompt generation
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -149,7 +186,7 @@ If you want to express difficulty or challenge, use metaphors like heavy weather
           content: promptEngineeringTemplate
         }
       ],
-      temperature: 0.7,
+      temperature: 0.9, // Increased temperature for more variety
       max_tokens: 300
     });
 
@@ -235,7 +272,7 @@ async function generateImage(payload: any): Promise<{
   message?: string 
 }> {
   console.log("Received payload for image generation:", JSON.stringify(payload, null, 2));
-  const { promptText, imageType, platform } = payload;
+  const { promptText, imageType, platform, additionalContext } = payload;
   // Defaulting to PNG as it supports transparency well and is a default for gpt-image-1 if not specified.
   const outputFormat = 'png'; 
   const contentType = `image/${outputFormat}`;
@@ -247,7 +284,21 @@ async function generateImage(payload: any): Promise<{
   const imageSize = getImageSize(platform);
   
   try {
-    const imagePrompt = await generateOptimizedPrompt(platform, promptText, imageType || 'photorealistic editorial');
+    // Include additionalContext in the prompt generation if available
+    const contextualData = additionalContext ? {
+      userThoughts: additionalContext.userThoughts || '',
+      sentiment: additionalContext.sentiment || '',
+      contentSummary: additionalContext.contentSummary || '',
+      topic: additionalContext.topic || ''
+    } : null;
+    
+    // Pass the enhanced context to the prompt generator
+    const imagePrompt = await generateOptimizedPrompt(
+      platform, 
+      promptText, 
+      imageType || 'photorealistic editorial',
+      contextualData
+    );
     
     console.log(`Generating image for ${platform} with size ${imageSize} using gpt-image-1`);
     console.log(`Final image prompt: ${imagePrompt}`);
@@ -307,7 +358,8 @@ async function generateImage(payload: any): Promise<{
       .from('social-media-images')
       .upload(filePathInBucket, imageBuffer, {
         contentType: contentType,
-        upsert: false
+        upsert: true, // Change to true to overwrite if exists
+        cacheControl: '3600' // 1 hour cache
       });
 
     if (uploadError) {
@@ -318,7 +370,9 @@ async function generateImage(payload: any): Promise<{
     // 4. Get the public URL using admin client
     const { data: publicUrlData } = supabaseAdmin.storage
       .from('social-media-images')
-      .getPublicUrl(filePathInBucket);
+      .getPublicUrl(filePathInBucket, {
+        download: false // URL for viewing, not downloading
+      });
 
     if (!publicUrlData || !publicUrlData.publicUrl) {
       console.error("Supabase Get Public URL Error: No publicUrl found or error in retrieving.");
