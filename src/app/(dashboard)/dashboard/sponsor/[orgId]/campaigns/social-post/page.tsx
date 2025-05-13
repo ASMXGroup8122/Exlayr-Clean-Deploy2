@@ -19,6 +19,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import PostFromUrlTab from './PostFromUrlTab';
+import { Badge } from '@/components/ui/badge';
 
 interface SocialPostPageProps {
   params: Promise<{
@@ -1245,11 +1246,14 @@ Keep your response conversational but focused on the task. Follow the same style
           <div className="flex items-center gap-2">
             <Switch
               id="platform-instagram"
-              checked={formData.platforms.instagram}
-              onCheckedChange={checked => setFormData({ ...formData, platforms: { ...formData.platforms, instagram: checked } })}
-              className="data-[state=checked]:bg-blue-600"
+              checked={false}
+              disabled={true}
+              className="data-[state=checked]:bg-gray-400"
             />
-            <Label htmlFor="platform-instagram">Instagram</Label>
+            <Label htmlFor="platform-instagram" className="flex items-center">
+              Instagram
+              <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
+            </Label>
           </div>
         </div>
       </div>
@@ -1492,11 +1496,14 @@ Keep your response conversational but focused on the task. Follow the same style
           <div className="flex items-center gap-2">
             <Switch
               id="platform-instagram-image"
-              checked={formData.platforms.instagram}
-              onCheckedChange={checked => setFormData({ ...formData, platforms: { ...formData.platforms, instagram: checked } })}
-              className="data-[state=checked]:bg-blue-600"
+              checked={false}
+              disabled={true}
+              className="data-[state=checked]:bg-gray-400"
             />
-            <Label htmlFor="platform-instagram-image">Instagram</Label>
+            <Label htmlFor="platform-instagram-image" className="flex items-center">
+              Instagram
+              <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
+            </Label>
           </div>
         </div>
       </div>

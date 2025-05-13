@@ -112,6 +112,10 @@ export default function SponsorKnowledgeVaultPage() {
     const [linkedinConnected, setLinkedinConnected] = useState(false);
     const [linkedinLoading, setLinkedinLoading] = useState(false);
     
+    // Add these state variables for Twitter connection
+    const [twitterConnected, setTwitterConnected] = useState(false);
+    const [twitterLoading, setTwitterLoading] = useState(false);
+    
     // Add function to check LinkedIn connection status
     const checkLinkedInConnection = async () => {
         if (!user?.organization_id) return;
@@ -935,6 +939,198 @@ export default function SponsorKnowledgeVaultPage() {
         }
     }, [user?.organization_id]);
 
+    // Add Twitter connection check function
+    const checkTwitterConnection = async () => {
+      if (!user?.organization_id) return;
+      
+      try {
+        console.log('Checking Twitter connection status for organization:', user.organization_id);
+        
+        const { data, error } = await supabase
+          .from('oauth_tokens')
+          .select('*')
+          .eq('organization_id', user.organization_id)
+          .eq('provider', 'twitter')
+          .single();
+          
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // No data found - not an error, just not connected
+            console.log('No Twitter connection found');
+            setTwitterConnected(false);
+          } else {
+            // Actual database error
+            console.error('Error checking Twitter connection status:', error);
+            setTwitterConnected(false);
+          }
+        } else if (data) {
+          console.log('Twitter connection found:', data);
+          // Make sure we update the state to reflect the connection
+          if (!twitterConnected) {
+            setTwitterConnected(true);
+          }
+        } else {
+          console.log('No Twitter connection data available');
+          setTwitterConnected(false);
+        }
+      } catch (err) {
+        console.error('Exception checking Twitter connection status:', err);
+        setTwitterConnected(false);
+      }
+    };
+
+    // Add Twitter connection handler function
+    const handleConnectTwitter = () => {
+      if (!user?.organization_id) {
+        toast({
+          title: "Error",
+          description: "Organization ID is missing. Please reload the page.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setTwitterLoading(true);
+      try {
+        // Construct the authentication URL
+        const authUrl = `/api/auth/twitter/authorize?organizationId=${user.organization_id}`;
+        
+        // Open a popup window for authorization
+        const width = 600;
+        const height = 700;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        
+        const authWindow = window.open(
+          authUrl,
+          'Twitter Authorization',
+          `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+        );
+        
+        // Poll periodically to check if popup closed
+        const checkPopupInterval = setInterval(() => {
+          if (authWindow?.closed) {
+            clearInterval(checkPopupInterval);
+            setTwitterLoading(false);
+            
+            // Check connection status after popup closes
+            checkTwitterConnection();
+            
+            // Force a page reload after a short delay to ensure DB updates are reflected
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }
+        }, 500);
+      } catch (error) {
+        console.error('Error opening Twitter auth window:', error);
+        setTwitterLoading(false);
+        toast({
+          title: "Connection Error",
+          description: "Failed to open Twitter authorization window.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    // Add Twitter disconnect handler function
+    const handleDisconnectTwitter = async () => {
+      if (!user?.organization_id) return;
+      
+      try {
+        setTwitterLoading(true);
+        
+        // Delete the record from oauth_tokens
+        const { error } = await supabase
+          .from('oauth_tokens')
+          .delete()
+          .eq('organization_id', user.organization_id)
+          .eq('provider', 'twitter');
+          
+        if (error) {
+          console.error('Error disconnecting Twitter:', error);
+          toast({
+            title: "Disconnection Failed",
+            description: "Failed to disconnect Twitter account. Please try again.",
+            variant: "destructive"
+          });
+        } else {
+          console.log('Twitter disconnected successfully');
+          toast({
+            title: "Twitter Disconnected",
+            description: "Your Twitter account has been disconnected.",
+            variant: "default"
+          });
+          setTwitterConnected(false);
+        }
+      } catch (err) {
+        console.error('Exception disconnecting Twitter:', err);
+        toast({
+          title: "Disconnection Error",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setTwitterLoading(false);
+      }
+    };
+
+    // Add the Twitter auth completion listener
+    useEffect(() => {
+      const handleAuthComplete = (event: MessageEvent) => {
+        // Only accept messages from our own origin
+        if (event.origin !== window.location.origin) return;
+        
+        // Check if this is a Twitter auth message
+        if (event.data?.type === 'TWITTER_AUTH_COMPLETE') {
+          const success = event.data.status;
+          console.log('Twitter auth completed with status:', success);
+          if (success) {
+            // Immediately update the UI state to show connected
+            setTwitterConnected(true);
+            
+            toast({
+              title: "Twitter Connected",
+              description: "Your Twitter account has been connected successfully.",
+              variant: "default"
+            });
+            
+            // Force a page reload to ensure all states are refreshed
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          } else {
+            toast({
+              title: "Twitter Connection Failed",
+              description: "Failed to connect to Twitter. Please try again.",
+              variant: "destructive"
+            });
+          }
+          
+          // Refresh the connection status
+          checkTwitterConnection();
+          setTwitterLoading(false);
+        }
+      };
+      
+      // Add event listener
+      window.addEventListener('message', handleAuthComplete);
+      
+      // Clean up
+      return () => {
+        window.removeEventListener('message', handleAuthComplete);
+      };
+    }, []);
+
+    // Update the useEffect that checks connections on mount
+    useEffect(() => {
+      // Check LinkedIn and Twitter connections when the page loads
+      if (user?.organization_id) {
+        checkLinkedInConnection();
+        checkTwitterConnection();
+      }
+    }, [user?.organization_id]);
+
     return (
         <div className="p-4 md:p-6">
             {/* Responsive Header */}
@@ -1626,117 +1822,178 @@ export default function SponsorKnowledgeVaultPage() {
                                 </Card>
                                 
                                 {/* X (Twitter) Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className={cn("overflow-hidden hover:shadow-md transition-shadow", twitterConnected ? "border-green-200 bg-green-50" : "")}>
                                     <CardHeader className="pb-2 p-4 sm:p-6">
-                                        <CardTitle className="text-lg flex items-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-900" viewBox="0 0 24 24">
-                                                <path fill="currentColor" d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/>
-                                            </svg>
-                                            X (Twitter)
-                                        </CardTitle>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-900" viewBox="0 0 24 24">
+                                                    <path fill="currentColor" d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/>
+                                                </svg>
+                                                <CardTitle className="text-lg">
+                                                    X (Twitter)
+                                                </CardTitle>
+                                            </div>
+                                            {twitterConnected && (
+                                                <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
+                                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                                    Connected
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </CardHeader>
-                                    <CardContent className="pb-2 px-4 sm:px-5">
+                                    <CardContent className="pb-2 px-4 sm:px-6">
                                         <p className="text-sm text-gray-600">
-                                            Connect your X (formerly Twitter) account to post tweets and threads to your timeline.
+                                            {twitterConnected
+                                                ? "Your Twitter account is connected. You can create and post text updates to your timeline."
+                                                : "Connect your X (formerly Twitter) account to post tweets and threads to your timeline."
+                                            }
                                         </p>
+                                        {twitterConnected && (
+                                            <p className="text-xs text-green-600 mt-1.5">
+                                                <CheckCircle className="h-3 w-3 inline mr-1" />
+                                                Ready to publish posts to your timeline
+                                            </p>
+                                        )}
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
+                                        {twitterLoading && !twitterConnected && (
+                                            <div className="mr-3 flex items-center text-gray-500">
+                                                <div className="animate-spin mr-2 h-4 w-4 border-2 border-gray-500 border-t-transparent rounded-full"></div>
+                                                <span className="text-sm">Processing...</span>
+                                            </div>
+                                        )}
                                         <Button 
-                                            variant="default" 
+                                            variant={twitterConnected ? "outline" : "default"}
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            className={cn(
+                                                "h-10 rounded-md",
+                                                twitterConnected
+                                                    ? "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                    : "bg-blue-600 hover:bg-blue-700"
+                                            )}
+                                            onClick={twitterConnected ? handleDisconnectTwitter : handleConnectTwitter}
+                                            disabled={twitterLoading}
                                         >
-                                            Connect Account
+                                            {twitterConnected ? (
+                                                twitterLoading ? (
+                                                    <>
+                                                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                                                        <span>Disconnecting...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Trash2 className="h-4 w-4 mr-1.5" />
+                                                        <span>Disconnect</span>
+                                                    </>
+                                                )
+                                            ) : (
+                                                twitterLoading ? 'Connecting...' : 'Connect Account'
+                                            )}
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* SoundCloud Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-orange-500" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="M11.56 8.87V17h1.01V9.32c-.32-.22-.66-.4-1.01-.45m-1.46 4.05c-.45.15-.75.37-.76.71-.03 1.13 0 2.25 0 3.37h.79l.02-4.21c-.06 0-.04.08-.05.13m-1.51-1.34V17h.74v-5.42h-.74m-1.49 1.42c-.01 1.33 0 2.66 0 3.99h.74v-4.06c-.06-.04-.14-.08-.24-.08s-.45.18-.5.15m-1.43-.54c-.06 1.51 0 3.03 0 4.55h.69v-4.56c-.32-.04-.57.01-.69.01m-1.47-.19v4.72h.67v-4.72h-.67M.38 13.38c.17 1.21.67 2.19.67 2.19h.7c-.14-.32-.57-1.14-.7-2.84-.09-1.25.01-2.24.01-2.24s-.25 1.64-.68 2.89m2.2-2.86c-.01.81.1 1.72.25 2.37.21.97.74 2.22.74 2.22l.61-.01c-.21-.23-.62-1.09-.81-2.28-.11-.69-.07-1.43-.07-2.33-.15.7-.68 1.97-.72 2.1c.1-1.31.57-2.1.57-2.1S2.61 9.22 2.58 10.52m18.97.03c-.19 0-.36.09-.46.23c-.13-.84-.68-1.47-1.35-1.47c-.21 0-.41.06-.58.18c-.05-.15-.14-.27-.29-.37c-.15-.1-.33-.15-.52-.15c-.31 0-.6.15-.78.38c-.16-.24-.37-.38-.64-.38c-.5 0-.9.48-.9 1.09c0 .02.05.45.05.45s.01-1.02.88-1.04c.08 0 .16.02.24.05c.08.03.16.09.24.08c-.17.32-.18 1.69-.18 1.69v1.87c.13.14.31.23.52.23c.27 0 .5-.16.6-.38c.12.25.36.37.61.37c.25 0 .47-.12.59-.37c.1-.22.32-.37.58-.37c.26 0 .48-.15.58-.37c.11.23.33.36.6.36c.35 0 .65-.29.65-.65v-1.78h-.05s.01-.78-.6-.78m-.8.69h.04c.29 0 .53.24.53.53v1.26c0 .29-.24.53-.53.53c-.15 0-.28-.06-.38-.15v-1.73c.09-.27.19-.44.34-.44m-1.78.02h.04c.17 0 .35.18.35.49v1.28c0 .31-.19.48-.4.48s-.38-.17-.38-.48v-1.28c0-.31.17-.49.39-.49m-1.19-.01h.03c.2 0 .38.18.38.49v1.28c0 .31-.18.48-.38.48s-.38-.17-.38-.48v-1.28c0-.31.17-.49.35-.49m-1.2-.01h.04c.2 0 .37.18.37.5v1.28c0 .31-.18.48-.37.48c-.2 0-.37-.17-.37-.48V11.7c0-.31.17-.46.33-.46M16 10.32c.15-.26.53-.18.53.27v1.9c0 .29-.24.53-.53.53s-.53-.24-.53-.53v-1.69c.08-.21.3-.38.53-.48M7.33 9.5h-.25c-.08 0-.15-.04-.21-.11s-.08-.15-.08-.24c0-.08.03-.16.08-.22c.05-.06.12-.1.21-.1h.95c.08 0 .16.04.21.1s.08.13.08.22c0 .09-.03.17-.08.24s-.12.11-.21.11h-.26v7.5h-.44V9.5"/>
                                             </svg>
                                             SoundCloud
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
-                                    <CardContent className="pb-2 px-4 sm:px-5">
+                                    <CardContent className="pb-2 px-4 sm:px-6">
                                         <p className="text-sm text-gray-600">
                                             Connect your SoundCloud account to publish podcasts and audio content to your channel.
                                         </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            disabled={true}
+                                            className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* Instagram Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-pink-600" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 0 0 3.6-3.6V7.6C20 5.61 18.39 4 16.4 4H7.6m9.65 1.5a1.25 1.25 0 0 1 1.25 1.25A1.25 1.25 0 0 1 17.25 8A1.25 1.25 0 0 1 16 6.75a1.25 1.25 0 0 1 1.25-1.25M12 7a5 5 0 0 1 5 5a5 5 0 0 1-5 5a5 5 0 0 1-5-5a5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3a3 3 0 0 0 3 3a3 3 0 0 0 3-3a3 3 0 0 0-3-3Z"/>
                                             </svg>
                                             Instagram
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
-                                    <CardContent className="pb-2 px-4 sm:px-5">
+                                    <CardContent className="pb-2 px-4 sm:px-6">
                                         <p className="text-sm text-gray-600">
                                             Connect your Instagram account to share images, carousel posts, and stories.
                                         </p>
+                                        <p className="text-xs text-amber-600 mt-1.5">
+                                            <Info className="h-3 w-3 inline mr-1" />
+                                            Currently in development - requires Meta approval process
+                                        </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            className="h-9 bg-gray-400 hover:bg-gray-500 cursor-not-allowed"
+                                            disabled={true}
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* Facebook Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="M9.198 21.5h4v-8.01h3.604l.396-3.98h-4V7.5a1 1 0 0 1 1-1h3v-4h-3a5 5 0 0 0-5 5v2.01h-2l-.396 3.98h2.396v8.01Z"/>
                                             </svg>
                                             Facebook
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
-                                    <CardContent className="pb-2 px-4 sm:px-5">
+                                    <CardContent className="pb-2 px-4 sm:px-6">
                                         <p className="text-sm text-gray-600">
                                             Connect your Facebook page to publish posts, images, and updates to your timeline.
                                         </p>
+                                        <p className="text-xs text-amber-600 mt-1.5">
+                                            <Info className="h-3 w-3 inline mr-1" />
+                                            Currently in development - requires Facebook Business account
+                                        </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            className="h-9 bg-gray-400 hover:bg-gray-500 cursor-not-allowed"
+                                            disabled={true}
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* Threads Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-black" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="M18.94 5.72c-.24 0-.45.11-.62.25c.55.69.94 1.47 1.2 2.32c.25-.18.45-.47.51-.82A1.22 1.22 0 0 0 18.94 5.72m-3.19.19c-.05-.09-.16-.23-.3-.42c-.4-.52-.8-.92-1.25-1.21c-.53-.32-1.12-.48-1.85-.48c-1.22 0-2.28.42-3.12 1.25C8.3 5.98 7.64 7.1 7.21 8.5C6.76 9.92 6.47 11.17 6.27 12l-.05.18h1.44c.16-1.06.43-2.24.89-3.59c.35-1.04.83-1.85 1.42-2.4c.61-.54 1.31-.81 2.1-.81c.77 0 1.35.21 1.74.64c.4.43.6.94.6 1.52c0 .15-.03.3-.07.48h1.58c.06-.32.09-.64.09-.93c0-.89-.27-1.63-.82-2.27a2.8 2.8 0 0 0-.58-.52c-.2-.13-.41-.25-.68-.33M9.14 19.75c.47 0 .94-.1 1.41-.29c.47-.2.88-.49 1.25-.84c.36-.36.65-.79.84-1.27c.2-.5.3-.99.29-1.5c0-.53-.08-1.01-.25-1.44c-.18-.45-.43-.83-.74-1.15c-.31-.34-.7-.6-1.15-.78c-.45-.19-.95-.28-1.48-.28c-.53 0-1.03.1-1.48.28c-.46.18-.86.44-1.19.78c-.32.32-.57.7-.73 1.13a3.6 3.6 0 0 0-.26 1.38c0 .5.09 1 .28 1.5c.19.5.47.93.84 1.29c.36.35.78.63 1.25.84c.47.19.95.29 1.44.29c.05 0 .34.05.68.06M12 19.75c.53 0 1.03-.1 1.5-.29c.47-.2.88-.49 1.25-.84c.2-.21.37-.44.52-.7c-.12-.01-.2-.02-.23-.02c-.35-.01-.66-.08-.92-.21c-.26-.12-.5-.3-.68-.53c-.22.95-.64 1.71-1.26 2.26c-.63.55-1.33.83-2.11.83c-.79 0-1.48-.27-2.07-.8c-.34-.3-.61-.66-.83-1.06h-.03c-.14 0-.27-.02-.38-.05c.27.41.6.76.97 1.06c.36.35.77.63 1.25.84c.46.19.94.29 1.45.29c.17 0 .39.03.57.05l.35-.03c.15 0 .32.04.48.04h.04c.62.03.12.06.16.1m6.69-10.83c-.03.5-.11 1.01-.25 1.5c-.14.5-.34.99-.6 1.45c-.29.5-.64.96-1.05 1.34c-.82.77-1.84 1.29-3.01 1.45c-.6.07-1.2.05-1.77-.08c-.58-.13-1.14-.41-1.59-.8c.61.77 1.47 1.2 2.4 1.27c.91.08 1.84-.18 2.53-.74c.71-.58 1.15-1.4 1.3-2.27c.04-.26.06-.51.06-.76c0-.92-.26-1.74-.79-2.48c-.56-.79-1.35-1.33-2.35-1.58c.1.07.19.14.28.21c.25.22.48.48.67.74c.2.27.35.57.47.89c.1-.44.24-.9.43-1.36c.2-.49.42-.92.66-1.3c.25-.39.5-.7.75-.93c-.02 0-.03 0-.04-.01a.503.503 0 0 1-.1-.03c.12-.08.27-.21.45-.4c.18-.18.36-.4.54-.66c.05-.08.1-.16.15-.24l.06-.1c.04-.07.08-.15.12-.24c.04-.1.08-.21.11-.33c.07-.26.11-.51.11-.75c0-.59-.21-1.07-.62-1.43c-.39-.33-.93-.5-1.56-.5c-.95 0-1.79.39-2.49 1.16c-.74.82-1.25 1.86-1.56 3.11c.03-.16.08-.31.14-.47c.29-.84.82-1.45 1.57-1.87a3.93 3.93 0 0 1 2.08-.57c1.26 0 2.24.42 2.97 1.27.47.56.77 1.17.9 1.86l.05.03c.14.7.1 1.44-.11 2.15m-2.03-3.62c-.21-.01-.37.04-.51.13c.41.39.75.85 1.01 1.38c.26.52.44 1.09.54 1.7c.05-.02.1-.06.15-.11c.42-.41.65-.82.66-1.48c-.01-.49-.17-.92-.45-1.27c-.33-.37-.78-.35-1.4-.35"/>
                                             </svg>
                                             Threads
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pb-2 px-4 sm:px-6">
@@ -1744,25 +2001,27 @@ export default function SponsorKnowledgeVaultPage() {
                                             Connect your Threads account to share text updates and join conversations.
                                         </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            disabled={true}
+                                            className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* BlueSky Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12c0 5.5 4.5 10 10 10s10-4.5 10-10c0-5.5-4.5-10-10-10zm0 18c-4.4 0-8-3.6-8-8c0-4.4 3.6-8 8-8s8 3.6 8 8c0 4.4-3.6 8-8 8zm3.9-11.7L12 4l-3.9 4.3c-2.1 2.3-2.1 5.9 0 8.3l3.9 4.3l3.9-4.3c2.1-2.4 2.1-6 0-8.3zm-3.9 5.9c-1 0-1.8-.8-1.8-1.8S11 10.6 12 10.6s1.8.8 1.8 1.8S13 14.2 12 14.2z"/>
                                             </svg>
                                             BlueSky
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pb-2 px-4 sm:px-6">
@@ -1770,19 +2029,20 @@ export default function SponsorKnowledgeVaultPage() {
                                             Connect your BlueSky account to share updates and join distributed discussions.
                                         </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            disabled={true}
+                                            className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* ASMX Network Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-600" viewBox="0 0 24 24">
@@ -1790,6 +2050,7 @@ export default function SponsorKnowledgeVaultPage() {
                                             </svg>
                                             ASMX Network
                                             <span className="ml-2 text-xs text-gray-500">(via Zapier)</span>
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pb-2 px-4 sm:px-6">
@@ -1797,25 +2058,27 @@ export default function SponsorKnowledgeVaultPage() {
                                             Connect to ASMX Network to distribute financial content across secure channels.
                                         </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            disabled={true}
+                                            className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* YouTube Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-red-600" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="m10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9c.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83c-.25.9-.83 1.48-1.73 1.73c-.47.13-1.33.22-2.65.28c-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44c-.9-.25-1.48-.83-1.73-1.73c-.13-.47-.22-1.1-.28-1.9c-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83c.25-.9.83-1.48 1.73-1.73c.47-.13 1.33-.22 2.65-.28c1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44c.9.25 1.48.83 1.73 1.73Z"/>
                                             </svg>
                                             YouTube
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pb-2 px-4 sm:px-6">
@@ -1823,25 +2086,27 @@ export default function SponsorKnowledgeVaultPage() {
                                             Connect your YouTube channel to upload videos and manage your content.
                                         </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            disabled={true}
+                                            className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
                                 
                                 {/* TikTok Connection Card */}
-                                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                     <CardHeader className="pb-2 p-4 sm:p-6">
                                         <CardTitle className="text-lg flex items-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24">
                                                 <path fill="currentColor" d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.59-1.16-2.59-2.5c0-1.34 1.16-2.5 2.59-2.5c.36 0 .71.08 1.03.21v-3.49c-.33-.05-.66-.1-1.03-.1c-3.09 0-5.59 2.57-5.59 5.71s2.5 5.71 5.59 5.71s5.59-2.57 5.59-5.71V8.81c1.7 1.26 3.38 1.69 5.15 1.74V7.46c-1.56-.11-3-.69-4-1.64z"/>
                                             </svg>
                                             TikTok
+                                            <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pb-2 px-4 sm:px-6">
@@ -1849,13 +2114,14 @@ export default function SponsorKnowledgeVaultPage() {
                                             Connect your TikTok account to publish short-form videos and reach new audiences.
                                         </p>
                                     </CardContent>
-                                    <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                    <CardFooter className="flex justify-end pt-3 border-t">
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                                            disabled={true}
+                                            className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                         >
-                                            Connect Account
+                                            Coming Soon
                                         </Button>
                                     </CardFooter>
                                 </Card>
@@ -1884,7 +2150,7 @@ export default function SponsorKnowledgeVaultPage() {
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                                             {/* Google Docs Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 24 24">
@@ -1897,6 +2163,7 @@ export default function SponsorKnowledgeVaultPage() {
                                                             <path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
                                                         </svg>
                                                         Google Docs
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -1904,25 +2171,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Google Docs to import and collaborate on document content.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Google Sheets Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-600" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
                                                         </svg>
                                                         Google Sheets
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -1930,25 +2199,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Google Sheets to sync data and manage structured information.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Airtable Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-teal-500" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M11.55 21H3q-.825 0-1.413-.588T1 19V5q0-.825.588-1.413T3 3h18q.825 0 1.413.588T23 5v14q0 .825-.588 1.413T21 21h-5.45l-2 2l-2-2Zm3.95-2v-7.4l-2.68 4.48c-.15.22-.38.34-.61.34c-.23 0-.46-.12-.6-.34L9 11.63l-5 3.07v1.8c0 .414.336.75.75.75h10.75ZM4 13.8l5.5-3.35c.15-.1.3-.1.45.0l2.5 1.7l2.95-4.9c.05-.1.2-.15.35-.15s.3.1.35.15l2.9 4.9V5.5c0-.414-.336-.75-.75-.75H4.75c-.414 0-.75.336-.75.75v8.3Z"/>
                                                         </svg>
                                                         Airtable
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -1956,13 +2227,14 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Airtable to organize and manage content in flexible databases.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
@@ -1978,13 +2250,14 @@ export default function SponsorKnowledgeVaultPage() {
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                                             {/* Google Calendar Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/>
                                                         </svg>
                                                         Google Calendar
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -1992,25 +2265,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Google Calendar to schedule and manage your content calendar.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Calendly Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 1.5A10.5 10.5 0 1 0 22.5 12A10.5 10.5 0 0 0 12 1.5ZM9.5 16.5V7.5l7 4.5Z"/>
                                                         </svg>
                                                         Calendly
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2018,13 +2293,14 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Calendly to streamline meeting scheduling and appointments.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
@@ -2040,13 +2316,14 @@ export default function SponsorKnowledgeVaultPage() {
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                                             {/* Mailchimp Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-yellow-500" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M5.33 19.02c-.51 0-1.13-.36-1.44-1c-.36-.73-.2-1.55.42-1.97c.06-.04.12-.08.18-.12c0-.03-.01-.05-.01-.08c-.1-.59.2-1.22.69-1.35c0-.09 0-.18.02-.26c.13-.67.5-.94.94-.94c.29 0 .59.12.86.35l.25.21c.24-.27.5-.5.77-.69a.18.18 0 0 0 .07-.11c.07-.45.14-.84.48-1.13c.57-.48 1.39-.45 1.88.07c.59-.57 1.31-1 2.09-1.25c.05-.79.5-1.24 1.09-1.24c.37 0 .79.17 1.21.49c.28-.5.74-.82 1.27-.82c.91 0 1.63.94 1.57 2.05c.09-.03.19-.05.29-.05c.77 0 1.37.76 1.37 1.69c0 .12-.01.25-.04.37c.11.03.22.08.33.15c.82.52.98 1.62.31 2.32l-.08.09c.35.29.57.73.57 1.22c0 .65-.39 1.23-.95 1.45c.2.27.31.61.31.97c0 .86-.66 1.55-1.46 1.55c-.49 0-.95-.28-1.2-.73h-3.48c-.05.26-.18.49-.37.67c.14.21.23.46.23.74c0 .32-.12.61-.31.84c.19.23.31.52.31.84c0 .74-.59 1.34-1.32 1.34h-.27c-.26.55-.8.92-1.43.92c-.87 0-1.58-.72-1.58-1.61c0-.08 0-.16.01-.24h-1.71c-.09.01-.17.01-.26.01c-.74 0-1.37-.56-1.37-1.21c0-.56.1-1.05.3-1.45h-2.06Z"/>
                                                         </svg>
                                                         Mailchimp
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2054,25 +2331,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Mailchimp to manage email campaigns and marketing automation.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* HubSpot Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-orange-500" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M19.25 15.38v-2.345h2.346v-2.19H19.25V8.5h-2.19v2.345H14.5v2.19h2.56v2.345h2.19zm-9.75-6.9v3.436h2.97c-.136 1.284-1.148 2.214-2.97 2.214c-1.773 0-3.25-1.47-3.25-3.25S7.727 7.63 9.5 7.63c.97 0 1.84.43 2.42 1.09l2.48-2.48C13.12 4.86 11.43 4 9.5 4C5.92 4 3 6.92 3 10.5s2.92 6.5 6.5 6.5c3.78 0 6.302-2.66 6.302-6.396c0-.41-.036-.796-.098-1.174H9.5v.05z"/>
                                                         </svg>
                                                         HubSpot
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2080,19 +2359,20 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect HubSpot to manage customer relationships and marketing campaigns.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Brevo Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 24 24">
@@ -2158,13 +2438,14 @@ export default function SponsorKnowledgeVaultPage() {
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                                             {/* OpenAI (GPT-4) Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 3a9 9.005 0 0 1 7.763 13.568l-1.71-1.71c-.2-.2-.5-.29-.79-.29H17v-1.19c0-.45-.54-.67-.85-.35L14.2 15.02a2.037 2.037 0 0 0-.73 1.56v.03a2 2 0 0 0 3.35 1.46l.27-.27h.73c.69 0 1.35-.28 1.83-.76l.55-.55A9 9 0 1 1 3 12a9 9 0 0 1 9-9zm1 7h-2v3H8v2h3v3h2v-3h3v-2h-3v-3z"/>
                                                         </svg>
                                                         OpenAI (GPT-4)
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2172,25 +2453,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect OpenAI to generate content and automate creative workflows.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Google Gemini Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 11.6H6v3.8h6v-3.8zm0-5.8H6v3.8h6V5.8zM18 11.6h-4v3.8h4v-3.8zm0-5.8h-4v3.8h4V5.8zM12 17.4H6v3.8h6v-3.8zm6 0h-4v3.8h4v-3.8z"/>
                                                         </svg>
                                                         Google Gemini
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2198,25 +2481,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Google Gemini to use multimodal AI for content creation.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Anthropic Claude Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 3a9 9.005 0 0 1 7.763 13.568l-1.71-1.71c-.2-.2-.5-.29-.79-.29H17v-1.19c0-.45-.54-.67-.85-.35L14.2 15.02a2.037 2.037 0 0 0-.73 1.56v.03a2 2 0 0 0 3.35 1.46l.27-.27h.73c.69 0 1.35-.28 1.83-.76l.55-.55A9 9 0 1 1 3 12a9 9 0 0 1 9-9zm1 7h-2v3H8v2h3v3h2v-3h3v-2h-3v-3z"/>
                                                         </svg>
                                                         Anthropic Claude
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2224,25 +2509,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Claude for AI content generation and summarization.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* DeepSeek Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-teal-600" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2zm0 2a8 8 0 1 0 0 16a8 8 0 0 0 0-16zm0 3a5 5 0 1 1-5 5a5 5 0 0 1 5-5z"/>
                                                         </svg>
                                                         DeepSeek
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2250,25 +2537,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect DeepSeek to leverage advanced AI models for content creation.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Meta LLaMA Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-yellow-600" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2zm0 2.5a7.5 7.5 0 1 0 0 15a7.5 7.5 0 0 0 0-15zm-2 3.75a.76.76 0 0 1 .75.75a.76.76 0 0 1-.75.75a.76.76 0 0 1-.75-.75a.76.76 0 0 1 .75-.75zm4 0a.76.76 0 0 1 .75.75a.76.76 0 0 1-.75.75a.76.76 0 0 1-.75-.75a.76.76 0 0 1 .75-.75zm-6.14 4.85a.54.54 0 0 1 .28-.03c.14.03.36.11.58.45c.34.52.86 1.15 1.62 1.69c.9.64 2.33 1.33 4.66 1.33s3.76-.69 4.66-1.33c.76-.54 1.28-1.17 1.62-1.69c.22-.34.44-.42.58-.45a.54.54 0 0 1 .28.03c.11.04.2.11.27.2a.478.478 0 0 1 .15.3c.01.13-.03.24-.11.35c-.48.7-1.17 1.5-2.17 2.18c-1.15.82-2.83 1.59-5.28 1.59s-4.13-.77-5.28-1.59c-1-.68-1.69-1.48-2.17-2.18a.609.609 0 0 1-.11-.35c.01-.11.06-.22.15-.3c.07-.09.16-.16.27-.2z"/>
                                                         </svg>
                                                         Meta LLaMA
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2276,25 +2565,27 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Meta LLaMA for open-source AI capabilities and custom models.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
                                             
                                             {/* Zapier Card */}
-                                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                                            <Card className="overflow-hidden hover:shadow-md transition-shadow bg-gray-100 opacity-75">
                                                 <CardHeader className="pb-2 p-4 sm:p-6">
                                                     <CardTitle className="text-lg flex items-center">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-orange-500" viewBox="0 0 24 24">
                                                             <path fill="currentColor" d="M12 0C5.63 0 0 5.67 0 12s5.63 12 12 12c6.41 0 12-5.67 12-12S18.41 0 12 0zm0 4a2.25 2.25 0 1 1 0 4.5A2.25 2.25 0 0 1 12 4zm4.5 5.25a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5zm-9 0a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5zm4.5 5.25a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5z"/>
                                                         </svg>
                                                         Zapier
+                                                        <Badge className="ml-2 text-xs bg-amber-100 text-amber-800 border-amber-200">Coming Soon</Badge>
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="pb-2 px-4 sm:px-6">
@@ -2302,13 +2593,14 @@ export default function SponsorKnowledgeVaultPage() {
                                                         Connect Zapier to automate workflows between your favorite apps.
                                                     </p>
                                                 </CardContent>
-                                                <CardFooter className="flex justify-end gap-2 p-4 sm:p-6 pt-3 border-t">
+                                                <CardFooter className="flex justify-end pt-3 border-t">
                                                     <Button 
                                                         variant="default" 
                                                         size="sm"
-                                                        className="h-9 bg-blue-600 hover:bg-blue-700"
+                                                        disabled={true}
+                                                        className="h-9 bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
                                                     >
-                                                        Connect Account
+                                                        Coming Soon
                                                     </Button>
                                                 </CardFooter>
                                             </Card>
