@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -46,6 +46,10 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isMountedRef = useRef(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const campaignTemplates = [
     { value: 'token-uae', label: 'Token Raise - UAE Focus', description: '30-day push for regulated token issuance targeting UAE-based investors.' },
@@ -123,77 +127,59 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
     }
   };
 
-  useEffect(() => {
-    // Check if both user and supabase are ready
-    if (!supabase) {
-      console.error('[Client] useEffect skipped: Supabase client not initialized');
-      return;
-    }
+  const safeFetchPendingCount = useCallback(async () => {
+    if (!isMountedRef.current || !user?.organization_id || !supabase) return;
     
-    if (!user?.organization_id) {
-      console.log('[Client] useEffect skipped: User organization_id not available');
-      return;
-    }
-    
-    console.log('[Client] useEffect running: Setting up fetch and subscription.');
-
-    // Create a flag to track if the component is mounted
-    let isMounted = true;
-    
-    // Wrap the fetch function to respect the mounted state
-    const safeFetchPendingCount = async () => {
-      try {
-        if (!isMounted) return;
-        
-        console.log('[Client] Fetching pending count...');
-        const { count, error } = await supabase
-          .from('social_posts')
-          .select('*', { count: 'exact', head: true })
-          .eq('organization_id', user.organization_id)
-          .eq('status', 'pending')
-          .eq('deleted', false);
-
-        // Skip state updates if component unmounted
-        if (!isMounted) return;
-        
-        if (error) {
-          // Log detailed error information
-          console.error('[Client] Error fetching pending count:', {
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint
-          });
-          setPendingCount(null);
-        } else {
-          console.log(`[Client] Pending count fetched: ${count}`);
-          setPendingCount(count);
-        }
-      } catch (e) {
-        // Skip error handling if component unmounted
-        if (!isMounted) return;
-        
-        console.error('[Client] Exception in fetchPendingCount:', e);
-        setPendingCount(null);
-      }
-    };
-
-    // Initial fetch
-    safeFetchPendingCount();
-
-    // Create channel with a unique name to avoid potential conflicts
-    const channelName = `campaign_manager_client_${user.organization_id}_${Date.now()}`;
-    const channelFilter = `organization_id=eq.${user.organization_id}`;
-    
-    // Store channel reference in a variable for proper cleanup
-    let channel: RealtimeChannel;
-    let pollingInterval: NodeJS.Timeout | null = null;
-    
+    console.log('[Client] Fetching pending count...');
     try {
-      console.log(`[Client] Creating channel "${channelName}" with filter: ${channelFilter}`);
+      const { count, error: fetchError } = await supabase
+        .from('social_posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', user.organization_id)
+        .eq('status', 'pending')
+        .eq('deleted', false);
+
+      if (!isMountedRef.current) return;
       
-      channel = supabase
-        .channel(channelName)
+      if (fetchError) {
+        console.error('[Client] Error fetching pending count:', fetchError);
+        setPendingCount(null);
+      } else {
+        console.log(`[Client] Pending count fetched: ${count}`);
+        setPendingCount(count);
+      }
+    } catch (e) {
+      if (!isMountedRef.current) return;
+      console.error('[Client] Exception in fetchPendingCount:', e);
+      setPendingCount(null);
+    }
+  }, [user?.organization_id, supabase]);
+
+  useEffect(() => {
+    if (!supabase || !user?.organization_id) {
+      console.log('[Client] useEffect skipped: Supabase client or user organization_id not available.');
+      return;
+    }
+    
+    isMountedRef.current = true;
+    console.log('[Client] useEffect running: Setting up initial fetch and subscription.');
+    safeFetchPendingCount(); // Initial fetch
+
+    const channelFilter = `organization_id=eq.${user.organization_id}`;
+
+    const setupRealtimeChannel = () => {
+      if (!isMountedRef.current) return;
+
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current).catch(err => console.error('[Client] Error removing old channel during setup:', err));
+        channelRef.current = null;
+      }
+
+      const newChannelName = `campaign_manager_client_${user!.organization_id}_${Date.now()}`;
+      console.log(`[Client] Creating new channel "${newChannelName}" with filter: ${channelFilter}`);
+      
+      const newChannel = supabase
+        .channel(newChannelName)
         .on(
           'postgres_changes',
           {
@@ -203,98 +189,78 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
             filter: channelFilter
           },
           (payload) => {
+            if (!isMountedRef.current) return;
             console.log('[Client] Realtime event received:', payload);
-            // Only fetch if component is still mounted
-            if (isMounted) {
-              safeFetchPendingCount();
-            }
+            safeFetchPendingCount();
           }
         )
         .subscribe((status, err) => {
-           // Skip status handling if component unmounted
-           if (!isMounted) return;
-           
-           if (status === 'SUBSCRIBED') {
-              console.log('[Client] Realtime channel subscribed successfully.');
-           }
-           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              console.error(`[Client] Realtime channel error: ${status}`, err);
-              // Add more detailed error reporting
-              if (err) {
-                console.error('[Client] Detailed error:', {
-                  name: err.name,
-                  message: err.message,
-                  stack: err.stack
-                });
-              }
-              
-              // Attempt to reconnect after channel error
+          if (!isMountedRef.current) return;
+
+          if (status === 'SUBSCRIBED') {
+            console.log('[Client] Realtime channel subscribed successfully.');
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+              console.log('[Client] Polling interval cleared after successful subscription.');
+            }
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error(`[Client] Realtime channel error: ${status}`, err);
+            if (err) {
+              console.error('[Client] Detailed error:', err);
+            }
+            if (isMountedRef.current) {
+              console.log('[Client] Attempting to reconnect by creating a new channel in 5 seconds...');
               setTimeout(() => {
-                // Skip reconnect if component unmounted
-                if (!isMounted) return;
-                
-                console.log('[Client] Attempting to reconnect...');
-                if (channel) {
-                  try {
-                    channel.subscribe();
-                    console.log('[Client] Reconnection attempt initiated');
-                  } catch (reconnectErr) {
-                    console.error('[Client] Failed to reconnect:', reconnectErr);
-                  }
-                }
-              }, 5000); // Retry after 5 seconds
-           }
-           if (status === 'CLOSED') {
-              console.log('[Client] Realtime channel closed.');
-           }
-        });
-      
-      console.log(`[Client] Channel "${channelName}" created and subscribing...`);
-    } catch (error) {
-      console.error('[Client] Error creating channel:', error);
-      // Implement a fallback - at least fetch once to show initial data
-      safeFetchPendingCount();
-      
-      // Set up a polling fallback mechanism
-      pollingInterval = setInterval(() => {
-        console.log('[Client] Polling for updates due to channel failure');
-        // Only poll if component is still mounted
-        if (isMounted) {
-          safeFetchPendingCount();
-        } else {
-          // Clear interval if unmounted
-          if (pollingInterval) {
-            clearInterval(pollingInterval);
-            pollingInterval = null;
+                if (isMountedRef.current) setupRealtimeChannel();
+              }, 5000);
+
+              if (!pollingIntervalRef.current) {
+                console.log('[Client] Starting polling fallback due to channel error during subscription.');
+                pollingIntervalRef.current = setInterval(() => {
+                  if (isMountedRef.current) safeFetchPendingCount();
+                  else if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+                }, 30000);
+              }
+            }
+          } else if (status === 'CLOSED') {
+            console.log('[Client] Realtime channel closed.');
           }
-        }
-      }, 30000); // Poll every 30 seconds
+        });
+      channelRef.current = newChannel;
+      console.log(`[Client] Channel "${newChannelName}" created and subscribing...`);
+    };
+
+    setupRealtimeChannel();
+
+    if (!channelRef.current && !pollingIntervalRef.current) {
+        console.warn('[Client] Initial channel setup might have failed before subscribe, starting polling as a safeguard.');
+        pollingIntervalRef.current = setInterval(() => {
+            if (isMountedRef.current) safeFetchPendingCount();
+            else if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        }, 30000);
     }
 
-    // Cleanup function
     return () => {
-      // Mark component as unmounted
-      isMounted = false;
-      
+      isMountedRef.current = false;
       console.log('[Client] Cleanup: Unsubscribing from Realtime channel.');
-      
-      // Clear any polling interval
-      if (pollingInterval) {
+      if (pollingIntervalRef.current) {
         console.log('[Client] Cleanup: Clearing polling interval');
-        clearInterval(pollingInterval);
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
-      
-      try {
-        if (channel) {
-          supabase.removeChannel(channel)
-            .then(() => console.log('[Client] Channel removed successfully'))
-            .catch(err => console.error('[Client] Error removing channel:', err));
-        }
-      } catch (err) {
-        console.error('[Client] Error during channel cleanup:', err);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+          .then(() => console.log('[Client] Channel removed successfully during cleanup'))
+          .catch(err => console.error('[Client] Error removing channel during cleanup:', err));
+        channelRef.current = null;
       }
     };
-  }, [user?.organization_id, supabase]);
+  }, [user?.organization_id, supabase, safeFetchPendingCount]);
+
+  const handleNewCampaign = () => {
+    // ... existing code ...
+  };
 
   return (
     <div className="p-6">

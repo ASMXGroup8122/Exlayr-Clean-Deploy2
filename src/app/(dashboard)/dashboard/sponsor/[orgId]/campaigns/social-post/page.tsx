@@ -13,13 +13,15 @@ import { Switch } from '@/components/ui/switch';
 import { use } from 'react';
 import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { HelpCircle, Sparkles, CheckCircle2, Save, Send, Wand2, Edit, PenSquare } from 'lucide-react';
+import { HelpCircle, Sparkles, CheckCircle2, Save, Send, Wand2, Edit, PenSquare, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import PostFromUrlTab from './PostFromUrlTab';
 import { Badge } from '@/components/ui/badge';
+import { FormatSelector, PodcastFormat } from '@/components/podcast/FormatSelector';
+import { VoiceSelectorField } from '@/components/podcast/VoiceSelectorField'; // Added import
 
 interface SocialPostPageProps {
   params: Promise<{
@@ -74,6 +76,14 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedAIModel, setSelectedAIModel] = useState<string>(AI_MODELS.GPT4.value);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [podcastFormat, setPodcastFormat] = useState<PodcastFormat>('single');
+  const [selectedHostVoiceId, setSelectedHostVoiceId] = useState<string | null>(null); // Added state
+  const [selectedGuestVoiceId, setSelectedGuestVoiceId] = useState<string | null>(null); // Added state
+  const [scriptWordCount, setScriptWordCount] = useState(0); 
+  const [scriptEstimatedDuration, setScriptEstimatedDuration] = useState(0);
+  const [isCreatingPodcast, setIsCreatingPodcast] = useState(false); // New state for podcast creation loading
+  const [podcastTitle, setPodcastTitle] = useState(''); // New state for podcast title
   
   const [formData, setFormData] = useState({
     url: '',
@@ -929,21 +939,20 @@ Keep your response conversational but focused on the task. Follow the same style
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="url">URL *</Label>
+        <Label htmlFor="url">URL</Label>
         <Input
           id="url"
-          required
           value={formData.url}
           onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-          placeholder="Enter the URL you want to post about"
+          placeholder="Enter URL for content source (optional for text-based single voice)"
           className="w-full"
         />
       </div>
       
-      {/* Document upload option - Only show for podcast tab */}
-      {activeTab === 'podcast' && (
+      {/* Document upload option - Only show for podcast tab AND conversation format */}
+      {activeTab === 'podcast' && podcastFormat === 'conversation' && (
         <div className="space-y-2">
-          <Label htmlFor="document-upload">Or upload a document</Label>
+          <Label htmlFor="document-upload">Or upload a document (PDF, DOCX, TXT)</Label>
           <div className="flex items-center gap-2">
             <Input
               id="document-upload"
@@ -1003,12 +1012,14 @@ Keep your response conversational but focused on the task. Follow the same style
       <div className="space-y-2">
         <Label htmlFor="thoughts">
           {activeTab === 'podcast' 
+            ? podcastFormat === 'single'
             ? "Briefly describe your points that you want the podcast to cover *" 
+              : "Enter the full text content for the conversation podcast (if not using URL/document)"
             : "Your thoughts on this *"
           }
         </Label>
         
-        {activeTab === 'podcast' && (
+        {activeTab === 'podcast' && podcastFormat === 'single' && (
           <div className="mb-4 flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
             <HelpCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-blue-700">
@@ -1019,15 +1030,17 @@ Keep your response conversational but focused on the task. Follow the same style
         
         <Textarea
           id="thoughts"
-          required
+          required={activeTab === 'podcast' && podcastFormat === 'single'} // Only required for single voice script generation
           value={formData.thoughts}
           onChange={(e) => setFormData({ ...formData, thoughts: e.target.value })}
           placeholder={activeTab === 'podcast' 
-            ? "Describe the key points for your podcast" 
+            ? podcastFormat === 'single'
+              ? "Describe the key points for your podcast script..."
+              : "Paste or write the full conversation text here if not using URL/Document..."
             : "Share your thoughts on this content"
           }
           className="w-full"
-          rows={4}
+          rows={podcastFormat === 'conversation' ? 8 : 4} // More rows for full text input
         />
       </div>
 
@@ -1060,10 +1073,32 @@ Keep your response conversational but focused on the task. Follow the same style
         )}
       </div>
       
-      {/* Host name input - Only for podcast tab */}
-      {activeTab === 'podcast' && (
-        <div className="space-y-2">
-          <Label htmlFor="host-name">Host name</Label>
+      {/* Voice Selectors for Podcast Tab, placed after Podcast Length */}      
+      {activeTab === 'podcast' && orgId && (
+        <div className="mt-4">
+          <VoiceSelectorField
+            label="Host Voice *"
+            organizationId={orgId}
+            selectedVoiceId={selectedHostVoiceId}
+            onVoiceChange={setSelectedHostVoiceId}
+          />
+        </div>
+      )}
+      {activeTab === 'podcast' && podcastFormat === 'conversation' && orgId && (
+        <div className="mt-4">
+          <VoiceSelectorField
+            label="Guest Voice *"
+            organizationId={orgId}
+            selectedVoiceId={selectedGuestVoiceId}
+            onVoiceChange={setSelectedGuestVoiceId}
+          />
+        </div>
+      )}
+
+      {/* Host name input - Only for single voice podcast tab */}
+      {activeTab === 'podcast' && podcastFormat === 'single' && (
+        <div className="space-y-2 mt-4">
+          <Label htmlFor="host-name">Host name (for script)</Label>
           <Input
             id="host-name"
             value={hostName}
@@ -1077,8 +1112,8 @@ Keep your response conversational but focused on the task. Follow the same style
         </div>
       )}
       
-      {/* Script generation with AI - Only for podcast tab */}
-      {activeTab === 'podcast' && (
+      {/* Script generation with AI - Only for single voice podcast tab */}
+      {activeTab === 'podcast' && podcastFormat === 'single' && (
         <div className="mt-6 space-y-6 p-4 border border-blue-100 rounded-lg bg-blue-50">
           <div className="space-y-2">
             <h3 className="text-lg font-medium text-blue-800">Generate Your Podcast Script with AI</h3>
@@ -1092,8 +1127,8 @@ Keep your response conversational but focused on the task. Follow the same style
               <ul className="list-disc list-inside space-y-1">
                 <li>Select a tone of voice above</li>
                 <li>Choose your preferred podcast length</li>
-                <li>Provide a URL or upload a document for reference (optional)</li>
-                <li>Describe the points you want to cover</li>
+                <li>Optionally, provide a URL or upload a document for reference</li>
+                <li>Describe the points you want to cover below</li>
               </ul>
             </div>
             
@@ -1742,6 +1777,73 @@ ${generatedScript}`;
     }
   };
 
+  // New handler for creating the podcast audio
+  const handleCreatePodcast = async () => {
+    if (activeTab !== 'podcast') return;
+    if (!orgId) {
+      toast({ title: "Error", description: "Organization ID is missing.", variant: "destructive" });
+      return;
+    }
+
+    setIsCreatingPodcast(true);
+
+    if (podcastFormat === 'single') {
+      if (!generatedScript || !selectedHostVoiceId) {
+        toast({
+          title: "Missing Information",
+          description: "Podcast script and host voice are required for single voice format.",
+          variant: "destructive",
+        });
+        setIsCreatingPodcast(false);
+        return;
+      }
+
+      try {
+        const payload = {
+          script: generatedScript,
+          voiceId: selectedHostVoiceId,
+          podcastFormat: "single",
+          organizationId: orgId,
+          title: podcastTitle || "Untitled Single Voice Podcast", // Use dedicated podcastTitle state
+        };
+        console.log("Calling /api/podcast/generate-audio with payload:", payload);
+
+        const response = await fetch('/api/podcast/generate-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to create podcast (status ${response.status})`);
+        }
+
+        toast({
+          title: "Podcast Created (Single Voice)",
+          description: result.message || "Audio generated and saved.",
+          // Potentially add action to view/listen if URL is in result.audioUrl
+        });
+        // Optionally, clear script or reset some state here
+
+      } catch (error: any) {
+        console.error("Error creating single voice podcast:", error);
+        toast({
+          title: "Error Creating Podcast",
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
+    } else if (podcastFormat === 'conversation') {
+      // TODO: Implement conversation format call to API
+      // This will be similar but with hostVoiceId, guestVoiceId and different handling for async project creation
+      toast({ title: "Conversation Format", description: "Conversation podcast creation coming soon!" });
+    }
+
+    setIsCreatingPodcast(false);
+  };
+
   return (
     <TooltipProvider>
       <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -1812,13 +1914,310 @@ ${generatedScript}`;
                 {activeTab === 'image' && renderImageFormContent()}
                 {activeTab === 'podcast' && (
                   <>
-                    <div className="mb-6 flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <FormatSelector value={podcastFormat} onChange={setPodcastFormat} />
+
+                    {/* Host Voice Selector - Common to both formats */}
+                    {orgId && (
+                      <div className="mt-4">
+                        <VoiceSelectorField
+                          label="Host Voice *"
+                          organizationId={orgId}
+                          selectedVoiceId={selectedHostVoiceId}
+                          onVoiceChange={setSelectedHostVoiceId}
+                        />
+                      </div>
+                    )}
+
+                    {podcastFormat === 'single' && (
+                      <>
+                        {/* Inputs for AI Script Generation (Single Voice) */}
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor="url-podcast-single">URL (Optional source for script)</Label>
+                          <Input
+                            id="url-podcast-single"
+                            value={formData.url}
+                            onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                            placeholder="Enter URL for content source"
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor="document-upload-podcast-single">Or upload a document (PDF, DOCX, TXT - Optional source)</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id="document-upload-podcast-single"
+                              type="file"
+                              accept=".pdf,.doc,.docx,.txt"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                setSelectedDocumentName(file ? file.name : null);
+                                // If a document is chosen, clear the URL field to avoid confusion
+                                if (file) {
+                                  setFormData({ ...formData, url: '' });
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor="document-upload-podcast-single"
+                              className={`cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2`}
+                            >
+                              Choose File
+                            </Label>
+                            <span className="text-sm text-gray-600">
+                              {selectedDocumentName || "No file chosen"}
+                            </span>
+                          </div>
+                           {selectedDocumentName && (
+                            <p className="text-xs text-gray-500">
+                              Using document: {selectedDocumentName}. URL field will be ignored.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor="thoughts-podcast-single">Briefly describe your points that you want the podcast to cover *</Label>
+                          <div className="mb-4 flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
                       <HelpCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
                       <p className="text-sm text-blue-700">
-                        You can create a single voice podcast from a URL a document, or you can generate a script below. Exlayr will create a podcast for your approval and you can post on your SoundCloud account (when you have set it up)
+                              Describe any points you want to make here, the name of your podcast "start with 'Welcome to [your podcast name]" etc. You can influence what is said, what points are covered, etc.
                       </p>
                     </div>
-                    {renderFormContent()}
+                          <Textarea
+                            id="thoughts-podcast-single"
+                            required
+                            value={formData.thoughts}
+                            onChange={(e) => setFormData({ ...formData, thoughts: e.target.value })}
+                            placeholder="Describe the key points for your podcast script..."
+                            className="w-full"
+                            rows={4}
+                          />
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <Label>Podcast length *</Label>
+                          <Select
+                            value={formData.character_length}
+                            onValueChange={(value) => setFormData({ ...formData, character_length: value })}
+                            required
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select podcast length" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {podcastLengthOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {formData.character_length && (
+                            <p className="text-xs text-gray-500">
+                              {formData.character_length === '10 minutes' && 'Approx. 1,500-1,800 words'}
+                              {formData.character_length === '15 minutes' && 'Approx. 2,200-2,500 words'}
+                              {formData.character_length === '25 minutes' && 'Approx. 3,700-4,000 words'}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor="host-name">Host name (for script)</Label>
+                          <Input
+                            id="host-name"
+                            value={hostName}
+                            onChange={(e) => setHostName(e.target.value)}
+                            placeholder="Enter podcast host name"
+                            className="w-full"
+                          />
+                          <p className="text-xs text-gray-500">
+                            The host name will be used in the podcast script.
+                          </p>
+                        </div>
+
+                        {/* AI Script Generation Section */}
+                        <div className="mt-6 space-y-6 p-4 border border-blue-100 rounded-lg bg-blue-50">
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-medium text-blue-800">Generate Your Podcast Script with AI</h3>
+                            <p className="text-sm text-blue-700">
+                              Use AI to create a full podcast script based on your description, URL, or uploaded document.
+                              The script will follow your selected tone of voice and target length.
+                            </p>
+                            <div className="bg-white p-3 rounded border border-blue-200 text-sm text-blue-700">
+                              <p className="font-medium mb-1">Before generating:</p>
+                              <ul className="list-disc list-inside space-y-1">
+                                <li>Select a tone of voice above</li>
+                                <li>Choose your preferred podcast length</li>
+                                <li>Optionally, provide a URL or upload a document for reference</li>
+                                <li>Describe the points you want to cover below</li>
+                              </ul>
+                            </div>
+                            <div className="my-4">
+                              <Label htmlFor="ai-model">AI Model</Label>
+                              <div className="flex gap-4 mt-2 flex-wrap">
+                                {Object.entries(AI_MODELS).map(([_, modelDetails]) => (
+                                  <div key={`podcast-${modelDetails.value}`} className="flex items-center">
+                                    <input
+                                      type="radio"
+                                      id={`model-podcast-${modelDetails.value}`}
+                                      name="ai-model-podcast"
+                                      value={modelDetails.value}
+                                      checked={selectedAIModel === modelDetails.value}
+                                      onChange={(e) => setSelectedAIModel(e.target.value)}
+                                      className="h-4 w-4 text-blue-600"
+                                    />
+                                    <Label htmlFor={`model-podcast-${modelDetails.value}`} className="ml-2 text-sm font-medium">
+                                      {modelDetails.name}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Different models may produce better results for different topics and lengths.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex justify-center">
+                            <Button
+                              type="button"
+                              onClick={generatePodcastScript}
+                              disabled={isGeneratingScript || !formData.thoughts || !formData.character_length}
+                              className={`flex items-center gap-2 px-4 py-2 ${
+                                isGeneratingScript 
+                                  ? 'bg-blue-200 text-blue-700' 
+                                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+                              } rounded-md transition-colors`}
+                            >
+                              {isGeneratingScript ? (
+                                <>
+                                  <div className="animate-spin h-4 w-4 border-2 border-blue-300 border-t-transparent rounded-full"></div>
+                                  Generating Script...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-4 w-4" />
+                                  Generate Script with AI
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Generated Script Display/Edit Section */}
+                        {generatedScript && (
+                          <div className="space-y-4 mt-4">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="script" className="text-base font-medium">Your Generated Script</Label>
+                              <div className="flex items-center gap-2 flex-wrap justify-end">
+                                <Button
+                                  type="button"
+                                  onClick={() => setIsEditDialogOpen(true)}
+                                  className="inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 mb-1 sm:mb-0"
+                                >
+                                  <PenSquare className="h-3 w-3" />
+                                  Edit with AI
+                                </Button>
+                                {scriptSaved ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Script Saved
+                                  </span>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    onClick={() => {
+                                      setScriptSaved(true);
+                                      toast({
+                                        title: "Script Ready",
+                                        description: "Your script will be used to create the podcast.",
+                                        variant: "default"
+                                      });
+                                    }}
+                                    className="inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700"
+                                  >
+                                    <Save className="h-3 w-3" />
+                                    Use This Script
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                            <Textarea
+                              id="script"
+                              value={generatedScript}
+                              onChange={(e) => {
+                                setGeneratedScript(e.target.value);
+                                if (scriptSaved) setScriptSaved(false);
+                              }}
+                              className="w-full font-mono text-sm"
+                              rows={12}
+                            />
+                            <div className="flex justify-between items-center text-xs text-gray-500">
+                              <p>
+                                You can edit this script directly or use the AI assistant to help with modifications.
+                              </p>
+                              <p>
+                                {(() => {
+                                  const wordCount = generatedScript.split(/\s+/).filter((word: string) => word.length > 0).length;
+                                  const wordsPerMinute = 150;
+                                  const estimatedMinutes = Math.round(wordCount / wordsPerMinute);
+                                  return `${wordCount.toLocaleString()} words (approx. ${estimatedMinutes} minutes at speaking pace)`;
+                                })()}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {podcastFormat === 'conversation' && (
+                      <>
+                        {/* Guest Voice Selector for Conversation */}
+                        {orgId && (
+                          <div className="mt-4">
+                            <VoiceSelectorField
+                              label="Guest Voice *"
+                              organizationId={orgId}
+                              selectedVoiceId={selectedGuestVoiceId}
+                              onVoiceChange={setSelectedGuestVoiceId}
+                            />
+                          </div>
+                        )}
+                        {/* TODO: Add URL and Document Upload for conversation if needed by API */}
+                        {/* Thoughts Textarea for full text for Conversation */}
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor="thoughts-podcast-conversation">
+                            Enter the full text content for the conversation podcast
+                            <span className="text-xs text-gray-500 ml-2">(URL/Document upload not used for conversation format via Studio API)</span>
+                          </Label>
+                          <Textarea
+                            id="thoughts-podcast-conversation"
+                            value={formData.thoughts} // For conversation, this is the main script
+                            onChange={(e) => {
+                              setFormData({ ...formData, thoughts: e.target.value });
+                              // Update generatedScript as well if a preview or consistent handling is desired
+                              setGeneratedScript(e.target.value); 
+                              if (scriptSaved) setScriptSaved(false); // if using scriptSaved for conversation too
+                            }}
+                            placeholder="Paste or write the full conversation text here..."
+                            className="w-full"
+                            rows={8}
+                            required
+                          />
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Input for Podcast Title - Common to both formats */}
+                    <div className="mt-4 space-y-2">
+                        <Label htmlFor="podcast-title">Podcast Title</Label>
+                        <Input 
+                            id="podcast-title" 
+                            value={podcastTitle} 
+                            onChange={(e) => setPodcastTitle(e.target.value)} 
+                            placeholder="Enter podcast title (optional)" 
+                        />
+                    </div>
                   </>
                 )}
               </div>

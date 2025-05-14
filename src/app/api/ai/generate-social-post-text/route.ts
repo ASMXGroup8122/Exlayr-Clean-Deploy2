@@ -17,7 +17,7 @@ async function getUrlSummary(url: string): Promise<string> {
       throw new Error(`Failed to fetch URL: ${response.statusText}`);
     }
     const htmlContent = await response.text();
-    // console.log(`Fetched HTML content (first 500 chars): ${htmlContent.substring(0, 500)}...`);
+    // console.log(`Fetched HTML content (first 2500 chars): ${htmlContent.substring(0, 2500)}...`);
 
     // --- Use Cheerio to extract text --- 
     console.log("Loading HTML into Cheerio...");
@@ -28,11 +28,11 @@ async function getUrlSummary(url: string): Promise<string> {
     $('article, .post-content, .entry-content, #main, #content, main').each((i, elem) => {
         // Prioritize specific content containers if found
         mainText = $(elem).text(); 
-        if (mainText.length > 200) return false; // Stop if we found a decent chunk
+        if (mainText.length > 5000) return false; // Stop if we found a decent chunk
     });
 
     // If no specific container text found, try grabbing all paragraphs
-    if (mainText.length <= 200) {
+    if (mainText.length <= 2000) {
         console.log("Main content selector didn't yield much, trying all paragraphs...");
         $('p').each((i, elem) => {
             mainText += $(elem).text() + '\n'; 
@@ -41,7 +41,7 @@ async function getUrlSummary(url: string): Promise<string> {
     
     // Basic cleanup
     mainText = mainText.replace(/\s\s+/g, ' ').trim();
-    console.log(`Extracted text (first 500 chars): ${mainText.substring(0, 500)}...`);
+    console.log(`Extracted text (first 10000 chars): ${mainText.substring(0, 10000)}...`);
     // --- End Cheerio extraction ---
 
     if (mainText.length < 50) { // Check if we actually got meaningful text
@@ -66,7 +66,7 @@ async function getUrlSummary(url: string): Promise<string> {
         },
       ],
       temperature: 0.5,
-      max_tokens: 250, // Adjust token limit as needed for summary length
+      max_tokens: 4000, // Adjust token limit as needed for summary length
     });
 
     const summary = summaryResponse.choices[0]?.message?.content?.trim();
