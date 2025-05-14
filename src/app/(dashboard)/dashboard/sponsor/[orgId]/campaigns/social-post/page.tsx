@@ -22,6 +22,7 @@ import PostFromUrlTab from './PostFromUrlTab';
 import { Badge } from '@/components/ui/badge';
 import { FormatSelector, PodcastFormat } from '@/components/podcast/FormatSelector';
 import { VoiceSelectorField } from '@/components/podcast/VoiceSelectorField'; // Added import
+import PodcastPlayer from '@/components/podcast/PodcastPlayer';
 
 interface SocialPostPageProps {
   params: Promise<{
@@ -84,6 +85,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   const [scriptEstimatedDuration, setScriptEstimatedDuration] = useState(0);
   const [isCreatingPodcast, setIsCreatingPodcast] = useState(false); // New state for podcast creation loading
   const [podcastTitle, setPodcastTitle] = useState(''); // New state for podcast title
+  const [createdPodcastId, setCreatedPodcastId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     url: '',
@@ -1806,7 +1808,7 @@ ${generatedScript}`;
           organizationId: orgId,
           title: podcastTitle || "Untitled Single Voice Podcast", // Use dedicated podcastTitle state
         };
-        console.log("Calling /api/podcast/generate-audio with payload:", payload);
+        console.log("Calling /api/podcast/generate-audio with payload:", JSON.stringify(payload));
 
         const response = await fetch('/api/podcast/generate-audio', {
           method: 'POST',
@@ -1820,12 +1822,14 @@ ${generatedScript}`;
           throw new Error(result.error || `Failed to create podcast (status ${response.status})`);
         }
 
+        // Set the created podcast ID for status tracking
+        setCreatedPodcastId(result.podcastId);
+
         toast({
-          title: "Podcast Created (Single Voice)",
-          description: result.message || "Audio generated and saved.",
-          // Potentially add action to view/listen if URL is in result.audioUrl
+          title: "Podcast Creation Started",
+          description: "Your podcast is being generated. You can track its status below.",
         });
-        // Optionally, clear script or reset some state here
+        // Clear script or reset state if needed
 
       } catch (error: any) {
         console.error("Error creating single voice podcast:", error);
@@ -1836,9 +1840,54 @@ ${generatedScript}`;
         });
       }
     } else if (podcastFormat === 'conversation') {
-      // TODO: Implement conversation format call to API
-      // This will be similar but with hostVoiceId, guestVoiceId and different handling for async project creation
-      toast({ title: "Conversation Format", description: "Conversation podcast creation coming soon!" });
+      if (!formData.thoughts || !selectedHostVoiceId || !selectedGuestVoiceId) {
+        toast({
+          title: "Missing Information",
+          description: "Conversation text, host voice, and guest voice are required for conversation format.",
+          variant: "destructive",
+        });
+        setIsCreatingPodcast(false);
+        return;
+      }
+
+      try {
+        const payload = {
+          script: formData.thoughts,
+          hostVoiceId: selectedHostVoiceId,
+          guestVoiceId: selectedGuestVoiceId,
+          podcastFormat: "conversation",
+          organizationId: orgId,
+          title: podcastTitle || "Untitled Conversation Podcast",
+        };
+        console.log("Calling /api/podcast/generate-audio with conversation payload:", JSON.stringify(payload));
+
+        const response = await fetch('/api/podcast/generate-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to create podcast (status ${response.status})`);
+        }
+
+        // Set the created podcast ID for status tracking
+        setCreatedPodcastId(result.podcastId);
+
+        toast({
+          title: "Conversation Podcast Started",
+          description: "Your podcast is being generated. This may take several minutes for conversation format.",
+        });
+      } catch (error: any) {
+        console.error("Error creating conversation podcast:", error);
+        toast({
+          title: "Error Creating Podcast",
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
     }
 
     setIsCreatingPodcast(false);
@@ -2192,12 +2241,11 @@ ${generatedScript}`;
                           </Label>
                           <Textarea
                             id="thoughts-podcast-conversation"
-                            value={formData.thoughts} // For conversation, this is the main script
+                            value={formData.thoughts}
                             onChange={(e) => {
                               setFormData({ ...formData, thoughts: e.target.value });
-                              // Update generatedScript as well if a preview or consistent handling is desired
-                              setGeneratedScript(e.target.value); 
-                              if (scriptSaved) setScriptSaved(false); // if using scriptSaved for conversation too
+                              setGeneratedScript(e.target.value);
+                              if (scriptSaved) setScriptSaved(false);
                             }}
                             placeholder="Paste or write the full conversation text here..."
                             className="w-full"
@@ -2205,6 +2253,14 @@ ${generatedScript}`;
                             required
                           />
                         </div>
+                        
+                        {/* Add PodcastPlayer for status tracking if podcast ID exists */}
+                        {createdPodcastId && (
+                          <div className="mt-6">
+                            <h3 className="text-lg font-medium mb-3">Podcast Status</h3>
+                            <PodcastPlayer podcastId={createdPodcastId} organizationId={orgId} />
+                          </div>
+                        )}
                       </>
                     )}
                     
@@ -2231,11 +2287,28 @@ ${generatedScript}`;
                   View Pending Approvals
                 </Link>
                 <Button 
+                  type="button" 
+                  onClick={handleCreatePodcast}
+                  className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                  disabled={isCreatingPodcast || 
+                    (podcastFormat === 'single' && (!generatedScript || !selectedHostVoiceId)) ||
+                    (podcastFormat === 'conversation' && (!formData.thoughts || !selectedHostVoiceId || !selectedGuestVoiceId))}
+                >
+                  {isCreatingPodcast ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-green-300 border-t-transparent rounded-full mr-2"></div>
+                      Creating Podcast...
+                    </>
+                  ) : (
+                    'Create Podcast'
+                  )}
+                </Button>
+                <Button 
                   type="submit" 
                   className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Submitting...' : 'Create Podcast'}
+                  {isSubmitting ? 'Submitting...' : 'Save Social Post'}
                 </Button>
               </>
             )}

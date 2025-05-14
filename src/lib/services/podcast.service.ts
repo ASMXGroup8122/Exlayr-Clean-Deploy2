@@ -369,4 +369,122 @@ export class PodcastService {
       );
     }
   }
+
+  // Get all processing podcast records with project IDs
+  static async getProcessingPodcastsWithProjectIds(organizationId: string): Promise<PodcastRecord[]> {
+    const supabase = getSupabaseClient();
+    
+    try {
+      const { data, error } = await supabase
+        .from('podcast_audio_generations')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('status', 'processing')
+        .not('elevenlabs_project_id', 'is', null);
+        
+      if (error) {
+        throw new PodcastError(
+          `Failed to fetch processing podcast records: ${error.message}`,
+          'getProcessingPodcastsWithProjectIds',
+          error
+        );
+      }
+      
+      return data || [];
+    } catch (error) {
+      if (error instanceof PodcastError) {
+        throw error;
+      }
+      throw new PodcastError(
+        `Unexpected error fetching processing podcasts: ${(error as Error).message}`,
+        'getProcessingPodcastsWithProjectIds',
+        error
+      );
+    }
+  }
+
+  // Check conversation podcast status with ElevenLabs
+  static async checkPodcastProjectStatus(
+    projectId: string,
+    apiKey: string
+  ): Promise<{
+    status: 'processing' | 'done' | 'failed';
+    progress: number;
+    audioUrl?: string;
+    errorMessage?: string;
+  }> {
+    try {
+      console.log(`[PodcastService] Checking podcast project status: ${projectId}`);
+      
+      const response = await fetch(`https://api.elevenlabs.io/v1/studio/podcasts/${projectId}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'xi-api-key': apiKey
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new PodcastError(
+          `Failed to check podcast status: ${response.status} ${response.statusText}`,
+          'checkPodcastProjectStatus',
+          { statusCode: response.status, error: errorText }
+        );
+      }
+      
+      const data = await response.json();
+      console.log(`[PodcastService] Podcast project status:`, 
+        data?.project?.creation_meta?.status || 'unknown',
+        `Progress: ${data?.project?.creation_meta?.creation_progress || 0}`
+      );
+      
+      if (!data.project) {
+        throw new PodcastError(
+          'Invalid response from ElevenLabs API: no project data',
+          'checkPodcastProjectStatus',
+          data
+        );
+      }
+      
+      const status = data.project.creation_meta?.status || 'processing';
+      const progress = data.project.creation_meta?.creation_progress || 0;
+      
+      // If done, return the audio URL
+      if (status === 'done' && data.project.url) {
+        return {
+          status: 'done',
+          progress: 1,
+          audioUrl: data.project.url
+        };
+      }
+      
+      // If failed, return error message
+      if (status === 'failed') {
+        return {
+          status: 'failed',
+          progress: 0,
+          errorMessage: data.project.creation_meta?.error?.message || 'Unknown error'
+        };
+      }
+      
+      // Otherwise, it's still processing
+      return {
+        status: 'processing',
+        progress: progress
+      };
+    } catch (error) {
+      console.error(`[PodcastService] Error checking podcast status:`, error);
+      
+      if (error instanceof PodcastError) {
+        throw error;
+      }
+      
+      throw new PodcastError(
+        `Unexpected error checking podcast status: ${(error as Error).message}`,
+        'checkPodcastProjectStatus',
+        error
+      );
+    }
+  }
 } 
