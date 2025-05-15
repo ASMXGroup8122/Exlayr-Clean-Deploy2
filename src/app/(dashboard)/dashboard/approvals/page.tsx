@@ -10,6 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { toast } from '@/components/ui/use-toast';
+import PodcastPlayer from '@/components/podcast/PodcastPlayer';
 
 // --- Define the structure for social posts (Renamed & Expanded) --- >
 interface SocialPostItem {
@@ -44,9 +45,26 @@ interface SocialPostItem {
 }
 // <--- End Interface --->
 
+// Add podcast item interface
+interface PodcastItem {
+  id: string;
+  title: string;
+  description: string;
+  format: 'single' | 'conversation';
+  status: 'processing' | 'completed' | 'failed' | 'approved';
+  audio_url?: string;
+  organization_id: string;
+  voice_id: string;
+  guest_voice_id?: string;
+  elevenlabs_project_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function ApprovalsPage() {
   const { user } = useAuth();
   const [pendingSocial, setPendingSocial] = useState<SocialPostItem[]>([]);
+  const [pendingPodcasts, setPendingPodcasts] = useState<PodcastItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const supabase = getSupabaseClient();
@@ -55,7 +73,7 @@ export default function ApprovalsPage() {
     if (!user?.organization_id) return;
     setIsLoading(true);
 
-    // Initial fetch
+    // Initial fetch for social posts
     const fetchInitialPosts = async () => {
       const { data, error } = await supabase
         .from('social_posts')
@@ -70,11 +88,27 @@ export default function ApprovalsPage() {
         return;
       }
       setPendingSocial(data || []);
+    };
+
+    // Fetch podcasts
+    const fetchPodcasts = async () => {
+      const { data, error } = await supabase
+        .from('podcast_audio_generations')
+        .select('*')
+        .eq('organization_id', user.organization_id)
+        .in('status', ['processing', 'completed']) // Get both processing and completed podcasts
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error fetching podcasts:', error);
+        setIsLoading(false);
+        return;
+      }
+      setPendingPodcasts(data || []);
       setIsLoading(false);
     };
 
-    // Realtime subscription
-    const channel = supabase
+    // Realtime subscription for social posts
+    const channelSocial = supabase
       .channel('social_posts_changes')
       .on(
         'postgres_changes',
@@ -85,7 +119,7 @@ export default function ApprovalsPage() {
           filter: `organization_id=eq.${user.organization_id}`
         },
         (payload) => {
-          console.log('Realtime event:', payload);
+          console.log('Realtime event for social posts:', payload);
           // Type guard to ensure payload.new is a PendingItem
           const isPendingItem = (obj: any): obj is SocialPostItem =>
             obj && typeof obj.id === 'string' && typeof obj.post_text === 'string' && typeof obj.platform === 'string';
@@ -110,11 +144,129 @@ export default function ApprovalsPage() {
       )
       .subscribe();
 
+    // Realtime subscription for podcasts
+    const channelPodcasts = supabase
+      .channel('podcast_audio_generations_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'podcast_audio_generations',
+          filter: `organization_id=eq.${user.organization_id}`
+        },
+        (payload) => {
+          console.log('Realtime event for podcasts:', payload);
+          // Type guard to ensure payload.new is a PodcastItem
+          const isPodcastItem = (obj: any): obj is PodcastItem =>
+            obj && typeof obj.id === 'string' && typeof obj.title === 'string';
+          if (payload.eventType === 'INSERT') {
+            if (isPodcastItem(payload.new) && (payload.new.status === 'processing' || payload.new.status === 'completed')) {
+              setPendingPodcasts(prev => [payload.new as PodcastItem, ...prev]);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            if (isPodcastItem(payload.new)) {
+              if (payload.new.status === 'approved' || payload.new.status === 'failed') {
+                // Remove from list if changed to approved or failed
+                setPendingPodcasts(prev => prev.filter(item => item.id !== payload.new.id));
+              } else if (payload.new.status === 'completed' && isPodcastItem(payload.old) && payload.old.status === 'processing') {
+                // Update the item when it changes from processing to completed
+                setPendingPodcasts(prev => prev.map(item => item.id === payload.new.id ? payload.new as PodcastItem : item));
+              } else {
+                // For any other update, just replace the item
+                setPendingPodcasts(prev => prev.map(item => item.id === payload.new.id ? payload.new as PodcastItem : item));
+              }
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (isPodcastItem(payload.old)) {
+              setPendingPodcasts(prev => prev.filter(item => item.id !== payload.old.id));
+            }
+          }
+        }
+      )
+      .subscribe();
+
     fetchInitialPosts();
+    fetchPodcasts();
+    
     return () => {
-      channel.unsubscribe();
+      channelSocial.unsubscribe();
+      channelPodcasts.unsubscribe();
     };
   }, [user?.organization_id]);
+
+  // Add a status checker for processing podcasts
+  useEffect(() => {
+    if (!user?.organization_id || pendingPodcasts.length === 0) return;
+    
+    // Only check podcasts that are in processing state
+    const processingPodcasts = pendingPodcasts.filter(podcast => 
+      podcast.status === 'processing' && podcast.elevenlabs_project_id);
+    
+    if (processingPodcasts.length === 0) return;
+    
+    console.log(`[Podcast Status] Starting status checks for ${processingPodcasts.length} processing podcasts`);
+    
+    // Create an interval to check status every 10 seconds
+    const intervalId = setInterval(async () => {
+      for (const podcast of processingPodcasts) {
+        try {
+          console.log(`[Podcast Status] Checking status for podcast ${podcast.id}`);
+          const response = await fetch('/api/podcast/check-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              recordId: podcast.id,
+              organizationId: user.organization_id
+            })
+          });
+          
+          if (!response.ok) {
+            console.error(`[Podcast Status] Error checking status for podcast ${podcast.id}:`, 
+              response.status, response.statusText);
+            continue;
+          }
+          
+          const data = await response.json();
+          
+          // If status changed to completed or failed, refresh all podcasts
+          if (data.status === 'completed' || data.status === 'failed') {
+            console.log(`[Podcast Status] Podcast ${podcast.id} status changed to ${data.status}`);
+            
+            // Refresh the podcasts list
+            const { data: refreshedData, error } = await supabase
+              .from('podcast_audio_generations')
+              .select('*')
+              .eq('organization_id', user.organization_id)
+              .in('status', ['processing', 'completed'])
+              .order('created_at', { ascending: false });
+              
+            if (!error && refreshedData) {
+              setPendingPodcasts(refreshedData);
+              
+              // Show a toast for completed podcasts
+              if (data.status === 'completed' && data.audioUrl) {
+                toast({
+                  title: "Podcast Ready",
+                  description: "Your podcast has been generated and is ready for review.",
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`[Podcast Status] Error checking podcast ${podcast.id}:`, error);
+        }
+      }
+    }, 10000); // Check every 10 seconds
+    
+    // Cleanup on unmount
+    return () => {
+      clearInterval(intervalId);
+      console.log('[Podcast Status] Stopped status checks');
+    };
+  }, [pendingPodcasts, user?.organization_id]);
 
   // Helper to group posts by platform
   const groupByPlatform = (items: SocialPostItem[]) => {
@@ -123,6 +275,15 @@ export default function ApprovalsPage() {
       acc[item.platform].push(item);
       return acc;
     }, {} as Record<string, SocialPostItem[]>);
+  };
+
+  // Helper to group podcasts by format
+  const groupPodcastsByFormat = (items: PodcastItem[]) => {
+    return items.reduce((acc, item) => {
+      if (!acc[item.format]) acc[item.format] = [];
+      acc[item.format].push(item);
+      return acc;
+    }, {} as Record<string, PodcastItem[]>);
   };
 
   const statusColor = (status: string) => {
@@ -419,6 +580,109 @@ export default function ApprovalsPage() {
     }
   };
 
+  // Handle podcast approval and publishing
+  const handlePodcastApproval = async (podcast: PodcastItem) => {
+    if (!user?.id) return;
+    
+    // Only allow approval of completed podcasts with an audio URL
+    if (podcast.status !== 'completed' || !podcast.audio_url) {
+      toast({
+        title: "Cannot Approve",
+        description: "Only completed podcasts with audio can be approved.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setLoadingItemId(podcast.id + '_approve');
+    
+    try {
+      // Update the podcast status to 'approved' in the database
+      const { error } = await supabase
+        .from('podcast_audio_generations')
+        .update({ status: 'approved' })
+        .eq('id', podcast.id);
+        
+      if (error) {
+        throw new Error(`Failed to approve podcast: ${error.message}`);
+      }
+      
+      // Here you could add code to trigger distribution of the podcast
+      // For now, we'll just mark it as approved in the database
+      
+      toast({
+        title: "Podcast Approved",
+        description: "The podcast has been approved and is ready for distribution.",
+      });
+      
+      // Optimistically update the UI
+      setPendingPodcasts(prev => prev.filter(item => item.id !== podcast.id));
+      
+    } catch (err: any) {
+      console.error('Error approving podcast:', err);
+      toast({
+        title: 'Approval Failed',
+        description: err.message || 'Failed to approve the podcast.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingItemId(null);
+    }
+  };
+
+  // Retrieve podcast audio from ElevenLabs history
+  const retrievePodcastFromHistory = async (podcast: PodcastItem) => {
+    if (!user?.id) return;
+    
+    // Set loading state
+    setLoadingItemId(podcast.id + '_retrieve');
+    
+    try {
+      const response = await fetch('/api/podcast/retrieve-from-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          podcastId: podcast.id,
+          organizationId: user.organization_id
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Error ${response.status}`);
+      }
+      
+      toast({
+        title: 'Podcast Audio Retrieved',
+        description: 'Successfully retrieved audio from ElevenLabs history.'
+      });
+      
+      // Refresh the podcasts list
+      const { data: refreshedData, error } = await supabase
+        .from('podcast_audio_generations')
+        .select('*')
+        .eq('organization_id', user.organization_id)
+        .in('status', ['processing', 'completed'])
+        .order('created_at', { ascending: false });
+        
+      if (!error && refreshedData) {
+        setPendingPodcasts(refreshedData);
+      }
+    } catch (err: any) {
+      console.error('Error retrieving podcast from history:', err);
+      toast({
+        title: 'Retrieval Failed',
+        description: err.message || 'Failed to retrieve podcast audio from history.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingItemId(null);
+    }
+  };
+
   const renderPendingList = (items: SocialPostItem[]) => {
     if (items.length === 0) {
       return <p className="text-sm text-gray-500 text-center py-8">No pending social posts.</p>;
@@ -515,6 +779,88 @@ export default function ApprovalsPage() {
     );
   };
 
+  // Render pending podcasts list
+  const renderPendingPodcasts = (items: PodcastItem[]) => {
+    if (items.length === 0) {
+      return <p className="text-sm text-gray-500 text-center py-8">No pending podcasts.</p>;
+    }
+    
+    const grouped = groupPodcastsByFormat(items);
+    
+    return (
+      <div className="space-y-8">
+        {Object.entries(grouped).map(([format, podcasts]) => (
+          <div key={format}>
+            <h2 className="text-lg font-bold mb-2 capitalize flex items-center gap-2">
+              {format === 'single' ? 'Single Voice' : 'Conversation'} Podcasts
+            </h2>
+            <div className="space-y-4">
+              {podcasts.map((item) => (
+                <Card key={item.id} className="w-full">
+                  <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+                    <div className="flex-grow space-y-3 min-h-0">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-base font-semibold text-gray-800">
+                          {item.title}
+                        </h3>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Created: {new Date(item.created_at).toLocaleDateString()}
+                      </p>
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-start sm:items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs border ${
+                            item.status === 'completed' ? 'bg-green-100 text-green-800 border-green-300' : 
+                            'bg-yellow-100 text-yellow-800 border-yellow-300'
+                          }`}>
+                            Status: {item.status}
+                          </span>
+                          {item.elevenlabs_project_id && (
+                            <span className="text-xs text-gray-500">
+                              Project ID: {item.elevenlabs_project_id.substring(0, 8)}...
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-gray-100 flex gap-2">
+                        {item.status === 'processing' ? (
+                          <Link 
+                            href={`/dashboard/sponsor/${user?.organization_id}/campaigns/podcast-debug?podcastId=${item.id}`}
+                            className="text-sm text-blue-600 hover:text-blue-800"
+                          >
+                            Check Status
+                          </Link>
+                        ) : item.status === 'completed' && item.audio_url ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            disabled={loadingItemId === item.id + '_approve'}
+                            onClick={() => handlePodcastApproval(item)}
+                          >
+                            {loadingItemId === item.id + '_approve' ? 'Approving...' : 'Approve & Publish'}
+                          </Button>
+                        ) : null}
+                      </div>
+                      <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap min-h-0 max-h-40 overflow-y-auto">
+                        {item.description?.substring(0, 200)}...
+                      </div>
+                      
+                      {/* Always use the PodcastPlayer component for consistent behavior */}
+                      <div className="mt-2">
+                        <PodcastPlayer podcastId={item.id} organizationId={user?.organization_id || ''} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
@@ -531,8 +877,14 @@ export default function ApprovalsPage() {
           <p className="text-gray-500">Loading approval items...</p>
         </div>
       ) : (
-        <Tabs defaultValue="social">
+        <Tabs defaultValue="podcasts">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto sm:h-10">
+            <TabsTrigger value="podcasts" className="relative">
+              Podcasts
+              <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
+                {pendingPodcasts.length}
+              </Badge>
+            </TabsTrigger>
             <TabsTrigger value="social" className="relative">
               Social Posts
               <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
@@ -551,13 +903,10 @@ export default function ApprovalsPage() {
                 0
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="content_creation" className="relative">
-              Content Creation
-              <Badge variant="secondary" className="absolute -top-2 -right-1 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0.5 text-xs rounded-full">
-                0
-              </Badge>
-            </TabsTrigger>
           </TabsList>
+          <TabsContent value="podcasts">
+            {renderPendingPodcasts(pendingPodcasts)}
+          </TabsContent>
           <TabsContent value="social">
             {renderPendingList(pendingSocial)}
           </TabsContent>
@@ -566,9 +915,6 @@ export default function ApprovalsPage() {
           </TabsContent>
           <TabsContent value="press_releases">
             <p className="text-sm text-gray-500 text-center py-8">No pending press releases.</p>
-          </TabsContent>
-          <TabsContent value="content_creation">
-            <p className="text-sm text-gray-500 text-center py-8">No pending content creation items.</p>
           </TabsContent>
         </Tabs>
       )}

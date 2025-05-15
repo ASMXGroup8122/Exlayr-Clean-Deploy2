@@ -674,40 +674,78 @@ export default function SponsorKnowledgeVaultPage() {
             // Step 2: Save the API key to the database if verification was successful
             if (isKeyVerified) {
                 try {
-                    console.log("Saving API key to database...");
+                    console.log("Saving API key to oauth_tokens...");
                     
-                    // Get existing record first
-                    const { data: existingData } = await supabase
-                        .from('organization_settings')
+                    // First check if a record already exists
+                    const { data: existingToken, error: lookupError } = await supabase
+                        .from('oauth_tokens')
                         .select('id')
                         .eq('organization_id', user.organization_id)
+                        .eq('provider', 'elevenlabs')
                         .maybeSingle();
+                        
+                    if (lookupError) {
+                        console.error('Error checking for existing token:', lookupError);
+                        throw new Error(`Could not check for existing token: ${lookupError.message}`);
+                    }
                     
                     let dbResult;
                     
-                    if (existingData) {
+                    if (existingToken) {
                         // Update existing record
+                        console.log('Updating existing ElevenLabs token');
                         dbResult = await supabase
-                            .from('organization_settings')
+                            .from('oauth_tokens')
                             .update({
-                                elevenlabs_api_key: apiKeyInput,
+                                access_token: apiKeyInput,
                                 updated_at: new Date().toISOString()
                             })
-                            .eq('id', existingData.id);
+                            .eq('id', existingToken.id);
                     } else {
                         // Insert new record
+                        console.log('Creating new ElevenLabs token');
+                        const tokenId = crypto.randomUUID();
                         dbResult = await supabase
-                            .from('organization_settings')
+                            .from('oauth_tokens')
                             .insert({
+                                id: tokenId,
                                 organization_id: user.organization_id,
-                                elevenlabs_api_key: apiKeyInput,
+                                provider: 'elevenlabs',
+                                provider_account_name: 'ElevenLabs API',
+                                access_token: apiKeyInput,
+                                created_at: new Date().toISOString(),
                                 updated_at: new Date().toISOString()
                             });
                     }
                     
                     if (dbResult.error) {
-                        console.error('Database error:', dbResult.error);
-                        throw new Error(dbResult.error.message || 'Failed to save API key to database');
+                        console.error('Database error saving to oauth_tokens:', dbResult.error);
+                        throw new Error(dbResult.error.message || 'Failed to save API key to oauth_tokens');
+                    }
+                    
+                    // Remove the key from organization_settings if it exists there
+                    // This helps with migration from the old approach to the new oauth_tokens approach
+                    try {
+                        const { data: existingSettings } = await supabase
+                            .from('organization_settings')
+                            .select('id')
+                            .eq('organization_id', user.organization_id)
+                            .maybeSingle();
+                        
+                        if (existingSettings) {
+                            await supabase
+                                .from('organization_settings')
+                                .update({
+                                    elevenlabs_api_key: null,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('id', existingSettings.id);
+                            
+                            console.log('Removed API key from organization_settings');
+                        }
+                    } catch (cleanupError) {
+                        console.error('Non-critical error cleaning up organization_settings:', cleanupError);
+                        // Don't throw here, as we've already saved to oauth_tokens
                     }
                     
                     // Update local state
@@ -720,9 +758,9 @@ export default function SponsorKnowledgeVaultPage() {
                         description: "Your ElevenLabs API key has been verified and saved",
                     });
                     
-                    // Fetch available voices with the new API key
-                    const keyToUse = apiKeyInput; // Store in local variable to avoid closures with cleared state
-                    setTimeout(() => fetchAvailableVoices(keyToUse), 0);
+                    // Force refresh the page to show the updated state
+                    window.location.reload();
+                    
                 } catch (dbError: any) {
                     console.error('Database error saving API key:', dbError);
                     throw new Error(`The API key was verified but could not be saved: ${dbError.message}`);
@@ -1283,6 +1321,58 @@ export default function SponsorKnowledgeVaultPage() {
       setShowBuzzsproutDialog(true);
     };
 
+    // Add a new useEffect to automatically check for API key when the voices tab is opened
+    useEffect(() => {
+        if (activeTab === "spoken-voice" && user?.organization_id && !hasValidApiKey) {
+            console.log("Spoken voice tab activated, checking for existing API key");
+            
+            const findExistingApiKey = async () => {
+                try {
+                    // First check oauth_tokens (preferred source)
+                    const { data: oauthToken, error: oauthError } = await supabase
+                        .from('oauth_tokens')
+                        .select('access_token')
+                        .eq('organization_id', user.organization_id)
+                        .eq('provider', 'elevenlabs')
+                        .maybeSingle();
+                        
+                    if (!oauthError && oauthToken?.access_token) {
+                        console.log('Found existing ElevenLabs API key in oauth_tokens');
+                        setOrganizationApiKey(oauthToken.access_token);
+                        setHasValidApiKey(true);
+                        
+                        // Fetch available voices with the found key
+                        fetchAvailableVoices(oauthToken.access_token);
+                        return;
+                    }
+                        
+                    // Fall back to organization_settings if not found in oauth_tokens
+                    const { data, error } = await supabase
+                        .from('organization_settings')
+                        .select('elevenlabs_api_key')
+                        .eq('organization_id', user.organization_id)
+                        .maybeSingle();
+                        
+                    if (!error && data?.elevenlabs_api_key) {
+                        console.log('Found existing ElevenLabs API key in organization_settings');
+                        setOrganizationApiKey(data.elevenlabs_api_key);
+                        setHasValidApiKey(true);
+                        
+                        // Fetch available voices with the found key
+                        fetchAvailableVoices(data.elevenlabs_api_key);
+                    } else {
+                        console.log('No existing ElevenLabs API key found');
+                        setHasValidApiKey(false);
+                    }
+                } catch (err) {
+                    console.error('Error finding existing API key:', err);
+                }
+            };
+            
+            findExistingApiKey();
+        }
+    }, [activeTab, user?.organization_id, hasValidApiKey]);
+
     return (
         <div className="p-4 md:p-6">
             {/* Responsive Header */}
@@ -1298,6 +1388,22 @@ export default function SponsorKnowledgeVaultPage() {
                     // Check for ElevenLabs API key
                     const checkElevenLabsConnection = async () => {
                         try {
+                            // First check oauth_tokens (preferred source)
+                            const { data: oauthToken, error: oauthError } = await supabase
+                                .from('oauth_tokens')
+                                .select('access_token')
+                                .eq('organization_id', user.organization_id)
+                                .eq('provider', 'elevenlabs')
+                                .maybeSingle();
+                                
+                            if (!oauthError && oauthToken?.access_token) {
+                                setOrganizationApiKey(oauthToken.access_token);
+                                setHasValidApiKey(true);
+                                console.log('Found ElevenLabs API key in oauth_tokens');
+                                return;
+                            }
+                                
+                            // Fall back to organization_settings if not found in oauth_tokens
                             const { data, error } = await supabase
                                 .from('organization_settings')
                                 .select('elevenlabs_api_key')
@@ -1307,9 +1413,14 @@ export default function SponsorKnowledgeVaultPage() {
                             if (!error && data?.elevenlabs_api_key) {
                                 setOrganizationApiKey(data.elevenlabs_api_key);
                                 setHasValidApiKey(true);
+                                console.log('Found ElevenLabs API key in organization_settings');
+                            } else {
+                                console.log('ElevenLabs API key not found in either oauth_tokens or organization_settings');
+                                setHasValidApiKey(false);
                             }
                         } catch (err) {
                             console.error('Error checking ElevenLabs connection:', err);
+                            setHasValidApiKey(false);
                         }
                     };
                     checkElevenLabsConnection();

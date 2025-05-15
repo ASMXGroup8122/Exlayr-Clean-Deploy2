@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { FormatSelector, PodcastFormat } from '@/components/podcast/FormatSelector';
 import { VoiceSelectorField } from '@/components/podcast/VoiceSelectorField'; // Added import
 import PodcastPlayer from '@/components/podcast/PodcastPlayer';
+import ElevenLabsConnectionHelper from '@/components/podcast/ElevenLabsConnectionHelper';
 
 interface SocialPostPageProps {
   params: Promise<{
@@ -113,6 +114,10 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
   const [editInstruction, setEditInstruction] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
+  // In the component, add state for API key existence
+  const [hasElevenLabsConnection, setHasElevenLabsConnection] = useState<boolean | null>(null);
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
+
   // Fetch tones of voice
   useEffect(() => {
     const fetchTones = async () => {
@@ -183,6 +188,56 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
       }
     };
   }, [orgId, supabase]);
+
+  // After other useEffects, add a new one to check for ElevenLabs connection
+  useEffect(() => {
+    if (!orgId || activeTab !== 'podcast') return;
+    
+    const checkElevenLabsConnection = async () => {
+      setIsCheckingConnection(true);
+      try {
+        console.log('[checkElevenLabsConnection] Checking for ElevenLabs connection');
+
+        const supabase = getSupabaseClient();
+        
+        // First check oauth_tokens (preferred source)
+        const { data: oauthToken, error: oauthError } = await supabase
+          .from('oauth_tokens')
+          .select('access_token')
+          .eq('organization_id', orgId)
+          .eq('provider', 'elevenlabs')
+          .maybeSingle();
+          
+        if (!oauthError && oauthToken?.access_token) {
+          console.log('[checkElevenLabsConnection] Found API key in oauth_tokens');
+          setHasElevenLabsConnection(true);
+          return;
+        }
+        
+        // Fall back to organization_settings if not found in oauth_tokens
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('organization_settings')
+          .select('elevenlabs_api_key')
+          .eq('organization_id', orgId)
+          .maybeSingle();
+          
+        if (!settingsError && settingsData?.elevenlabs_api_key) {
+          console.log('[checkElevenLabsConnection] Found API key in organization_settings');
+          setHasElevenLabsConnection(true);
+        } else {
+          console.log('[checkElevenLabsConnection] API key not found in either location');
+          setHasElevenLabsConnection(false);
+        }
+      } catch (error) {
+        console.error('[checkElevenLabsConnection] Error:', error);
+        setHasElevenLabsConnection(false);
+      } finally {
+        setIsCheckingConnection(false);
+      }
+    };
+    
+    checkElevenLabsConnection();
+  }, [orgId, activeTab]);
 
   // Handle tone selection
   const handleToneChange = (toneId: string) => {
@@ -1781,16 +1836,30 @@ ${generatedScript}`;
 
   // New handler for creating the podcast audio
   const handleCreatePodcast = async () => {
-    if (activeTab !== 'podcast') return;
+    console.log('========== PODCAST CREATION START ==========');
+    console.log(`[handleCreatePodcast] Active tab: ${activeTab}, Format: ${podcastFormat}`);
+    
+    if (activeTab !== 'podcast') {
+      console.log('[handleCreatePodcast] Not on podcast tab, aborting');
+      return;
+    }
+    
     if (!orgId) {
+      console.log('[handleCreatePodcast] Missing orgId, aborting');
       toast({ title: "Error", description: "Organization ID is missing.", variant: "destructive" });
       return;
     }
 
+    console.log('[handleCreatePodcast] Setting isCreatingPodcast to true');
     setIsCreatingPodcast(true);
 
     if (podcastFormat === 'single') {
+      console.log(`[handleCreatePodcast] Creating single voice podcast`);
+      console.log(`[handleCreatePodcast] Script length: ${generatedScript?.length || 0} chars`);
+      console.log(`[handleCreatePodcast] Host voice ID: ${selectedHostVoiceId}`);
+      
       if (!generatedScript || !selectedHostVoiceId) {
+        console.log('[handleCreatePodcast] Missing script or host voice, aborting');
         toast({
           title: "Missing Information",
           description: "Podcast script and host voice are required for single voice format.",
@@ -1808,7 +1877,7 @@ ${generatedScript}`;
           organizationId: orgId,
           title: podcastTitle || "Untitled Single Voice Podcast", // Use dedicated podcastTitle state
         };
-        console.log("Calling /api/podcast/generate-audio with payload:", JSON.stringify(payload));
+        console.log("[handleCreatePodcast] Calling /api/podcast/generate-audio with payload:", JSON.stringify(payload));
 
         const response = await fetch('/api/podcast/generate-audio', {
           method: 'POST',
@@ -1816,13 +1885,16 @@ ${generatedScript}`;
           body: JSON.stringify(payload),
         });
 
+        console.log(`[handleCreatePodcast] API Response status: ${response.status}`);
         const result = await response.json();
+        console.log('[handleCreatePodcast] API Response:', result);
 
         if (!response.ok) {
           throw new Error(result.error || `Failed to create podcast (status ${response.status})`);
         }
 
         // Set the created podcast ID for status tracking
+        console.log(`[handleCreatePodcast] Setting podcastId: ${result.podcastId}`);
         setCreatedPodcastId(result.podcastId);
 
         toast({
@@ -1832,7 +1904,7 @@ ${generatedScript}`;
         // Clear script or reset state if needed
 
       } catch (error: any) {
-        console.error("Error creating single voice podcast:", error);
+        console.error("[handleCreatePodcast] Error creating single voice podcast:", error);
         toast({
           title: "Error Creating Podcast",
           description: error.message || "An unexpected error occurred.",
@@ -1840,7 +1912,13 @@ ${generatedScript}`;
         });
       }
     } else if (podcastFormat === 'conversation') {
+      console.log(`[handleCreatePodcast] Creating conversation podcast`);
+      console.log(`[handleCreatePodcast] Script length: ${formData.thoughts?.length || 0} chars`);
+      console.log(`[handleCreatePodcast] Host voice ID: ${selectedHostVoiceId}`);
+      console.log(`[handleCreatePodcast] Guest voice ID: ${selectedGuestVoiceId}`);
+      
       if (!formData.thoughts || !selectedHostVoiceId || !selectedGuestVoiceId) {
+        console.log('[handleCreatePodcast] Missing text, host or guest voice, aborting');
         toast({
           title: "Missing Information",
           description: "Conversation text, host voice, and guest voice are required for conversation format.",
@@ -1859,7 +1937,7 @@ ${generatedScript}`;
           organizationId: orgId,
           title: podcastTitle || "Untitled Conversation Podcast",
         };
-        console.log("Calling /api/podcast/generate-audio with conversation payload:", JSON.stringify(payload));
+        console.log("[handleCreatePodcast] Calling /api/podcast/generate-audio with conversation payload:", JSON.stringify(payload));
 
         const response = await fetch('/api/podcast/generate-audio', {
           method: 'POST',
@@ -1867,13 +1945,16 @@ ${generatedScript}`;
           body: JSON.stringify(payload),
         });
 
+        console.log(`[handleCreatePodcast] API Response status: ${response.status}`);
         const result = await response.json();
+        console.log('[handleCreatePodcast] API Response:', result);
 
         if (!response.ok) {
           throw new Error(result.error || `Failed to create podcast (status ${response.status})`);
         }
 
         // Set the created podcast ID for status tracking
+        console.log(`[handleCreatePodcast] Setting podcastId: ${result.podcastId}`);
         setCreatedPodcastId(result.podcastId);
 
         toast({
@@ -1881,7 +1962,7 @@ ${generatedScript}`;
           description: "Your podcast is being generated. This may take several minutes for conversation format.",
         });
       } catch (error: any) {
-        console.error("Error creating conversation podcast:", error);
+        console.error("[handleCreatePodcast] Error creating conversation podcast:", error);
         toast({
           title: "Error Creating Podcast",
           description: error.message || "An unexpected error occurred.",
@@ -1890,7 +1971,9 @@ ${generatedScript}`;
       }
     }
 
+    console.log('[handleCreatePodcast] Setting isCreatingPodcast to false');
     setIsCreatingPodcast(false);
+    console.log('========== PODCAST CREATION END ==========');
   };
 
   return (
@@ -1964,19 +2047,47 @@ ${generatedScript}`;
                 {activeTab === 'podcast' && (
                   <>
                     <FormatSelector value={podcastFormat} onChange={setPodcastFormat} />
-
-                    {/* Host Voice Selector - Common to both formats */}
-                    {orgId && (
-                      <div className="mt-4">
-                        <VoiceSelectorField
-                          label="Host Voice *"
-                          organizationId={orgId}
-                          selectedVoiceId={selectedHostVoiceId}
-                          onVoiceChange={setSelectedHostVoiceId}
-                        />
+                    
+                    {/* Show connection warning if no ElevenLabs connection */}
+                    {hasElevenLabsConnection === false && (
+                      <ElevenLabsConnectionHelper organizationId={orgId} />
+                    )}
+                    
+                    {/* Show loading indicator while checking connection */}
+                    {isCheckingConnection && (
+                      <div className="flex items-center justify-center p-4 my-2">
+                        <div className="animate-spin h-5 w-5 border-b-2 border-blue-600 rounded-full mr-2"></div>
+                        <span className="text-sm text-gray-500">Checking ElevenLabs connection...</span>
                       </div>
                     )}
-
+                    
+                    {/* Voice selection section - Disabled if no connection */}
+                    <div className={hasElevenLabsConnection === false ? "opacity-50 pointer-events-none" : ""}>
+                      {/* Host Voice Selector - Common to both formats */}
+                      {orgId && (
+                        <div className="mt-4">
+                          <VoiceSelectorField
+                            label="Host Voice *"
+                            organizationId={orgId}
+                            selectedVoiceId={selectedHostVoiceId}
+                            onVoiceChange={setSelectedHostVoiceId}
+                          />
+                        </div>
+                      )}
+                      
+                      {podcastFormat === 'conversation' && orgId && (
+                        <div className="mt-4">
+                          <VoiceSelectorField
+                            label="Guest Voice *"
+                            organizationId={orgId}
+                            selectedVoiceId={selectedGuestVoiceId}
+                            onVoiceChange={setSelectedGuestVoiceId}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* The rest of the podcast tab content continues normally */}
                     {podcastFormat === 'single' && (
                       <>
                         {/* Inputs for AI Script Generation (Single Voice) */}
