@@ -96,7 +96,7 @@ export default function ApprovalsPage() {
         .from('podcast_audio_generations')
         .select('*')
         .eq('organization_id', user.organization_id)
-        .in('status', ['processing', 'completed']) // Get both processing and completed podcasts
+        .in('status', ['processing', 'completed', 'failed']) // Get processing, completed, and failed podcasts
         .order('created_at', { ascending: false });
       if (error) {
         console.error('Error fetching podcasts:', error);
@@ -161,14 +161,17 @@ export default function ApprovalsPage() {
           const isPodcastItem = (obj: any): obj is PodcastItem =>
             obj && typeof obj.id === 'string' && typeof obj.title === 'string';
           if (payload.eventType === 'INSERT') {
-            if (isPodcastItem(payload.new) && (payload.new.status === 'processing' || payload.new.status === 'completed')) {
+            if (isPodcastItem(payload.new) && (payload.new.status === 'processing' || payload.new.status === 'completed' || payload.new.status === 'failed')) { // Include failed status
               setPendingPodcasts(prev => [payload.new as PodcastItem, ...prev]);
             }
           } else if (payload.eventType === 'UPDATE') {
             if (isPodcastItem(payload.new)) {
-              if (payload.new.status === 'approved' || payload.new.status === 'failed') {
-                // Remove from list if changed to approved or failed
+              if (payload.new.status === 'approved') { // Only remove if approved
+                // Remove from list if changed to approved
                 setPendingPodcasts(prev => prev.filter(item => item.id !== payload.new.id));
+              } else if (payload.new.status === 'failed') {
+                // If status changes to 'failed', update it in the list
+                setPendingPodcasts(prev => prev.map(item => item.id === payload.new.id ? payload.new as PodcastItem : item));
               } else if (payload.new.status === 'completed' && isPodcastItem(payload.old) && payload.old.status === 'processing') {
                 // Update the item when it changes from processing to completed
                 setPendingPodcasts(prev => prev.map(item => item.id === payload.new.id ? payload.new as PodcastItem : item));
@@ -240,7 +243,7 @@ export default function ApprovalsPage() {
               .from('podcast_audio_generations')
               .select('*')
               .eq('organization_id', user.organization_id)
-              .in('status', ['processing', 'completed'])
+              .in('status', ['processing', 'completed', 'failed']) // Include failed status
               .order('created_at', { ascending: false });
               
             if (!error && refreshedData) {
@@ -665,7 +668,7 @@ export default function ApprovalsPage() {
         .from('podcast_audio_generations')
         .select('*')
         .eq('organization_id', user.organization_id)
-        .in('status', ['processing', 'completed'])
+        .in('status', ['processing', 'completed', 'failed']) // Include failed status
         .order('created_at', { ascending: false });
         
       if (!error && refreshedData) {

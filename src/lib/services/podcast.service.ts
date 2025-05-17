@@ -46,29 +46,48 @@ export class PodcastError extends Error {
   }
 }
 
-// Helper function to convert stream to buffer (unchanged logic)
-export async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  return new Promise<Buffer>((resolve, reject) => {
+// Helper function to convert stream to buffer
+export async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+  const reader = stream.getReader();
     const chunks: Uint8Array[] = []; 
-    stream.on('data', (chunk: any) => {
-      if (Buffer.isBuffer(chunk)) {
-        chunks.push(chunk as unknown as Uint8Array); 
-      } else if (chunk instanceof Uint8Array) {
-        chunks.push(chunk);
-      } else {
-        chunks.push(Buffer.from(chunk) as unknown as Uint8Array); 
+  
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
       }
-    });
-    stream.on('end', () => {
+      if (value) {
+        chunks.push(value);
+      }
+    } catch (error) {
+      console.error('[PodcastService:streamToBuffer] Error reading stream:', error);
+      throw new PodcastError(
+        `Error reading stream to buffer: ${error instanceof Error ? error.message : String(error)}`,
+        'streamToBuffer',
+        error
+      );
+    }
+  }
+  
       if (chunks.length === 0) {
-        reject(new PodcastError('Stream ended without providing any data chunks', 'streamToBuffer'));
-        return;
+    console.warn('[PodcastService:streamToBuffer] Stream ended without providing any data chunks');
+    // Optionally, throw an error or return an empty buffer based on expected behavior
+    // For now, returning an empty buffer to prevent hard crashes downstream
+    return Buffer.from([]); 
       }
-      resolve(Buffer.concat(chunks)); 
-    });
-    stream.on('error', (err: Error) => {
-      reject(new PodcastError(`Error converting stream to buffer: ${err.message}`, 'streamToBuffer', err));
-    });
+  
+  return Buffer.concat(chunks);
+}
+
+// Helper function to convert Node.js Readable stream to buffer
+export async function nodeStreamToBuffer(stream: Readable): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Uint8Array[] = [];
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
   });
 }
 
@@ -122,7 +141,7 @@ export class PodcastService {
   // Update record with failure status
   static async updateRecordWithFailure(
     recordId: string, 
-    errorMessage: string
+    errorMessageText: string
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -131,7 +150,7 @@ export class PodcastService {
         .from('podcast_audio_generations')
         .update({
           status: 'failed',
-          description: `Error: ${errorMessage}`
+          error_message: errorMessageText
         })
         .eq('id', recordId);
         
@@ -223,20 +242,20 @@ export class PodcastService {
         console.log('[PodcastService] Found API key in organization_settings');
         return settingsData.elevenlabs_api_key;
       }
-      
-      // If neither source has the token, throw error with details about both attempts
+        
+        // If neither source has the token, throw error with details about both attempts
       if (oauthError && settingsError) {
-        throw new PodcastError(
+          throw new PodcastError(
           'ElevenLabs API key not found in oauth_tokens or organization_settings',
-          'getOrganizationApiKey',
+            'getOrganizationApiKey',
           { oauthError, settingsError }
-        );
+          );
       } else if (oauthError) {
-        throw new PodcastError(
+          throw new PodcastError(
           'ElevenLabs API key not found in oauth_tokens (and not found in organization_settings either)',
-          'getOrganizationApiKey',
-          oauthError
-        );
+            'getOrganizationApiKey',
+            oauthError
+          );
       } else {
         throw new PodcastError(
           'ElevenLabs API key not configured for this organization in either oauth_tokens or settings',
@@ -569,11 +588,11 @@ export class PodcastService {
           console.error(`[PodcastService] Error downloading and storing audio:`, downloadError);
           // Return the original URL as fallback, but log the error
           console.warn(`[PodcastService] SECURITY RISK: Using direct ElevenLabs URL as fallback`);
-          return {
-            status: 'done',
-            progress: 1,
+        return {
+          status: 'done',
+          progress: 1,
             audioUrl: audioUrl
-          };
+        };
         }
       }
       
@@ -700,22 +719,8 @@ export class PodcastService {
       // Create a buffer from the audio stream
       console.log(`[PodcastService] Converting audio stream to buffer`);
       
-      // Convert ReadableStream to Node.js Readable stream
-      const readableNodeStream = new Readable();
-      readableNodeStream._read = () => {}; // Required but we don't need to implement it
-      
-      const reader = audioResponse.body.getReader();
-      reader.read().then(function processText({ done, value }): any {
-        if (done) {
-          readableNodeStream.push(null);
-          return;
-        }
-        readableNodeStream.push(Buffer.from(value));
-        return reader.read().then(processText);
-      });
-      
-      // Convert the stream to a buffer
-      const audioBuffer = await streamToBuffer(readableNodeStream);
+      // Directly use the Web API ReadableStream with the updated streamToBuffer function
+      const audioBuffer = await streamToBuffer(audioResponse.body);
       console.log(`[PodcastService] Created audio buffer of size ${audioBuffer.length} bytes`);
       
       // Upload to storage and get public URL

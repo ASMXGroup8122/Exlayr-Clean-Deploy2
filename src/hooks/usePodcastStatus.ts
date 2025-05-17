@@ -4,38 +4,36 @@ import { useState, useEffect, useCallback } from 'react';
  * Hook for polling podcast generation status
  * @param recordId The ID of the podcast record to check
  * @param organizationId The organization ID for API key access
- * @param pollInterval Polling interval in milliseconds (default: 10000)
  */
 export function usePodcastStatus(
   recordId?: string,
-  organizationId?: string,
-  pollInterval = 10000
+  organizationId?: string
 ) {
-  console.log(`[usePodcastStatus] Hook initialized with recordId: ${recordId}, organizationId: ${organizationId}`);
+  console.log(`[usePodcastStatus] Hook initialized for recordId: ${recordId}, organizationId: ${organizationId}`);
   
   const [status, setStatus] = useState<'processing' | 'completed' | 'failed'>('processing');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [stopPolling, setStopPolling] = useState(false);
+  const [podcastFormat, setPodcastFormat] = useState<string | null>(null);
   
-  const checkStatus = useCallback(async (skipPolling = false) => {
+  const checkStatus = useCallback(async (isManualRefetch = false) => {
     if (!recordId || !organizationId) {
-      console.log('[usePodcastStatus] Missing recordId or organizationId, aborting');
+      console.log('[usePodcastStatus] Missing recordId or organizationId, aborting check.');
       setIsLoading(false);
-      return false;
+      return;
     }
     
     try {
-      console.log(`[usePodcastStatus] Checking status for podcastId: ${recordId}`);
+      console.log(`[usePodcastStatus] Checking status for podcastId: ${recordId}, isManualRefetch: ${isManualRefetch}`);
       setIsLoading(true);
       
-      // Ensure we're sending properly formatted JSON
       const payload = JSON.stringify({ 
         recordId, 
         organizationId,
-        timestamp: new Date().toISOString() // Add timestamp to prevent caching
+        forceRetrieve: isManualRefetch,
+        timestamp: new Date().toISOString()
       });
       
       const response = await fetch('/api/podcast/check-status', {
@@ -70,96 +68,42 @@ export function usePodcastStatus(
         throw new Error('Invalid JSON response from API');
       }
       
-      // Handle error response
       if (data.error) {
         throw new Error(data.error);
       }
       
-      // Update state with response data
       setStatus(data.status);
+      setAudioUrl(data.audioUrl || null);
+      setProgress(data.progress !== undefined ? data.progress : 0);
+      setPodcastFormat(data.format || null);
+      setError(data.message && data.status !== 'completed' ? data.message : null);
       setIsLoading(false);
-      
-      if (data.progress !== undefined) {
-        setProgress(data.progress);
-        console.log(`[usePodcastStatus] Updated progress: ${data.progress}`);
+
+      if (isManualRefetch && (data.status === 'completed' || data.status === 'failed')) {
+        console.log(`[usePodcastStatus] Manual refetch processed, status: ${data.status}`);
       }
-      
-      if (data.status === 'completed' && data.audioUrl) {
-        console.log(`[usePodcastStatus] Podcast completed with audioUrl: ${data.audioUrl}`);
-        setAudioUrl(data.audioUrl);
-        
-        if (skipPolling) {
-          setStopPolling(true);
-        }
-        
-        return true; // Status checking complete
-      }
-      
-      // One-time operation completed
-      if (data.oneTimeOperation) {
-        console.log(`[usePodcastStatus] One-time operation completed, stopping polling`);
-        setStopPolling(true);
-        return true;
-      }
-      
-      return false; // Continue checking
-    } catch (error) {
-      console.error('[usePodcastStatus] Error checking podcast status:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
+
+    } catch (err) {
+      console.error('[usePodcastStatus] Error checking podcast status:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error during status check');
       setIsLoading(false);
-      return false;
     }
   }, [recordId, organizationId]);
   
-  // Manual refetch function that can be called by components
   const refetch = useCallback(async () => {
-    console.log(`[usePodcastStatus] Manual refetch triggered`);
-    // Pass true to indicate this is a manual refetch and we should stop polling afterward
-    return checkStatus(true);
-  }, [checkStatus]);
+    console.log(`[usePodcastStatus] Manual refetch triggered for recordId: ${recordId}`);
+    await checkStatus(true);
+  }, [checkStatus, recordId]);
   
   useEffect(() => {
-    if (!recordId || !organizationId) {
-      console.log('[usePodcastStatus] Missing recordId or organizationId, aborting');
+    if (recordId && organizationId) {
+      console.log(`[usePodcastStatus] Performing initial status check for recordId: ${recordId}`);
+      checkStatus(false);
+    } else {
+      console.log('[usePodcastStatus] recordId or organizationId not available for initial check.');
       setIsLoading(false);
-      return;
     }
-    
-    console.log(`[usePodcastStatus] Setting up status polling for podcastId: ${recordId}`);
-    
-    // Initial check
-    console.log(`[usePodcastStatus] Performing initial status check`);
-    checkStatus();
-    
-    // Set up polling only if not explicitly stopped
-    if (stopPolling) {
-      console.log(`[usePodcastStatus] Polling disabled by user action`);
-      return;
-    }
-    
-    console.log(`[usePodcastStatus] Setting up polling interval: ${pollInterval}ms`);
-    const intervalId = setInterval(async () => {
-      // Don't poll if stopPolling is true
-      if (stopPolling) {
-        console.log(`[usePodcastStatus] Stopping polling based on user action`);
-        clearInterval(intervalId);
-        return;
-      }
-      
-      console.log(`[usePodcastStatus] Polling for status update`);
-      const isDone = await checkStatus();
-      if (isDone) {
-        console.log(`[usePodcastStatus] Polling complete, clearing interval`);
-        clearInterval(intervalId);
-      }
-    }, pollInterval);
-    
-    // Clean up interval on unmount
-    return () => {
-      console.log(`[usePodcastStatus] Cleaning up - clearing interval`);
-      clearInterval(intervalId);
-    };
-  }, [recordId, organizationId, pollInterval, checkStatus, stopPolling]);
+  }, [recordId, organizationId, checkStatus]);
   
-  return { status, audioUrl, progress, error, isLoading, refetch };
+  return { status, audioUrl, progress, error, isLoading, refetch, podcastFormat };
 } 

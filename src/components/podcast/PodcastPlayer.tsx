@@ -10,7 +10,7 @@ interface PodcastPlayerProps {
 export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlayerProps) {
   console.log(`[PodcastPlayer] Initialized with podcastId: ${podcastId}, organizationId: ${organizationId}`);
   
-  const { status, audioUrl, progress, error, isLoading, refetch } = usePodcastStatus(podcastId, organizationId);
+  const { status, audioUrl, progress, error, isLoading, refetch, podcastFormat } = usePodcastStatus(podcastId, organizationId);
   const [retrieving, setRetrieving] = useState(false);
   const [retrieveError, setRetrieveError] = useState<string | null>(null);
   const [retrieveSuccess, setRetrieveSuccess] = useState(false);
@@ -18,6 +18,15 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
   
   console.log(`[PodcastPlayer] Status: ${status}, Progress: ${progress}, Error: ${error}, Loading: ${isLoading}`);
   console.log(`[PodcastPlayer] AudioUrl: ${audioUrl || 'none'}`);
+  
+  // Determine if the podcast is in a definitively good, playable and secure state
+  let isPlayableAndSecure = false;
+  if (status === 'completed' && audioUrl) {
+    // Check if the URL is NOT an insecure ElevenLabs API URL or a placeholder
+    if (!audioUrl.includes('api.elevenlabs.io') && !audioUrl.includes('{history_item_id}')) {
+      isPlayableAndSecure = true;
+    }
+  }
   
   // Function to manually retrieve and fix podcast audio - as a one-time operation
   const retrieveAndFixAudio = async () => {
@@ -102,16 +111,16 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
         {retrieving ? (
           <span className="flex items-center justify-center">
             <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-            FIXING AUDIO...
+            {status === 'processing' ? 'LOADING AUDIO...' : 'FIXING AUDIO...'}
           </span>
         ) : retrieveSuccess ? (
           <span className="flex items-center justify-center">
-            ✅ AUDIO FIXED
+            ✅ AUDIO {status === 'processing' || fixAttempted ? 'LOADED' : 'FIXED'}
           </span>
         ) : (
           <span className="flex items-center justify-center">
             <RefreshCw className="h-5 w-5 mr-2" />
-            FIX PODCAST AUDIO
+            {status === 'processing' && !audioUrl && !error ? 'LOAD YOUR AUDIO' : 'FIX PODCAST AUDIO'}
           </span>
         )}
       </button>
@@ -127,6 +136,37 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
       )}
     </div>
   );
+  
+  // If playable and secure, render only the player, ensuring no fixButton from other states.
+  if (isPlayableAndSecure) {
+    return (
+      <div>
+        {/* fixButton is explicitly NOT rendered here */}
+        <div className="podcast-player space-y-3 my-4 p-4 bg-gray-50 rounded-md">
+          <p className="text-sm font-medium text-emerald-600">Your podcast is ready!</p>
+          <audio 
+            controls 
+            src={audioUrl!} // audioUrl is confirmed to exist by isPlayableAndSecure
+            className="w-full"
+          >
+            Your browser does not support the audio element.
+          </audio>
+          <div className="flex justify-end">
+            <a 
+              href={audioUrl!} // audioUrl is confirmed to exist
+              download 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+            >
+              <ArrowDownToLine className="h-4 w-4 mr-2" />
+              Download
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // Show loading state
   if (isLoading && !audioUrl) {
@@ -153,27 +193,42 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
     );
   }
   
-  // Show processing state with progress bar
+  // Show processing state
   if (status === 'processing') {
     return (
       <div>
         {fixButton}
         <div className="podcast-processing space-y-3 my-4 p-4 bg-gray-50 rounded-md">
-          <div className="flex items-center gap-2 text-amber-600">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <p className="text-sm font-medium">Your podcast is being generated...</p>
-          </div>
-          
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-blue-600 h-2 rounded-full" 
-              style={{ width: `${Math.max(5, Math.round(progress * 100))}%` }}
-            ></div>
-          </div>
-          
-          <p className="text-xs text-gray-500">
-            {Math.round(progress * 100)}% complete. ElevenLabs is processing your conversation podcast.
-          </p>
+          {podcastFormat === 'conversation' ? (
+            <>
+              <div className="flex items-center gap-2 text-amber-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <p className="text-sm font-medium">Your podcast is being generated...</p>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full" 
+                  style={{ width: `${Math.max(5, Math.round(progress * 100))}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {Math.round(progress * 100)}% complete. ElevenLabs is processing your conversation podcast.
+              </p>
+            </>
+          ) : podcastFormat === 'single' ? (
+            <div className="flex items-center gap-2 text-blue-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <p className="text-sm font-medium">Status: Processing</p>
+            </div>
+            // Optionally, add a more specific message for single voice processing:
+            // <p className="text-xs text-gray-500 mt-1">Awaiting manual audio retrieval. Click 'Load Your Audio' above.</p>
+          ) : (
+            // Fallback for unknown or null format while processing (should ideally not happen)
+            <div className="flex items-center gap-2 text-gray-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <p className="text-sm font-medium">Processing...</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -206,22 +261,20 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
     );
   }
   
-  // Show completed state with audio player
-  if (status === 'completed' && audioUrl) {
-    const hasInsecureUrl = audioUrl.includes('api.elevenlabs.io') || audioUrl.includes('{history_item_id}');
-    
+  // Show completed state with audio player (this will now only be for insecure URLs)
+  if (status === 'completed' && audioUrl /* && !isPlayableAndSecure implicitly */) {
+    // const hasInsecureUrl = audioUrl.includes('api.elevenlabs.io') || audioUrl.includes('{history_item_id}');
+    // At this point, isPlayableAndSecure is false, so it must be an insecure URL or audioUrl was missing (but audioUrl is checked)
+    // So, hasInsecureUrl is effectively true here.
     return (
       <div>
-        {hasInsecureUrl ? fixButton : null}
+        {fixButton} {/* Show fixButton because it's completed but deemed insecure */}
         <div className="podcast-player space-y-3 my-4 p-4 bg-gray-50 rounded-md">
-          {hasInsecureUrl ? (
-            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-              <p className="font-bold">WARNING: Insecure URL detected</p>
-              <p className="text-sm">This podcast has an insecure URL with an API key. Please use the FIX button above.</p>
-            </div>
-          ) : (
-            <p className="text-sm font-medium text-emerald-600">Your podcast is ready!</p>
-          )}
+          {/* Warning for insecure URL */}
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+            <p className="font-bold\">WARNING: Insecure URL detected</p>
+            <p className="text-sm\">This podcast may have an insecure URL. Please use the FIX button above if issues persist or the URL seems incorrect.</p>
+          </div>
           
           <audio 
             controls 
@@ -261,13 +314,18 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
     );
   }
   
-  // Fallback for unexpected state
-  return (
-    <div>
-      {fixButton}
-      <div className="my-4 p-4 bg-gray-50 rounded-md">
+  // Fallback if a fix was attempted but not successful
+  if (fixAttempted && !retrieveSuccess && !retrieving) {
+    return (
+      <div className="my-4 p-4 bg-gray-50 rounded-md text-center">
         <p className="text-sm text-gray-500">Loading podcast information...</p>
       </div>
+    );
+  }
+  
+  return (
+    <div className="my-4 p-4 bg-gray-50 rounded-md text-center">
+      <p className="text-sm text-gray-500">Loading podcast information...</p>
     </div>
   );
 } 

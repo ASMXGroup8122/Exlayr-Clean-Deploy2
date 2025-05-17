@@ -59,15 +59,15 @@ export async function POST(req: NextRequest) {
   }
   
   // Validate required parameters
-  if (!recordId || !organizationId) {
+    if (!recordId || !organizationId) {
     return NextResponse.json({ 
       error: 'Record ID and organization ID are required',
       status: 'error' 
     }, { status: 400 });
-  }
-  
+    }
+    
   console.log(`[Podcast] Checking status for record ${recordId}, forceRetrieve: ${forceRetrieve ? 'true' : 'false'}`);
-  
+    
   try {
     // Get record - manually query instead of using PodcastService to handle multiple records
     const { data: records, error: recordsError } = await supabaseAdmin
@@ -115,6 +115,19 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
     
+    // === New Logic for Single Voice Processing Podcasts ===
+    if (record.format === 'single' && record.status === 'processing' && !forceRetrieve) {
+      console.log(`[Podcast] Single voice podcast is 'processing'. Returning current status without ElevenLabs check.`);
+      return NextResponse.json({
+        status: record.status,
+        audioUrl: record.audio_url,
+        progress: record.progress || 0, // Default progress to 0 if null
+        format: record.format, // Include format
+        message: "Single voice podcast processing, manual retrieval required."
+      });
+    }
+    // === End New Logic ===
+    
     // If forceRetrieve is true, always attempt to download and store the audio,
     // regardless of whether we already have a URL
     if (forceRetrieve) {
@@ -122,17 +135,17 @@ export async function POST(req: NextRequest) {
       
       // This path is used by the manual "Retrieve Audio" button in the UI
       try {
-        // Get API key
+    // Get API key
         console.log(`[Podcast] Fetching organization API key for forced retrieval`);
-        const apiKey = await PodcastService.getOrganizationApiKey(organizationId);
-        
+    const apiKey = await PodcastService.getOrganizationApiKey(organizationId);
+    
         // Check if we have a direct ElevenLabs URL we can use
         let audioUrl = null;
         
         if (record.audio_url && record.audio_url.includes('api.elevenlabs.io')) {
           // We have a direct ElevenLabs URL
           console.log(`[Podcast] Using existing ElevenLabs URL for download: ${record.audio_url}`);
-          
+    
           // Extract the history item ID from the URL
           const urlParts = record.audio_url.split('/');
           const historyItemIdIndex = urlParts.findIndex((part: string) => part === 'history') + 1;
@@ -146,12 +159,12 @@ export async function POST(req: NextRequest) {
         } else if (record.elevenlabs_project_id) {
           // We have a project ID, we can check its status to get the URL
           console.log(`[Podcast] Checking project status to get audio URL: ${record.elevenlabs_project_id}`);
-          
-          const projectStatus = await PodcastService.checkPodcastProjectStatus(
-            record.elevenlabs_project_id,
-            apiKey
-          );
-          
+      
+      const projectStatus = await PodcastService.checkPodcastProjectStatus(
+        record.elevenlabs_project_id,
+        apiKey
+      );
+      
           if (projectStatus.status === 'done' && projectStatus.audioUrl) {
             audioUrl = projectStatus.audioUrl;
           } else {
@@ -288,485 +301,119 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Normal flow continues below...
-    
-    // Return current status if already completed
+    // If status is completed, and we have a URL, we are done
     if (record.status === 'completed' && record.audio_url) {
-      // Check if the URL is an ElevenLabs URL (insecure)
-      if (record.audio_url.includes('api.elevenlabs.io')) {
-        console.log(`[Podcast] Found insecure ElevenLabs URL, will fix it: ${record.audio_url}`);
-        // Don't return yet, continue to fix the URL
-      } else {
-        return NextResponse.json({ 
-          status: record.status,
-          audioUrl: record.audio_url
-        });
-      }
-    }
-    
-    // If status is failed, return failure
-    if (record.status === 'failed') {
+      console.log(`[Podcast] Podcast is already completed with URL: ${record.audio_url}`);
       return NextResponse.json({ 
-        status: record.status,
-        errorMessage: record.description || 'Unknown error'
-      });
-    }
-    
-    // If we have a record without an audio URL, try to retrieve from history
-    if (record.status === 'completed' && !record.audio_url) {
-      console.log(`[Podcast] Record is marked completed but has no audio URL. Attempting retrieval from history.`);
+        status: 'completed', 
+        audioUrl: record.audio_url, 
+        progress: 100,
+        format: record.format // Include format
+        });
+      }
+      
+    // If the podcast is a conversation type and has a project ID, check its status
+    if (record.format === 'conversation' && record.elevenlabs_project_id) {
+      console.log(`[Podcast] Conversation podcast, checking ElevenLabs project status for ID: ${record.elevenlabs_project_id}`);
       
       try {
-        // Get API key
-        console.log(`[Podcast] Fetching organization API key`);
         const apiKey = await PodcastService.getOrganizationApiKey(organizationId);
+        const projectStatus = await PodcastService.checkPodcastProjectStatus(
+          record.elevenlabs_project_id,
+          apiKey
+        );
         
-        // Get audio from ElevenLabs history
-        console.log(`[Podcast] Downloading audio from ElevenLabs history`);
+        console.log(`[Podcast] ElevenLabs project status:`, projectStatus);
         
-        // Get history from ElevenLabs
-        const historyResponse = await fetch('https://api.elevenlabs.io/v1/history', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'xi-api-key': apiKey
-          }
-        });
-        
-        if (!historyResponse.ok) {
-          throw new Error(`Failed to get history from ElevenLabs: ${historyResponse.status}`);
-        }
-        
-        const historyData = await historyResponse.json();
-        
-        if (!historyData.history || !Array.isArray(historyData.history)) {
-          throw new Error('Invalid history data from ElevenLabs');
-        }
-        
-        // Find matching history item for this podcast
-        const potentialMatches = historyData.history
-          .filter((item: any) => item.voice_id === record.voice_id)
-          .slice(0, 10); // Look at the 10 most recent items
-        
-        if (potentialMatches.length === 0) {
-          throw new Error(`No history items found for voice ${record.voice_id}`);
-        }
-        
-        // Use the most recent item
-        const historyItem = potentialMatches[0];
-        
-        if (!historyItem.history_item_id) {
-          throw new Error('History item has no ID');
-        }
-        
-        // Download the actual audio file
-        console.log(`[Podcast] Downloading audio for history item ${historyItem.history_item_id}`);
-        const audioResponse = await fetch(`https://api.elevenlabs.io/v1/history/${historyItem.history_item_id}/audio`, {
-          method: 'GET',
-          headers: {
-            'xi-api-key': apiKey
-          }
-        });
-        
-        if (!audioResponse.ok) {
-          throw new Error(`Failed to download audio from ElevenLabs: ${audioResponse.status}`);
-        }
-        
-        // Convert to buffer
-        const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-        console.log(`[Podcast] Downloaded audio file: ${audioBuffer.length} bytes`);
-        
-        // Upload to Supabase Storage
-        console.log(`[Podcast] Uploading to Supabase Storage`);
-        const fileName = `podcast_${recordId}.mp3`;
-        const filePath = `${organizationId}/${fileName}`;
-        
-        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-          .from('podcast_audio')
-          .upload(filePath, audioBuffer, {
-            contentType: 'audio/mpeg',
-            upsert: true
+        if (projectStatus.status === 'done' && projectStatus.audioUrl) {
+          // Project is done, update our record and return completed status
+          console.log(`[Podcast] Conversation podcast complete, audio URL: ${projectStatus.audioUrl}`);
+          
+          const audioResponse = await fetch(projectStatus.audioUrl, {
+            method: 'GET',
+            headers: { 'xi-api-key': apiKey }
           });
-        
-        if (uploadError) {
-          throw new Error(`Failed to upload to storage: ${uploadError.message}`);
-        }
-        
-        // Get the public URL
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from('podcast_audio')
-          .getPublicUrl(filePath);
-        
-        if (!publicUrlData?.publicUrl) {
-          throw new Error('Failed to get public URL');
-        }
-        
-        const publicUrl = publicUrlData.publicUrl;
-        console.log(`[Podcast] Uploaded to storage, URL: ${publicUrl}`);
-        
-        // Update the database with the correct URL
-        const { error: updateError } = await supabaseAdmin
-          .from('podcast_audio_generations')
-          .update({
-            status: 'completed',
-            audio_url: publicUrl
-          })
-          .eq('id', record.id);
-          
-        if (updateError) {
-          throw new Error(`Failed to update record: ${updateError.message}`);
-        }
-        
-        return NextResponse.json({
-          status: 'completed',
-          audioUrl: publicUrl,
-          retrieved: true
-        });
-      } catch (retrieveError) {
-        console.error(`[Podcast] Error retrieving from history:`, retrieveError);
-        // Continue with normal flow if retrieval fails
-      }
-    }
-    
-    // Fix insecure ElevenLabs URL if found
-    if (record.status === 'completed' && record.audio_url && record.audio_url.includes('api.elevenlabs.io')) {
-      console.log(`[Podcast] Fixing insecure ElevenLabs URL: ${record.audio_url}`);
-      
-      try {
-        // Get API key
-        console.log(`[Podcast] Fetching organization API key`);
-        const apiKey = await PodcastService.getOrganizationApiKey(organizationId);
-        
-        // Extract history_item_id from the URL
-        const urlParts = record.audio_url.split('/');
-        const historyItemId = urlParts[urlParts.length - 2];
-        
-        if (!historyItemId) {
-          throw new Error('Could not extract history item ID from URL');
-        }
-        
-        // Download the actual audio file
-        console.log(`[Podcast] Downloading audio for history item ${historyItemId}`);
-        const audioResponse = await fetch(`https://api.elevenlabs.io/v1/history/${historyItemId}/audio`, {
-          method: 'GET',
-          headers: {
-            'xi-api-key': apiKey
+
+          if (!audioResponse.ok) {
+            throw new Error(`Failed to download audio from project URL: ${audioResponse.status}`);
           }
-        });
-        
-        if (!audioResponse.ok) {
-          throw new Error(`Failed to download audio from ElevenLabs: ${audioResponse.status}`);
-        }
-        
-        // Convert to buffer
-        const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-        console.log(`[Podcast] Downloaded audio file: ${audioBuffer.length} bytes`);
-        
-        // Upload to Supabase Storage
-        console.log(`[Podcast] Uploading to Supabase Storage`);
-        const fileName = `podcast_${recordId}.mp3`;
-        const filePath = `${organizationId}/${fileName}`;
-        
-        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-          .from('podcast_audio')
-          .upload(filePath, audioBuffer, {
-            contentType: 'audio/mpeg',
-            upsert: true
-          });
-        
-        if (uploadError) {
-          throw new Error(`Failed to upload to storage: ${uploadError.message}`);
-        }
-        
-        // Get the public URL
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from('podcast_audio')
-          .getPublicUrl(filePath);
-        
-        if (!publicUrlData?.publicUrl) {
-          throw new Error('Failed to get public URL');
-        }
-        
-        const publicUrl = publicUrlData.publicUrl;
-        console.log(`[Podcast] Uploaded to storage, URL: ${publicUrl}`);
-        
-        // Update the database with the correct URL
-        const { error: updateError } = await supabaseAdmin
-          .from('podcast_audio_generations')
-          .update({
-            status: 'completed',
-            audio_url: publicUrl
-          })
-          .eq('id', record.id);
+          const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+          const fileName = `podcast_${record.id}_project_${Date.now()}.mp3`;
+          const filePath = `${organizationId}/${fileName}`;
           
-        if (updateError) {
-          throw new Error(`Failed to update record: ${updateError.message}`);
-        }
-        
-        return NextResponse.json({
-          status: 'completed',
-          audioUrl: publicUrl,
-          fixed: true
-        });
-      } catch (fixError) {
-        console.error(`[Podcast] Error fixing insecure URL:`, fixError);
-        // Continue with normal flow if URL fix fails
-      }
-    }
-    
-    // Special case: Handle placeholder URL templates
-    if (record.audio_url && record.audio_url.includes('{history_item_id}')) {
-      console.log(`[Podcast] Found placeholder URL template: ${record.audio_url}`);
-      
-      try {
-        // Get API key
-        console.log(`[Podcast] Fetching organization API key for placeholder URL fix`);
-        const apiKey = await PodcastService.getOrganizationApiKey(organizationId);
-        
-        // Get history from ElevenLabs to find the correct audio
-        console.log(`[Podcast] Searching ElevenLabs history for voice ${record.voice_id}`);
-        const historyResponse = await fetch('https://api.elevenlabs.io/v1/history', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'xi-api-key': apiKey
+          await supabaseAdmin.storage
+            .from('podcast_audio')
+            .upload(filePath, audioBuffer, { contentType: 'audio/mpeg', upsert: true });
+          
+          const { data: publicUrlData } = supabaseAdmin.storage
+            .from('podcast_audio')
+            .getPublicUrl(filePath);
+
+          if (!publicUrlData?.publicUrl) {
+            throw new Error('Failed to get public URL for project audio');
           }
-        });
-        
-        if (!historyResponse.ok) {
-          throw new Error(`Failed to get history from ElevenLabs: ${historyResponse.status}`);
-        }
-        
-        const historyData = await historyResponse.json();
-        
-        if (!historyData.history || !Array.isArray(historyData.history)) {
-          throw new Error('Invalid history data from ElevenLabs');
-        }
-        
-        // Find matching history item for this podcast
-        const potentialMatches = historyData.history
-          .filter((item: any) => item.voice_id === record.voice_id)
-          .slice(0, 10);
           
-        if (potentialMatches.length === 0) {
-          throw new Error(`No history items found for voice ${record.voice_id}`);
-        }
-        
-        // Use the most recent item
-        const historyItem = potentialMatches[0];
-        
-        if (!historyItem.history_item_id) {
-          throw new Error('History item has no ID');
-        }
-        
-        // Download the audio
-        console.log(`[Podcast] Downloading audio for history item ${historyItem.history_item_id}`);
-        const audioResponse = await fetch(`https://api.elevenlabs.io/v1/history/${historyItem.history_item_id}/audio`, {
-          method: 'GET',
-          headers: {
-            'xi-api-key': apiKey
-          }
-        });
-        
-        if (!audioResponse.ok) {
-          throw new Error(`Failed to download audio: ${audioResponse.status}`);
-        }
-        
-        // Convert to buffer
-        const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-        console.log(`[Podcast] Downloaded audio file: ${audioBuffer.length} bytes`);
-        
-        // Upload to Supabase Storage
-        console.log(`[Podcast] Uploading to Supabase Storage`);
-        const fileName = `podcast_${recordId}.mp3`;
-        const filePath = `${organizationId}/${fileName}`;
-        
-        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-          .from('podcast_audio')
-          .upload(filePath, audioBuffer, {
-            contentType: 'audio/mpeg',
-            upsert: true
+          const finalAudioUrl = publicUrlData.publicUrl;
+
+          await supabaseAdmin
+            .from('podcast_audio_generations')
+            .update({ status: 'completed', audio_url: finalAudioUrl, progress: 100 })
+            .eq('id', record.id);
+            
+          return NextResponse.json({ 
+            status: 'completed', 
+            audioUrl: finalAudioUrl, 
+            progress: 100,
+            format: record.format // Include format
           });
-        
-        if (uploadError) {
-          throw new Error(`Failed to upload to storage: ${uploadError.message}`);
-        }
-        
-        // Get the public URL
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from('podcast_audio')
-          .getPublicUrl(filePath);
-        
-        if (!publicUrlData?.publicUrl) {
-          throw new Error('Failed to get public URL');
-        }
-        
-        const publicUrl = publicUrlData.publicUrl;
-        console.log(`[Podcast] Uploaded to storage, URL: ${publicUrl}`);
-        
-        // Update the database with the correct URL
-        const { error: updateError } = await supabaseAdmin
-          .from('podcast_audio_generations')
-          .update({
-            status: 'completed',
-            audio_url: publicUrl
-          })
-          .eq('id', record.id);
-          
-        if (updateError) {
-          throw new Error(`Failed to update record: ${updateError.message}`);
-        }
-        
+        } else if (projectStatus.status === 'failed' || (projectStatus as any).errorMessage) {
+            await supabaseAdmin
+            .from('podcast_audio_generations')
+            .update({ 
+              status: 'failed', 
+              error_message: (projectStatus as any).errorMessage || 'ElevenLabs project error',
+              progress: projectStatus.progress || 0
+            })
+            .eq('id', record.id);
         return NextResponse.json({
-          status: 'completed',
-          audioUrl: publicUrl,
-          fixed: true
-        });
-      } catch (placeholderError) {
-        console.error(`[Podcast] Error fixing placeholder URL:`, placeholderError);
-        // Continue with normal flow if URL fix fails
-      }
-    }
-    
-    // Return immediately if no project ID (can't check status without it)
-    if (!record.elevenlabs_project_id) {
-      return NextResponse.json({ 
-        status: 'processing',
-        progress: 0,
-        message: 'Podcast is being initialized (no project ID available yet)'
-      });
-    }
-    
-    // Get API key
-    console.log(`[Podcast] Fetching organization API key`);
-    const apiKey = await PodcastService.getOrganizationApiKey(organizationId);
-    
-    // Check status with ElevenLabs for any podcast with a project ID regardless of format
-    console.log(`[Podcast] Checking podcast status with project ID ${record.elevenlabs_project_id}`);
-    
-    const projectStatus = await PodcastService.checkPodcastProjectStatus(
-      record.elevenlabs_project_id,
-      apiKey
-    );
-    
-    console.log(`[Podcast] Project status:`, projectStatus);
-    
-    // If done, download the audio, save to storage, and update the record
-    if (projectStatus.status === 'done' && projectStatus.audioUrl) {
-      console.log(`[Podcast] Podcast completed, downloading audio from URL: ${projectStatus.audioUrl}`);
-      
-      try {
-        // Download the actual audio file
-        const audioResponse = await fetch(projectStatus.audioUrl);
-        
-        if (!audioResponse.ok) {
-          throw new Error(`Failed to download audio: ${audioResponse.status}`);
-        }
-        
-        // Convert to buffer
-        const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-        console.log(`[Podcast] Downloaded audio file: ${audioBuffer.length} bytes`);
-        
-        // Upload to Supabase Storage
-        console.log(`[Podcast] Uploading to Supabase Storage`);
-        const fileName = `podcast_${recordId}.mp3`;
-        const filePath = `${organizationId}/${fileName}`;
-        
-        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-          .from('podcast_audio')
-          .upload(filePath, audioBuffer, {
-            contentType: 'audio/mpeg',
-            upsert: true
-          });
-        
-        if (uploadError) {
-          throw new Error(`Failed to upload to storage: ${uploadError.message}`);
-        }
-        
-        // Get the public URL
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from('podcast_audio')
-          .getPublicUrl(filePath);
-        
-        if (!publicUrlData?.publicUrl) {
-          throw new Error('Failed to get public URL');
-        }
-        
-        const supabaseUrl = publicUrlData.publicUrl;
-        console.log(`[Podcast] Uploaded to storage, URL: ${supabaseUrl}`);
-        
-        // Update the record with the Supabase URL, not the ElevenLabs URL
-        const { error: updateError } = await supabaseAdmin
-          .from('podcast_audio_generations')
-          .update({
-            status: 'completed',
-            audio_url: supabaseUrl
-          })
-          .eq('id', record.id);
-          
-        if (updateError) {
-          throw new Error(`Failed to update record: ${updateError.message}`);
-        }
-        
-        return NextResponse.json({
-          status: 'completed',
-          audioUrl: supabaseUrl,
-          progress: 1
-        });
-      } catch (downloadError) {
-        console.error(`[Podcast] Error downloading and storing audio:`, downloadError);
-        
-        // Fallback to using the ElevenLabs URL directly (shouldn't happen in normal operation)
-        console.log(`[Podcast] Falling back to using ElevenLabs URL directly`);
-        
-        const { error: updateError } = await supabaseAdmin
-          .from('podcast_audio_generations')
-          .update({
-            status: 'completed',
-            audio_url: projectStatus.audioUrl
-          })
-          .eq('id', record.id);
-          
-        if (updateError) {
-          throw new Error(`Failed to update record: ${updateError.message}`);
-        }
-        
-        return NextResponse.json({
-          status: 'completed',
-          audioUrl: projectStatus.audioUrl,
-          progress: 1,
-          fallback: true
-        });
-      }
-    }
-    
-    // If failed, update the record and return failure
-    if (projectStatus.status === 'failed') {
-      console.log(`[Podcast] Podcast failed: ${projectStatus.errorMessage}`);
-      
-      const { error: updateError } = await supabaseAdmin
-        .from('podcast_audio_generations')
-        .update({
           status: 'failed',
-          description: projectStatus.errorMessage || 'Unknown error in podcast generation'
-        })
-        .eq('id', record.id);
-        
-      if (updateError) {
-        console.error(`[Podcast] Failed to update record with failure: ${updateError.message}`);
-      }
-      
+            error: (projectStatus as any).errorMessage || 'ElevenLabs project processing failed',
+            progress: projectStatus.progress || 0,
+            format: record.format
+        });
+        } else {
+          // Still processing or other state
+          if (projectStatus.progress !== undefined && record.progress !== projectStatus.progress) {
+             await supabaseAdmin
+              .from('podcast_audio_generations')
+              .update({ progress: projectStatus.progress })
+              .eq('id', record.id);
+          }
       return NextResponse.json({
-        status: 'failed',
-        errorMessage: projectStatus.errorMessage
+        status: 'processing',
+            progress: projectStatus.progress || record.progress || 0,
+            format: record.format
       });
     }
+      } catch (error) {
+        console.error(`[Podcast] Error checking ElevenLabs project status:`, error);
+        return NextResponse.json({ 
+          status: record.status, 
+          audioUrl: record.audio_url,
+          progress: record.progress || 0,
+          error: `Error checking conversation status: ${(error as Error).message}`,
+          format: record.format
+        });
+      }
+    }
     
-    // Otherwise return processing status
+    console.log(`[Podcast] Fallback: Returning current record status for record ${record.id} - Format: ${record.format}, Status: ${record.status}`);
     return NextResponse.json({
-      status: 'processing',
-      progress: projectStatus.progress,
-      message: `Podcast is being processed, progress: ${Math.round(projectStatus.progress * 100)}%`
+      status: record.status,
+      audioUrl: record.audio_url, 
+      progress: record.progress || (record.status === 'completed' ? 100 : 0),
+      error: record.error_message,
+      format: record.format
     });
   } catch (error) {
     console.error('[Podcast] Error checking status:', error);

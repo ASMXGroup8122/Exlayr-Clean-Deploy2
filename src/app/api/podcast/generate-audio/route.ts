@@ -4,6 +4,7 @@ import {
   PodcastService, 
   PodcastError, 
   streamToBuffer, 
+  nodeStreamToBuffer,
   PodcastGenerationParams,
   PodcastRecord
 } from '@/lib/services/podcast.service';
@@ -35,47 +36,72 @@ export async function POST(req: NextRequest) {
     // Parse request body
     const body = await req.json();
     const {
-      script,
       voiceId,
       hostVoiceId,
       guestVoiceId,
       organizationId,
       title = "Untitled Podcast",
       podcastFormat,
+      sourceType,
+      sourceValue,
+      script,
     } = body;
 
     console.log(`[Podcast] Received request for ${podcastFormat} podcast`);
     console.log(`[Podcast] Organization ID: ${organizationId}`);
     console.log(`[Podcast] Title: ${title}`);
-    
-    // Validate required parameters
-    if (!script) {
-      return NextResponse.json({ error: 'Script is required' }, { status: 400 });
+    if (podcastFormat === 'conversation') {
+      console.log(`[Podcast] Conversation Source Type: ${sourceType}`);
+      if (sourceType === 'url') {
+        console.log(`[Podcast] Conversation Source Value (URL): ${sourceValue}`);
+      }
+    } else {
+      console.log(`[Podcast] Single voice script: provided (length: ${script?.length || 0})`);
     }
     
+    // Validate required parameters
     if (!organizationId) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
     }
     
-    if (podcastFormat === 'single' && !voiceId) {
-      return NextResponse.json({ error: 'Voice ID is required for single voice podcast' }, { status: 400 });
-    }
-    
-    if (podcastFormat === 'conversation' && (!hostVoiceId || !guestVoiceId)) {
-      return NextResponse.json({ 
-        error: 'Host voice ID and guest voice ID are required for conversation podcast' 
-      }, { status: 400 });
+    let descriptionForDb = "";
+
+    if (podcastFormat === 'single') {
+      if (!script) {
+        return NextResponse.json({ error: 'Script is required for single voice podcast' }, { status: 400 });
+      }
+      if (!voiceId) {
+        return NextResponse.json({ error: 'Voice ID is required for single voice podcast' }, { status: 400 });
+      }
+      descriptionForDb = script;
+    } else if (podcastFormat === 'conversation') {
+      if (!hostVoiceId || !guestVoiceId) {
+        return NextResponse.json({ 
+          error: 'Host voice ID and guest voice ID are required for conversation podcast' 
+        }, { status: 400 });
+      }
+      if (!sourceType || !sourceValue) {
+        return NextResponse.json({ error: 'Source type and source value are required for conversation podcast' }, { status: 400 });
+      }
+      if (!['url', 'file', 'text'].includes(sourceType)) {
+        return NextResponse.json({ error: 'Invalid source type for conversation podcast. Must be url, file, or text.' }, { status: 400 });
+      }
+      if (sourceType === 'url') {
+        descriptionForDb = sourceValue;
+      } else {
+        descriptionForDb = sourceValue;
+      }
+    } else {
+      return NextResponse.json({ error: 'Invalid podcast format specified.' }, { status: 400 });
     }
 
     // Use regular supabase client for fetching API key since this doesn't need admin privileges
-    const supabase = getSupabaseClient();
+    // const supabase = getSupabaseClient(); // Not used directly here, PodcastService handles it
     
-    // Get the ElevenLabs API key from oauth_tokens first, then from organization_settings
+    // Get the ElevenLabs API key
     console.log(`[Podcast] Fetching ElevenLabs API key for organization ${organizationId}`);
-    
     let apiKey;
     try {
-      // Use the PodcastService method that already handles checking both sources
       apiKey = await PodcastService.getOrganizationApiKey(organizationId);
       console.log(`[Podcast] Successfully retrieved API key`);
     } catch (error) {
@@ -86,19 +112,18 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
     
-    // Create a record in podcast_audio_generations table first to get an ID
-    // Use supabaseAdmin to bypass RLS policies
     console.log('[Podcast] Creating initial record in podcast_audio_generations');
     const { data: recordData, error: recordError } = await supabaseAdmin
       .from('podcast_audio_generations')
       .insert({
         organization_id: organizationId,
         title: title,
-        description: script,
+        description: descriptionForDb,
         status: 'processing',
         voice_id: podcastFormat === 'single' ? voiceId : hostVoiceId,
         guest_voice_id: podcastFormat === 'conversation' ? guestVoiceId : null,
         format: podcastFormat,
+        source_type: podcastFormat === 'conversation' ? sourceType : null,
       })
       .select()
       .single();
@@ -115,16 +140,14 @@ export async function POST(req: NextRequest) {
     console.log(`[Podcast] Created record with ID: ${recordId}`);
     
     if (podcastFormat === 'single') {
-      // Handle single voice podcast generation (synchronous generation)
-      await handleSingleVoiceGeneration(apiKey, script, voiceId, recordId, title, organizationId, supabaseAdmin);
+      handleSingleVoiceGeneration(apiKey, script, voiceId, recordId, title, organizationId, supabaseAdmin);
       
       return NextResponse.json({ 
-        message: 'Single voice podcast audio generation complete',
+        message: 'Single voice podcast generation initiated and will be processed asynchronously.',
         podcastId: recordId
       });
     } else {
-      // Handle conversation podcast generation via ElevenLabs Studio API
-      await handleConversationGeneration(apiKey, script, hostVoiceId, guestVoiceId, recordId, title, supabaseAdmin);
+      handleConversationGeneration(apiKey, sourceType, sourceValue, hostVoiceId, guestVoiceId, recordId, title, organizationId, supabaseAdmin);
       
       return NextResponse.json({ 
         message: 'Conversation podcast generation started and will be processed asynchronously',
@@ -153,207 +176,77 @@ async function handleSingleVoiceGeneration(
   organizationId: string,
   adminClient: any
 ): Promise<void> {
-  console.log(`[Podcast] Starting single voice generation for voice ${voiceId}`);
+  console.log(`[Podcast] API Route: Initiating single voice generation for record ${recordId}.`);
   
-  // Initialize ElevenLabs client and generate audio
   try {
-    console.log(`[Podcast] Initializing ElevenLabs client`);
     const elevenClient = new ElevenLabsClient({ apiKey });
 
-    console.log(`[Podcast] Calling ElevenLabs generate API`);
-    const audioStreamPromise = elevenClient.generate({
+    // Fire-and-forget the ElevenLabs generation process.
+    (async () => {
+      try {
+        console.log(`[Podcast] Background: Sending command to ElevenLabs to generate audio for record ${recordId}`);
+        // Only initiate the call. Do not await the stream or process it here.
+        // Attach a catch to this specific promise to handle immediate rejection from ElevenLabs API.
+        elevenClient.generate({
       voice: voiceId,
       text: script,
       model_id: "eleven_multilingual_v2",
-    });
-    
-    // Set a timeout promise to cancel if it takes too long
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      const timeoutId = setTimeout(() => {
-        clearTimeout(timeoutId);
-        reject(new Error('ElevenLabs API call timed out after 10 minutes'));
-      }, 600000); // 10 minutes timeout (increased from 3 minutes)
-    });
-    
-    try {
-      // Race between the actual API call and the timeout
-      const audioStream = await Promise.race([audioStreamPromise, timeoutPromise]);
-  
-      if (!audioStream) {
-        throw new PodcastError('Audio stream generation failed or returned empty.', 'elevenlabs.generate');
-      }
-      console.log(`[Podcast] Successfully received audio stream`);
-  
-      // Convert stream to buffer
-      console.log(`[Podcast] Converting audio stream to buffer`);
-      const audioBuffer = await streamToBuffer(audioStream);
-      console.log(`[Podcast] Audio buffer created, size: ${audioBuffer.length} bytes`);
-  
-      // Upload to storage - use admin client for storage operations
-      console.log(`[Podcast] Uploading audio to Supabase Storage`);
-      
-      // Use admin client for storage upload
-      const audioFileName = `podcast_audio_${crypto.randomUUID()}.mp3`;
-      const filePath = `${organizationId}/${audioFileName}`;
-      
-      const { data: uploadData, error: uploadError } = await adminClient.storage
-        .from('podcast_audio')
-        .upload(filePath, audioBuffer, {
-          contentType: 'audio/mpeg',
-          upsert: false,
+        }).catch(async (initiationError) => {
+          // This catch is for errors if ElevenLabs immediately rejects the generation request (e.g., bad voice_id, quota issue).
+          console.error(`[Podcast] Background: ElevenLabs generate() call immediately failed for record ${recordId}:`, initiationError);
+          try {
+            await adminClient
+              .from('podcast_audio_generations')
+              .update({
+                status: 'failed',
+                error_message: `ElevenLabs Initiation Error: ${(initiationError as Error).message}`
+              })
+              .eq('id', recordId);
+            console.log(`[Podcast] Background: Record ${recordId} marked as 'failed' due to ElevenLabs initiation error.`);
+          } catch (dbError) {
+            console.error(`[Podcast] Background: DB error updating record ${recordId} to 'failed' after ElevenLabs initiation error:`, dbError);
+          }
         });
-        
-      if (uploadError) {
-        throw new PodcastError(
-          `Failed to upload audio to storage: ${uploadError.message}`,
-          'uploadAudioToStorage',
-          uploadError
-        );
-      }
-      
-      const { data: publicUrlData } = adminClient.storage
-        .from('podcast_audio')
-        .getPublicUrl(uploadData.path);
-        
-      if (!publicUrlData?.publicUrl) {
-        throw new PodcastError(
-          'Failed to generate public URL for uploaded audio',
-          'uploadAudioToStorage'
-        );
-      }
-      
-      const publicUrl = publicUrlData.publicUrl;
-      console.log(`[Podcast] Audio uploaded successfully, path: ${uploadData.path}`);
-  
-      // Update record with success - use admin client for database update
-      console.log(`[Podcast] Updating record with success status`);
-      const { error: updateError } = await adminClient
-        .from('podcast_audio_generations')
-        .update({
-          status: 'completed',
-          audio_url: publicUrl
-        })
-        .eq('id', recordId);
-        
-      if (updateError) {
-        throw new PodcastError(
-          `Failed to update podcast record with success: ${updateError.message}`,
-          'updateRecordWithSuccess',
-          updateError
-        );
-      }
-      
-      console.log(`[Podcast] Record updated with audio URL`);
-    } catch (error) {
-      // If it's a timeout error, we'll move the podcast to use the asynchronous flow
-      if ((error as Error).message && (error as Error).message.includes('timed out')) {
-        console.log(`[Podcast] API call timed out - switching to async processing mode`);
-        
+
+        // If we reach here, the command has been sent to ElevenLabs.
+        // The record remains 'processing'. Manual retrieval will handle completion/failure based on ElevenLabs history.
+        console.log(`[Podcast] Background: Command to generate audio for ${recordId} sent to ElevenLabs. No further processing in this async block.`);
+
+      } catch (internalError) {
+        // This catch is for unexpected errors within this specific IIAFE block setup, NOT for ElevenLabs generation errors themselves (handled above).
+        console.error(`[Podcast] Background: Internal error in detached async block for record ${recordId}:`, internalError);
+        // This is an unexpected state, try to mark as failed.
         try {
-          // Switch to conversation mode (async) for longer scripts
-          console.log(`[Podcast] Creating ElevenLabs project for async processing`);
-          
-          // Make a call to create a project for asynchronous processing
-          const response = await fetch('https://api.elevenlabs.io/v1/studio/podcasts', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'xi-api-key': apiKey
-            },
-            body: JSON.stringify({
-              model_id: 'eleven_monolingual_v1',
-              name: title,
-              mode: {
-                name: 'single', 
-                voice_id: voiceId
-              },
-              source: {
-                type: 'text',
-                text: script
-              }
-            })
-          });
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new PodcastError(
-              `ElevenLabs Studio API error: ${response.status} ${response.statusText}`, 
-              'single_voice_fallback',
-              { statusCode: response.status, errorText }
-            );
-          }
-          
-          const data = await response.json();
-          
-          if (!data.project || !data.project.id) {
-            throw new PodcastError(
-              'No project ID returned from ElevenLabs Studio API', 
-              'single_voice_fallback'
-            );
-          }
-          
-          // Update the record with the project ID
-          const { error: updateError } = await adminClient
+          await adminClient
             .from('podcast_audio_generations')
             .update({
-              elevenlabs_project_id: data.project.id,
-              status: 'processing'
+              status: 'failed',
+              error_message: `Internal Background Error: ${(internalError as Error).message}`
             })
             .eq('id', recordId);
-            
-            console.log(`[Podcast] Successfully created async project with ID: ${data.project.id}`);
-            
-            if (updateError) {
-              console.error(`[Podcast] Failed to update record with project ID: ${updateError.message}`);
-            }
-            
-            // Now the check-status endpoint will handle completing this
-            console.log(`[Podcast] Podcast will be processed asynchronously`);
-            return;
-        } catch (asyncError) {
-          console.error(`[Podcast] Error setting up async processing: ${(asyncError as Error).message}`);
-          throw asyncError;
+        } catch (dbError) {
+          // Log, but don't let this crash anything further.
+          console.error(`[Podcast] Background: DB error attempting to mark ${recordId} as failed after internal error:`, dbError);
         }
-      } else {
-        // It's a non-timeout error, rethrow it
-        throw error;
       }
-    }
-  } catch (error) {
-    console.error(`[Podcast] Error in single voice generation: ${(error as Error).message}`, error);
-    
-    // Update record with failure status if we have a record ID - use admin client
-    if (recordId) {
-      try {
-        console.log(`[Podcast] Updating record ${recordId} with failure status`);
-        
-        const { error: updateError } = await adminClient
-          .from('podcast_audio_generations')
-          .update({
-            status: 'failed',
-            description: error instanceof PodcastError 
-              ? `${error.context}: ${error.message}` 
-              : `Error: ${(error as Error).message}`
-          })
-          .eq('id', recordId);
-          
-        if (updateError) {
-          console.error(`[Podcast] Failed to update record with error status:`, updateError);
-        }
-      } catch (updateError) {
-        console.error(`[Podcast] Failed to update record with error status:`, updateError);
-      }
-    }
-    
-    // Return appropriate error response
-    if (error instanceof PodcastError) {
-      throw error;
-    } else {
-      throw new PodcastError(
-        `Failed to generate single voice podcast: ${(error as Error).message}`,
-        'single_voice_generation',
-        error
-      );
+    })(); // End of detached async IIAFE
+
+    console.log(`[Podcast] API Route: Fire-and-forget for record ${recordId} dispatched. API will respond now.`);
+
+  } catch (setupError) {
+    // This catch is for synchronous errors during the setup in this function (e.g., new ElevenLabsClient fails).
+    console.error(`[Podcast] API Route: Synchronous setup error for record ${recordId}:`, setupError);
+    try {
+      await adminClient
+        .from('podcast_audio_generations')
+        .update({
+          status: 'failed',
+          error_message: `API Setup Error: ${(setupError as Error).message}`
+        })
+        .eq('id', recordId);
+      console.log(`[Podcast] API Route: Record ${recordId} marked as 'failed' due to setup error.`);
+    } catch (dbUpdateError) {
+      console.error(`[Podcast] API Route: DB error updating record ${recordId} after setup error:`, dbUpdateError);
     }
   }
 }
@@ -363,126 +256,138 @@ async function handleSingleVoiceGeneration(
  */
 async function handleConversationGeneration(
   apiKey: string,
-  script: string,
+  sourceType: string, 
+  sourceValue: string,
   hostVoiceId: string,
   guestVoiceId: string,
   recordId: string,
   title: string,
+  organizationId: string,
   adminClient: any
 ): Promise<void> {
-  console.log(`[Podcast] Starting conversation podcast generation with ElevenLabs Studio API`);
-  console.log(`[Podcast] Host Voice: ${hostVoiceId}, Guest Voice: ${guestVoiceId}`);
-  
-  try {
-    // Make direct API call to ElevenLabs Studio API for podcast generation
-    console.log(`[Podcast] Making request to ElevenLabs Studio API for conversation podcast`);
-    
-    // Create promise for the fetch call
-    const fetchPromise = fetch('https://api.elevenlabs.io/v1/studio/podcasts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'xi-api-key': apiKey
-      },
-      body: JSON.stringify({
-        model_id: 'eleven_monolingual_v1',
-        name: title,
-        mode: {
-          name: 'conversation', 
-          host_voice_id: hostVoiceId,
-          guest_voice_id: guestVoiceId,
-        },
-        source: {
-          type: 'text',
-          text: script
-        }
-      })
-    });
-    
-    // Set a timeout promise
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      const timeoutId = setTimeout(() => {
-        clearTimeout(timeoutId);
-        reject(new Error('ElevenLabs Studio API call timed out after 10 minutes'));
-      }, 600000); // 10 minutes timeout (increased from 3 minutes)
-    });
-    
-    // Race between the fetch call and the timeout
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
+  console.log(`[Podcast] API Route: Initiating conversation generation for record ${recordId}.`);
+  const elevenClient = new ElevenLabsClient({ apiKey });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new PodcastError(
-        `ElevenLabs Studio API error: ${response.status} ${response.statusText}`, 
-        'handleConversationGeneration',
-        { statusCode: response.status, errorText }
-      );
-    }
-    
-    const data = await response.json();
-    console.log(`[Podcast] ElevenLabs Studio API response:`, data);
-    
-    if (!data.project || !data.project.id) {
-      throw new PodcastError(
-        'No project ID returned from ElevenLabs Studio API', 
-        'handleConversationGeneration'
-      );
-    }
-    
-    // Store the project ID for status checking - use admin client
-    console.log(`[Podcast] Storing ElevenLabs project ID: ${data.project.id}`);
-    
-    const { error: updateError } = await adminClient
-      .from('podcast_audio_generations')
-      .update({
-        elevenlabs_project_id: data.project.id
-      })
-      .eq('id', recordId);
-      
-    if (updateError) {
-      throw new PodcastError(
-        `Failed to update podcast record with project ID: ${updateError.message}`,
-        'updateRecordWithProjectId',
-        updateError
-      );
-    }
-    
-    console.log(`[Podcast] Conversation podcast generation started successfully`);
-  } catch (error) {
-    console.error(`[Podcast] Error in conversation generation: ${(error as Error).message}`, error);
-    
-    // Update record with failure - use admin client
+  // Fire-and-forget
+  (async () => {
     try {
-      console.log(`[Podcast] Updating record ${recordId} with failure status`);
-      
-      const { error: updateError } = await adminClient
-        .from('podcast_audio_generations')
-        .update({
-          status: 'failed',
-          description: error instanceof PodcastError 
-            ? `${error.context}: ${error.message}` 
-            : `Failed to create conversation podcast: ${(error as Error).message}`
-        })
-        .eq('id', recordId);
-        
-      if (updateError) {
-        console.error(`[Podcast] Error updating failure status: ${updateError.message}`);
+      let podcastSource;
+
+      // Prepare source content
+      let actualTextContent = "";
+      if (sourceType === 'url') {
+        // Placeholder: In a real implementation, fetch and parse the URL content here.
+        // This is a critical step. 
+        console.warn(`[Podcast] Background: URL processing for ${sourceValue} is a placeholder. Implement actual fetching and text extraction.`);
+        actualTextContent = `Content from ${sourceValue}`; // Replace with actual fetched content
+         podcastSource = {
+          type: "text" as const, // Assuming we process the URL to text
+          text: actualTextContent
+        };
+      } else { // 'text' or 'file' content (assuming file content is passed as text by client)
+        actualTextContent = sourceValue;
+        podcastSource = {
+          type: "text" as const,
+          text: actualTextContent
+        };
       }
-    } catch (updateError) {
-      console.error(`[Podcast] Error updating failure status: ${(updateError as Error).message}`);
+      
+      console.log(`[Podcast] Background: Sending command to ElevenLabs Studio to create podcast for record ${recordId}`);
+      
+      const elevenLabsPayload = {
+        model_id: "eleven_multilingual_v2", // As per PodcastImplementationPlan.md
+        title: title, // Add title to the payload
+        mode: {
+          type: "conversation" as const, // Use "as const" for literal type
+          conversation: {
+            host_voice_id: hostVoiceId,
+            guest_voice_id: guestVoiceId,
+          },
+        },
+        source: podcastSource, // Use the prepared source
+        quality_preset: "ultra" as const, // Also use "as const" for enums if needed by SDK
+        // duration_scale: "default", // Optional, as per PodcastImplementationPlan.md
+      };
+
+      console.log("[Podcast] Background: ElevenLabs Payload for conversation:", JSON.stringify(elevenLabsPayload, null, 2));
+
+      const response = await elevenClient.studio.createPodcast(elevenLabsPayload);
+
+      // const response = await elevenClient.studio.createPodcast({
+      //   model_id: "eleven_multilingual_v2", // Or your selected model
+      //   title: title, 
+      //   mode: { // Old incorrect structure
+      //     conversation: {
+      //       host_voice_id: hostVoiceId,
+      //       guest_voice_id: guestVoiceId,
+      //     },
+      //   },
+      //   // source: { text: sourceValue }, // Assuming sourceValue is the actual text content
+      //   source: podcastSource,
+      //   quality_preset: "ultra", 
+      //   // duration_scale: "default" 
+      // });
+      
+      console.log(`[Podcast] Background: ElevenLabs Studio API response for record ${recordId}:`, response);
+
+      // If successful, ElevenLabs returns a project object. We need the project_id.
+      // The actual audio generation happens in the background on ElevenLabs' side.
+      // We'll update our record with the project_id for status checking.
+      // The webhook or polling mechanism will later update with audio_url.
+
+      if (response && response.project && response.project.project_id) {
+        await adminClient
+          .from('podcast_audio_generations')
+          .update({
+            status: 'submitted_to_elevenlabs', // New status indicating it's with ElevenLabs
+            elevenlabs_project_id: response.project.project_id,
+            // audio_url: null, // audio_url will be set by webhook or polling
+            // error_message: null 
+          })
+          .eq('id', recordId);
+        console.log(`[Podcast] Background: Record ${recordId} updated with ElevenLabs project ID: ${response.project.project_id}`);
+      } else {
+        // This case should ideally not happen if API call was successful (200-299)
+        // but the response structure is not as expected.
+        console.error(`[Podcast] Background: ElevenLabs API call succeeded but response format unexpected for record ${recordId}:`, response);
+        await adminClient
+            .from('podcast_audio_generations')
+            .update({
+              status: 'failed',
+              error_message: 'ElevenLabs API response format unexpected after creation.'
+            })
+            .eq('id', recordId);
+      }
+
+    } catch (error: any) {
+      const errorResponse = error.response; // Axios-like error structure from ElevenLabs client
+      let errorMessage = 'Unknown error during ElevenLabs conversation generation.';
+      let errorDetails = error.message;
+
+      if (errorResponse && errorResponse.data && errorResponse.data.detail) {
+        errorMessage = `ElevenLabs Studio API error: ${errorResponse.status} ${errorResponse.statusText}`;
+        errorDetails = JSON.stringify(errorResponse.data.detail);
+        console.error(`[Podcast] Background: ElevenLabs Studio API error for record ${recordId}: ${errorResponse.status} ${errorResponse.statusText}`, errorResponse.data.detail);
+      } else {
+        console.error(`[Podcast] Background: ElevenLabs conversation generation failed for record ${recordId}:`, error);
+      }
+      
+      try {
+        await adminClient
+          .from('podcast_audio_generations')
+          .update({
+            status: 'failed',
+            error_message: `${errorMessage} - ${errorDetails}`
+          })
+          .eq('id', recordId);
+        console.log(`[Podcast] Background: Record ${recordId} marked as 'failed' due to ElevenLabs conversation initiation error.`);
+      } catch (dbError) {
+        console.error(`[Podcast] Background: DB error updating record ${recordId} to 'failed':`, dbError);
+      }
     }
-    
-    // Re-throw the error to be handled by the caller
-    if (error instanceof PodcastError) {
-      throw error;
-    } else {
-      throw new PodcastError(
-        `Failed to generate conversation podcast: ${(error as Error).message}`,
-        'conversation_generation',
-        error
-      );
-    }
-  }
+  })(); // End of detached async IIAFE
+
+  console.log(`[Podcast] API Route: Fire-and-forget for conversation record ${recordId} dispatched. API will respond now.`);
 }
 
 /**
