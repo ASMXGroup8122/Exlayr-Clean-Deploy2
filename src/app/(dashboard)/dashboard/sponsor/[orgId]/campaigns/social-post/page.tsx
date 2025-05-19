@@ -1032,6 +1032,7 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
                     setSelectedFileObject={setSelectedFileObject}
                     selectedDocumentName={selectedDocumentName}
                     setSelectedDocumentName={setSelectedDocumentName}
+                    isConversationComingSoon={true}
                   />
                 )}
               </div>

@@ -25,6 +25,7 @@ interface PodcastTabProps {
   setSelectedFileObject: React.Dispatch<React.SetStateAction<File | null>>;
   selectedDocumentName: string | null;
   setSelectedDocumentName: React.Dispatch<React.SetStateAction<string | null>>;
+  isConversationComingSoon?: boolean;
 }
 
 export default function PodcastTab(props: PodcastTabProps) {
@@ -36,6 +37,7 @@ export default function PodcastTab(props: PodcastTabProps) {
     setSelectedFileObject,
     selectedDocumentName,
     setSelectedDocumentName,
+    isConversationComingSoon = false,
   } = props;
 
   const { user } = useAuth();
@@ -107,6 +109,13 @@ export default function PodcastTab(props: PodcastTabProps) {
     
     checkConnection();
   }, [orgId, supabase]);
+
+  // Ensure format is 'single' if conversation is coming soon
+  useEffect(() => {
+    if (isConversationComingSoon && podcastFormat === 'conversation') {
+      setPodcastFormat('single');
+    }
+  }, [isConversationComingSoon, podcastFormat]);
 
   const handleCreatePodcastInternal = async () => {
     if (!user || !orgId) {
@@ -267,7 +276,7 @@ export default function PodcastTab(props: PodcastTabProps) {
 
   return (
     <>
-      <FormatSelector value={podcastFormat} onChange={setPodcastFormat} />
+      <FormatSelector value={podcastFormat} onChange={setPodcastFormat} isConversationComingSoon={isConversationComingSoon} />
       {hasElevenLabsConnection === false && (
         <ElevenLabsConnectionHelper organizationId={orgId} />
       )}
@@ -396,7 +405,7 @@ export default function PodcastTab(props: PodcastTabProps) {
         </>
       )}
       {podcastFormat === 'conversation' && (
-        <>
+        <div className={isConversationComingSoon ? 'opacity-50 pointer-events-none' : ''}>
           {orgId && (
             <div className="mt-4">
               <VoiceSelectorField
@@ -492,7 +501,7 @@ export default function PodcastTab(props: PodcastTabProps) {
               <PodcastPlayer podcastId={createdPodcastId} organizationId={orgId} />
             </div>
           )}
-        </>
+        </div>
       )}
       <div className="mt-4 space-y-2">
         <Label htmlFor="podcast-title">Podcast Title *</Label>
@@ -511,7 +520,7 @@ export default function PodcastTab(props: PodcastTabProps) {
           className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
           disabled={isCreatingPodcast || !podcastTitle.trim() ||
             (podcastFormat === 'single' && (!generatedScript || !selectedHostVoiceId)) ||
-            (podcastFormat === 'conversation' && (!conversationSourceProvided || !conversationVoicesProvided))
+            (podcastFormat === 'conversation' && (isConversationComingSoon || !conversationSourceProvided || !conversationVoicesProvided))
           }
         >
           {isCreatingPodcast ? (
