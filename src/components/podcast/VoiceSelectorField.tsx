@@ -187,7 +187,7 @@ export function VoiceSelectorField({
     <div className={`space-y-2 ${className}`}>
       <Label htmlFor={`voice-selector-${label.toLowerCase().replace(/\s+/g, '-')}`}>{label}</Label>
       <Select
-        value={selectedVoiceId || ''}
+        value={selectedVoiceId === null ? '' : selectedVoiceId}
         onValueChange={(value) => onVoiceChange(value || null)}
         disabled={isLoadingVoices || trulyNoVoicesAvailable}
       >

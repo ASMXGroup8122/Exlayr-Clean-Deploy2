@@ -267,7 +267,7 @@ async function handleConversationGeneration(
 ): Promise<void> {
   console.log(`[Podcast] API Route: Initiating conversation generation for record ${recordId}.`);
   const elevenClient = new ElevenLabsClient({ apiKey });
-
+  
   // Fire-and-forget
   (async () => {
     try {
@@ -290,7 +290,7 @@ async function handleConversationGeneration(
           type: "text" as const,
           text: actualTextContent
         };
-      }
+        }
       
       console.log(`[Podcast] Background: Sending command to ElevenLabs Studio to create podcast for record ${recordId}`);
       
@@ -351,12 +351,12 @@ async function handleConversationGeneration(
         // but the response structure is not as expected.
         console.error(`[Podcast] Background: ElevenLabs API call succeeded but response format unexpected for record ${recordId}:`, response);
         await adminClient
-            .from('podcast_audio_generations')
-            .update({
+        .from('podcast_audio_generations')
+        .update({
               status: 'failed',
               error_message: 'ElevenLabs API response format unexpected after creation.'
-            })
-            .eq('id', recordId);
+        })
+        .eq('id', recordId);
       }
 
     } catch (error: any) {
@@ -371,7 +371,7 @@ async function handleConversationGeneration(
       } else {
         console.error(`[Podcast] Background: ElevenLabs conversation generation failed for record ${recordId}:`, error);
       }
-      
+
       try {
         await adminClient
           .from('podcast_audio_generations')

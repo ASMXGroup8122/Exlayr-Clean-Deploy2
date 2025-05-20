@@ -85,6 +85,8 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
     additional_instructions: '',
     tone_of_voice_id: '',
     image_type: '',
+    hostName: '',
+    conversationUrlInput: '',
     platforms: {
       linkedin: false,
       twitter: false,
