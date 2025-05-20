@@ -35,6 +35,7 @@ export default function ClientsClient({ orgId }: ClientsClientProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = getSupabaseClient();
+  const [activeTab, setActiveTab] = useState<'approved' | 'pending' | 'prospects'>('approved');
 
   useEffect(() => {
     async function fetchClientIssuers() {
@@ -104,21 +105,80 @@ export default function ClientsClient({ orgId }: ClientsClientProps) {
     }
   };
 
+  // Tab filter logic
+  const filteredIssuers = issuers.filter(issuer => {
+    if (activeTab === 'approved') return issuer.status === 'approved';
+    if (activeTab === 'pending') return issuer.status === 'pending';
+    // @ts-expect-error: 'prospect' is a placeholder for future status
+    if (activeTab === 'prospects') return issuer.status === 'prospect';
+    return false;
+  });
+
   if (loading) {
     // Simplified loading state
-    return <div>Loading clients...</div>;
+    return (
+      <>
+        <div className="flex justify-end px-4 pt-4">
+          <Button asChild>
+            <Link href={`/dashboard/sponsor/${orgId}/clients/new`}>
+              Create new Issuer
+            </Link>
+          </Button>
+        </div>
+        <div>Loading issuers...</div>
+      </>
+    );
   }
 
   if (error) {
-    return <div className="text-red-600">Error: {error}</div>;
-  }
-
-  if (issuers.length === 0) {
-    return <div className="text-center text-muted-foreground mt-8">No clients (issuers) found for your listings.</div>;
+    return (
+      <>
+        <div className="flex justify-end px-4 pt-4">
+          <Button asChild>
+            <Link href={`/dashboard/sponsor/${orgId}/clients/new`}>
+              Create new Issuer
+            </Link>
+          </Button>
+        </div>
+        <div className="text-red-600">Error: {error}</div>
+      </>
+    );
   }
 
   return (
     <div className="border rounded-lg overflow-hidden">
+      {/* Create new Issuer button */}
+      <div className="flex justify-end px-4 pt-4">
+        <Button asChild>
+          <Link href={`/dashboard/sponsor/${orgId}/clients/new`}>
+            Create new Issuer
+          </Link>
+        </Button>
+      </div>
+      {/* Tabs for status filtering */}
+      <div className="border-b bg-gray-50 px-4 pt-4">
+        <div className="flex space-x-4">
+          <button
+            className={`py-2 px-4 font-medium ${activeTab === 'approved' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+            onClick={() => setActiveTab('approved')}
+          >
+            Approved
+          </button>
+          <button
+            className={`py-2 px-4 font-medium ${activeTab === 'pending' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+            onClick={() => setActiveTab('pending')}
+          >
+            Pending
+          </button>
+          <button
+            className={`py-2 px-4 font-medium ${activeTab === 'prospects' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+            onClick={() => setActiveTab('prospects')}
+          >
+            Prospects
+          </button>
+        </div>
+      </div>
+      {/* Table for filtered issuers */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -131,31 +191,39 @@ export default function ClientsClient({ orgId }: ClientsClientProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {issuers.map((issuer) => (
-            <TableRow key={issuer.id}>
-              <TableCell className="font-medium">{issuer.issuer_name || '-'}</TableCell>
-              <TableCell>{issuer.company_registration_number || '-'}</TableCell>
-              <TableCell>{issuer.country || '-'}</TableCell>
-              <TableCell>{issuer.main_contact || '-'}</TableCell>
-              <TableCell>
-                {issuer.status ? (
-                  <Badge variant={getStatusBadgeVariant(issuer.status)} className="capitalize">
-                    {issuer.status}
-                  </Badge>
-                ) : (
-                  '-'
-                )}
-              </TableCell>
-              <TableCell className="text-right">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/dashboard/sponsor/${orgId}/clients/${issuer.id}`} aria-label={`View details for ${issuer.issuer_name}`}>
-                    <Eye className="h-4 w-4 mr-1" />
-                    View
-                  </Link>
-                </Button>
+          {filteredIssuers.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                No issuers found for this tab.
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            filteredIssuers.map((issuer) => (
+              <TableRow key={issuer.id}>
+                <TableCell className="font-medium">{issuer.issuer_name || '-'}</TableCell>
+                <TableCell>{issuer.company_registration_number || '-'}</TableCell>
+                <TableCell>{issuer.country || '-'}</TableCell>
+                <TableCell>{issuer.main_contact || '-'}</TableCell>
+                <TableCell>
+                  {issuer.status ? (
+                    <Badge variant={getStatusBadgeVariant(issuer.status)} className="capitalize">
+                      {issuer.status}
+                    </Badge>
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/sponsor/${orgId}/clients/${issuer.id}`} aria-label={`View details for ${issuer.issuer_name}`}>
+                      <Eye className="h-4 w-4 mr-1" />
+                      View
+                    </Link>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </div>

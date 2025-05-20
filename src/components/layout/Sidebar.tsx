@@ -81,7 +81,7 @@ export default function Sidebar({
             exchange_sponsor: [
                 { href: `/dashboard/sponsor/${orgId}`, label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, category: 'Overview' },
                 { href: `/dashboard/sponsor/${orgId}/listings`, label: 'Listings', icon: <Building2 className="w-5 h-5" />, category: 'Management' },
-                { href: `/dashboard/sponsor/${orgId}/clients`, label: 'Clients', icon: <Users className="w-5 h-5" />, category: 'Management' },
+                { href: `/dashboard/sponsor/${orgId}/clients`, label: 'Issuers', icon: <Users className="w-5 h-5" />, category: 'Management' },
                 { href: `/dashboard/sponsor/${orgId}/tools`, label: 'Tools', icon: <Wrench className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/analytics`, label: 'Analytics', icon: <BarChart className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/knowledge-vault`, label: 'Knowledge Vault', icon: <Brain className="w-5 h-5" />, category: 'Tools' },
