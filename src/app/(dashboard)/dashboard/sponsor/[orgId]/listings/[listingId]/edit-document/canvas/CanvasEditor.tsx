@@ -10,6 +10,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import type { Section, Subsection, Comment } from '@/types/documents';
 import CanvasField from './CanvasField';
 import CanvasPromptBar from './CanvasPromptBar';
+import { ShareModal } from './ShareModal';
 
 interface CanvasEditorProps {
   initialSections: Section[];
@@ -18,6 +19,7 @@ interface CanvasEditorProps {
   userId: string;
   userName: string;
   documentData: Record<string, any>;
+  listingName: string;
 }
 
 /**
@@ -30,7 +32,8 @@ export default function CanvasEditor({
   documentId,
   userId,
   userName,
-  documentData
+  documentData,
+  listingName
 }: CanvasEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -42,9 +45,10 @@ export default function CanvasEditor({
   
   // AI Prompt Bar state
   const [isPromptBarVisible, setIsPromptBarVisible] = useState(false);
-  const [activeFieldId, setActiveFieldId] = useState<string | undefined>();
-  const [activeFieldTitle, setActiveFieldTitle] = useState<string | undefined>();
-  const [activeFieldContent, setActiveFieldContent] = useState<string | undefined>();
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+  const [activeFieldTitle, setActiveFieldTitle] = useState<string>('');
+  const [activeFieldContent, setActiveFieldContent] = useState<string>('');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Calculate if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => 
@@ -181,31 +185,50 @@ export default function CanvasEditor({
   }, [isPromptBarVisible]);
 
   // Handle AI content insertion
-  const handleInsertContent = useCallback((fieldId: string, content: string, mode: 'insert' | 'replace') => {
-    const currentContent = localChanges[fieldId] ?? 
-      initialSections.flatMap(s => s.subsections).find(sub => sub.id === fieldId)?.content ?? '';
+  const handleInsertContent = useCallback(async (fieldId: string, content: string, mode: 'insert' | 'replace') => {
+    const supabase = getSupabaseClient();
     
-    let newContent: string;
-    if (mode === 'replace') {
-      newContent = content;
-    } else {
-      // Insert mode - append to existing content
-      newContent = currentContent ? `${currentContent}\n\n${content}` : content;
-    }
+    try {
+      let newContent = content;
+      
+      if (mode === 'insert') {
+        const currentContent = documentData[fieldId] || '';
+        newContent = currentContent + (currentContent ? '\n\n' : '') + content;
+      }
 
-    // Update local changes
-    handleFieldChange(fieldId, newContent);
-    
-    // Update active field content if it's the same field
-    if (activeFieldId === fieldId) {
-      setActiveFieldContent(newContent);
+      const { error } = await supabase
+        .from('listingdocumentdirectlisting')
+        .update({ 
+          [fieldId]: newContent,
+          updated_at: new Date().toISOString()
+        })
+        .eq('instrumentid', documentId);
+
+      if (error) throw error;
+
+      // Update local state
+      documentData[fieldId] = newContent;
+      
+      toast({
+        title: "Content Updated",
+        description: `Content ${mode === 'insert' ? 'inserted into' : 'replaced in'} ${activeFieldTitle}.`,
+      });
+    } catch (error) {
+      console.error('Error updating content:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update content. Please try again.",
+        variant: "destructive",
+      });
     }
-  }, [localChanges, initialSections, handleFieldChange, activeFieldId]);
+  }, [documentId, documentData, activeFieldTitle, toast]);
+
+  // This was used for a different rendering approach - now we render directly from sections
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm">
+      <div className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm relative z-30">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
@@ -243,17 +266,13 @@ export default function CanvasEditor({
 
           {/* Action Buttons */}
           <Button
-            onClick={handlePromptBarToggle}
-            variant={isPromptBarVisible ? "default" : "outline"}
+            onClick={() => setIsShareModalOpen(true)}
+            variant="outline"
             size="sm"
-            className={`flex items-center gap-2 transition-all duration-200 ${
-              isPromptBarVisible 
-                ? "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white" 
-                : "hover:bg-gray-100"
-            }`}
+            className="flex items-center gap-2 hover:bg-gray-100"
           >
-            <Sparkles className="h-4 w-4" />
-            AI Assistant
+            <Share2 className="h-4 w-4" />
+            Share
           </Button>
 
           <Button
@@ -271,23 +290,14 @@ export default function CanvasEditor({
           </Button>
 
           <Button
-            variant="outline"
             size="sm"
-            onClick={handleShare}
-            className="flex items-center gap-2 hover:bg-gray-100"
+            onClick={handlePromptBarToggle}
+            className={`flex items-center gap-2 ${
+              isPromptBarVisible ? 'bg-blue-600 hover:bg-blue-700' : ''
+            }`}
           >
-            <Share2 className="h-4 w-4" />
-            Share
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            className="flex items-center gap-2 hover:bg-gray-100"
-          >
-            <Download className="h-4 w-4" />
-            Export
+            <Sparkles className="h-4 w-4" />
+            AI Assistant
           </Button>
         </div>
       </div>
@@ -295,8 +305,8 @@ export default function CanvasEditor({
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className={`mx-auto py-8 space-y-8 transition-all duration-300 ${
-            isPromptBarVisible ? 'max-w-none pr-[340px] pl-4' : 'max-w-6xl px-8'
+          <div className={`mx-auto py-8 transition-all duration-300 ${
+            isPromptBarVisible ? 'max-w-none pr-[420px] pl-2 space-y-6' : 'max-w-6xl px-8 space-y-8'
           }`}>
             {/* Document Title */}
             <div className="text-center border-b pb-8">
@@ -341,22 +351,20 @@ export default function CanvasEditor({
                   </div>
                 </div>
 
-                {/* Section Fields */}
-                <div className="space-y-6 ml-4">
-                  {section.subsections.map((subsection, fieldIndex) => (
+                {/* Section Fields (Subsections) */}
+                <div className={`space-y-6 ${isPromptBarVisible ? 'ml-2' : 'ml-4'}`}>
+                  {section.subsections?.map((subsection) => (
                     <CanvasField
                       key={subsection.id}
                       fieldId={subsection.id}
                       title={subsection.title}
-                      content={localChanges[subsection.id] ?? subsection.content ?? ''}
-                      isLocked={section.status === 'locked' || section.status === 'approved'}
-                      comments={groupedComments[subsection.id] || []}
+                      content={subsection.content ?? ''}
+                      isLocked={section.status === 'approved' || section.status === 'locked'}
                       onChange={handleFieldChange}
                       onSave={handleFieldSave}
-                      onFocus={handleFieldFocus}
+                      onFocus={(fieldId, fieldTitle, content) => handleFieldFocus(fieldId, fieldTitle, content)}
+                      comments={groupedComments[subsection.id] || []}
                       userId={userId}
-                      fieldIndex={fieldIndex + 1}
-                      isActive={activeFieldId === subsection.id}
                     />
                   ))}
                 </div>
@@ -373,11 +381,19 @@ export default function CanvasEditor({
       <CanvasPromptBar
         isVisible={isPromptBarVisible}
         onToggle={handlePromptBarToggle}
-        activeFieldId={activeFieldId}
+        activeFieldId={activeFieldId ?? undefined}
         activeFieldTitle={activeFieldTitle}
         activeFieldContent={activeFieldContent}
         onInsertContent={handleInsertContent}
         documentId={documentId}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        listingId={documentId}
+        listingName={listingName}
       />
     </div>
   );

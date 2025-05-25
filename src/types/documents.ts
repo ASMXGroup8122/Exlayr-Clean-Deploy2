@@ -4,7 +4,7 @@
 export interface Subsection {
   id: string;      // Corresponds to column name (e.g., 'sec1_generalinfo')
   title: string;   // User-friendly title (e.g., 'General Information')
-  content: string; // Content from the corresponding column
+  content: string | null; // Content from the corresponding column (can be null from DB)
 }
 
 /**
@@ -28,8 +28,8 @@ export interface Comment {
   id: string;
   document_id: string;
   section_id: string; // Stores the subsection ID (e.g., 'sec1_generalinfo')
-  user_id: string;
-  user_name: string; // Denormalized: Stored directly in the table
+  user_id: string | null; // Can be null for guest comments
+  user_name: string; // Denormalized: Stored directly in the table (includes guest names)
   content: string;
   created_at: string;
   status?: 'open' | 'resolved' | 'needs_clarification'; // Example statuses

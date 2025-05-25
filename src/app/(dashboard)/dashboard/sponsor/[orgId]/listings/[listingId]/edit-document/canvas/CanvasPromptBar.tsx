@@ -259,16 +259,10 @@ export default function CanvasPromptBar({
 
   return (
     <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/20 z-40"
-        onClick={onToggle}
-      />
-      
-      {/* Side Panel */}
-      <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col border-l">
+      {/* Side Panel - No backdrop to allow scrolling */}
+      <div className="fixed right-0 top-0 h-full w-[400px] bg-white shadow-2xl z-40 flex flex-col border-l">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+        <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
               <Sparkles className="h-5 w-5 text-white" />
@@ -291,7 +285,7 @@ export default function CanvasPromptBar({
         </div>
 
         {/* Agent Selection */}
-        <div className="p-4 border-b bg-gray-50">
+        <div className="p-4 border-b bg-gray-50 flex-shrink-0">
           <p className="text-sm font-medium text-gray-700 mb-3">Choose your AI agent:</p>
           <div className="space-y-2">
             {CANVAS_AGENTS.map((agent) => (
@@ -328,84 +322,88 @@ export default function CanvasPromptBar({
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
-            {responses.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <div className="p-4 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full mb-4">
-                  <MessageSquare className="h-8 w-8 text-blue-600" />
-                </div>
-                <h3 className="font-medium text-gray-900 mb-2">Start a conversation</h3>
-                <p className="text-sm text-gray-600 max-w-xs">
-                  Ask {selectedAgent.name} anything about your document. I'm here to help!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {responses.map((response) => (
-                  <Card key={response.id} className="p-4 border-l-4 border-l-blue-500">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-md">
-                          <Zap className="h-3 w-3 text-white" />
-                        </div>
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">{response.agentName}</span>
-                          <div className="text-xs text-gray-500">
-                            {response.timestamp.toLocaleTimeString()}
+          <div className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                {responses.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <div className="p-4 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full mb-4">
+                      <MessageSquare className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <h3 className="font-medium text-gray-900 mb-2">Start a conversation</h3>
+                    <p className="text-sm text-gray-600 max-w-xs">
+                      Ask {selectedAgent.name} anything about your document. I'm here to help!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {responses.map((response) => (
+                      <Card key={response.id} className="p-4 border-l-4 border-l-blue-500">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-md">
+                              <Zap className="h-3 w-3 text-white" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">{response.agentName}</span>
+                              <div className="text-xs text-gray-500">
+                                {response.timestamp.toLocaleTimeString()}
+                              </div>
+                            </div>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopy(response)}
+                            className="h-6 w-6 p-0"
+                          >
+                            {copiedResponseId === response.id ? (
+                              <Check className="h-3 w-3 text-green-600" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </Button>
                         </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopy(response)}
-                        className="h-6 w-6 p-0"
-                      >
-                        {copiedResponseId === response.id ? (
-                          <Check className="h-3 w-3 text-green-600" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </Button>
-                    </div>
-                    
-                    <div className="prose prose-sm max-w-none mb-4">
-                      <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{response.content}</p>
-                    </div>
+                        
+                        <div className="prose prose-sm max-w-none mb-4">
+                          <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{response.content}</p>
+                        </div>
 
-                    {response.fieldContext && (
-                      <div className="flex items-center gap-2 pt-3 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleInsert(response, 'insert')}
-                          className="text-xs h-7"
-                        >
-                          Insert
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleInsert(response, 'replace')}
-                          className="text-xs h-7"
-                        >
-                          Replace
-                        </Button>
-                        <span className="text-xs text-gray-500 ml-auto">
-                          → {response.fieldContext.fieldTitle}
-                        </span>
-                      </div>
-                    )}
-                  </Card>
-                ))}
+                        {response.fieldContext && (
+                          <div className="flex items-center gap-2 pt-3 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleInsert(response, 'insert')}
+                              className="text-xs h-7"
+                            >
+                              Insert
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleInsert(response, 'replace')}
+                              className="text-xs h-7"
+                            >
+                              Replace
+                            </Button>
+                            <span className="text-xs text-gray-500 ml-auto">
+                              → {response.fieldContext.fieldTitle}
+                            </span>
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </ScrollArea>
+            </ScrollArea>
+          </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t bg-white">
+          <div className="p-4 border-t bg-white flex-shrink-0">
             <div className="relative">
               <Textarea
                 ref={textareaRef}

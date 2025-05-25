@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import type { Database } from '@/types/supabase';
 import { redirect } from 'next/navigation';
 import { transformDocumentData } from '@/lib/doc-transform';
-import type { Comment } from '@/components/documents/DocumentSectionReview/types';
+import type { Comment } from '@/types/documents';
 import CanvasEditor from './CanvasEditor';
 
 /**
@@ -43,6 +43,15 @@ async function getCanvasPageData(listingId: string) {
 
   if (documentError) throw documentError;
 
+  // Fetch Listing Data for name
+  const { data: listingData, error: listingError } = await supabase
+    .from('listing')
+    .select('instrumentname')
+    .eq('instrumentid', listingId)
+    .single();
+
+  if (listingError) throw listingError;
+
   // Fetch Comments Data - using the same query as box-mode
   const { data: commentData, error: commentError } = await supabase
     .from('document_comments')
@@ -71,10 +80,12 @@ async function getCanvasPageData(listingId: string) {
         }
         groupedComments[comment.section_id].push({
             id: comment.id,
-            text: comment.content || '',
-            timestamp: comment.created_at || new Date().toISOString(),
+            document_id: comment.document_id,
+            section_id: comment.section_id,
             user_id: comment.user_id,
             user_name: comment.user_name || 'Anonymous',
+            content: comment.content || '',
+            created_at: comment.created_at || new Date().toISOString(),
             status: (comment.status as Comment['status']) || 'open'
         });
     });
@@ -89,7 +100,8 @@ async function getCanvasPageData(listingId: string) {
     listingId,
     userId: user.id,
     userName,
-    documentData // Pass raw document data for Canvas Mode
+    documentData, // Pass raw document data for Canvas Mode
+    listingName: listingData.instrumentname || 'Untitled Listing'
   };
 }
 
@@ -111,7 +123,7 @@ export default async function CanvasModePage({
     const { listingId: listingIdParam } = await params;
     
     // Fetch the page data using the same logic as box-mode
-    const { sections, groupedComments, userId, userName, documentData } = await getCanvasPageData(listingIdParam);
+    const { sections, groupedComments, userId, userName, documentData, listingName } = await getCanvasPageData(listingIdParam);
 
     return (
       <Suspense fallback={<div className="flex items-center justify-center h-screen">
@@ -125,6 +137,7 @@ export default async function CanvasModePage({
           userId={userId}
           userName={userName}
           documentData={documentData}
+          listingName={listingName}
         />
       </Suspense>
     );
