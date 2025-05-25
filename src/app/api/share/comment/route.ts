@@ -13,6 +13,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { token, fieldId, content, guestName } = body;
 
+    // Debug logging for production
+    console.log('Comment API - Request body:', {
+      token: token ? 'present' : 'missing',
+      fieldId: fieldId ? 'present' : 'missing',
+      content: content ? 'present' : 'missing',
+      guestName: guestName ? `"${guestName}"` : 'missing/empty',
+      guestNameType: typeof guestName,
+      bodyKeys: Object.keys(body)
+    });
+
     if (!token || !fieldId || !content) {
       return NextResponse.json({ 
         error: 'Missing required fields: token, fieldId, and content' 
@@ -56,12 +66,21 @@ export async function POST(request: NextRequest) {
                      'Unknown';
 
     // For guest users, store guest information instead of user_id
+    const finalGuestName = guestName?.trim() || 'Anonymous Guest';
     const guestInfo = {
       ip_address: ipAddress,
       user_agent: userAgent,
       timestamp: new Date().toISOString(),
-      provided_name: guestName || 'Anonymous Guest'
+      provided_name: finalGuestName
     };
+    
+    // Debug logging for guest name processing
+    console.log('Guest name processing:', {
+      originalGuestName: guestName,
+      trimmedGuestName: guestName?.trim(),
+      finalGuestName: finalGuestName,
+      guestInfo: guestInfo
+    });
     
     // Insert the comment with guest information
     const { data: comment, error: commentError } = await supabase
@@ -71,7 +90,7 @@ export async function POST(request: NextRequest) {
         section_id: fieldId,
         content: content.trim(),
         user_id: null, // No user_id for guest comments
-        user_name: guestName || 'Anonymous Guest',
+        user_name: finalGuestName,
         guest_user_info: guestInfo
         // Remove status field to use default value
       })
@@ -84,6 +103,14 @@ export async function POST(request: NextRequest) {
         error: 'Failed to create comment' 
       }, { status: 500 });
     }
+
+    // Debug logging for successful comment creation
+    console.log('Comment created successfully:', {
+      commentId: comment.id,
+      userName: comment.user_name,
+      content: comment.content.substring(0, 50) + '...',
+      guestUserInfo: comment.guest_user_info
+    });
 
     // Update access count for the shared document
     const { data: currentDoc } = await supabase

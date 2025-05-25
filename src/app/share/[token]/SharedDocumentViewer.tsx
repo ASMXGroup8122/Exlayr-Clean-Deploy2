@@ -105,17 +105,27 @@ export function SharedDocumentViewer({
 
     setIsSubmittingComment(true);
     try {
+      const requestBody = {
+        token,
+        fieldId: selectedFieldId,
+        content: newComment.trim(),
+        guestName: guestName.trim() || 'Anonymous Guest',
+      };
+
+      // Debug logging for production
+      console.log('Frontend - Submitting comment with data:', {
+        ...requestBody,
+        guestNameOriginal: guestName,
+        guestNameTrimmed: guestName.trim(),
+        guestNameFinal: guestName.trim() || 'Anonymous Guest'
+      });
+
       const response = await fetch('/api/share/comment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          token,
-          fieldId: selectedFieldId,
-          content: newComment.trim(),
-          guestName: guestName.trim() || 'Anonymous Guest',
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
