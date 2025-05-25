@@ -181,7 +181,7 @@ const SUBSECTION_ORDER: Record<string, string[]> = {
 // --- Sub-Components ---
 
 // Top Bar Component
-const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar, onViewFullDocument, onSaveAll, hasUnsavedChanges, onSubmitForReview }: {
+const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar, onViewFullDocument, onSaveAll, hasUnsavedChanges, onSubmitForReview, documentId }: {
   userName: string;
   isSidebarCollapsed: boolean;
   toggleSidebar: () => void;
@@ -189,9 +189,11 @@ const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar, onViewFullDocumen
   onSaveAll: () => Promise<void>;
   hasUnsavedChanges: boolean;
   onSubmitForReview: () => Promise<void>;
+  documentId: string;
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -205,6 +207,19 @@ const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar, onViewFullDocumen
       setIsSubmitting(false);
   };
 
+  const handleCanvasMode = () => {
+    if (hasUnsavedChanges) {
+      const confirmSwitch = window.confirm(
+        "You have unsaved changes. Are you sure you want to switch to Canvas Mode?"
+      );
+      if (!confirmSwitch) return;
+    }
+    
+    // Navigate to Canvas Mode
+    const canvasModeUrl = window.location.pathname + '/canvas';
+    router.push(canvasModeUrl);
+  };
+
   return (
     <div className="flex justify-between items-center px-4 py-2 border-b bg-white sticky top-0 z-20 h-16 shrink-0">
       <div className="flex items-center gap-3">
@@ -212,6 +227,16 @@ const TopBar = ({ userName, isSidebarCollapsed, toggleSidebar, onViewFullDocumen
           {isSidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
         </Button>
         <Button variant="outline" onClick={onViewFullDocument}>View Full Document</Button>
+        <Button 
+          variant="outline" 
+          onClick={handleCanvasMode}
+          className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+          </svg>
+          Canvas Mode
+        </Button>
       </div>
       <div className="flex items-center gap-3">
         <Button 
@@ -956,6 +981,7 @@ export default function SponsorEditDocumentClient({
           onSaveAll={handleSaveAll}
           hasUnsavedChanges={hasUnsavedChanges}
           onSubmitForReview={handleSubmitForReview}
+          documentId={documentId}
         />
         <MainContentArea 
           sections={sections}

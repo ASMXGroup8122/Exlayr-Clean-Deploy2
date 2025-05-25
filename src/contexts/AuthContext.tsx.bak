@@ -561,8 +561,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             console.log('refreshSession: Starting session refresh attempt.');
             const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
-            console.log('refreshSession: supabase.auth.refreshSession() call completed.', { session: refreshedSession, error });
-            console.log('refreshSession: Refreshed session user object:', refreshedSession?.user);
+            console.log('refreshSession: supabase.auth.refreshSession() call completed.');
             if (error) {
                 console.error('refreshSession: Error from supabase.auth.refreshSession:', error);
                 throw error;
@@ -607,8 +606,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setLoading(true);
                 // Get initial session first
                 const { data: { session: initialSession } } = await supabase.auth.getSession();
-                console.log('initializeAuth: Initial session obtained.', { session: initialSession, userId: initialSession?.user?.id });
-                console.log('initializeAuth: Initial session user object:', initialSession?.user);
+                console.log('initializeAuth: Initial session obtained.', { sessionExists: !!initialSession, userId: initialSession?.user?.id });
                 
                 if (!mounted) return;
 

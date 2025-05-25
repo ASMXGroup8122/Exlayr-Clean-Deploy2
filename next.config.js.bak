@@ -104,7 +104,7 @@ const nextConfig = {
     },
     
     // Moved from experimental to root level as per Next.js 15+ requirements
-    serverExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone', '@supabase/ssr'],
+    serverExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone'],
 };
 
 module.exports = nextConfig;

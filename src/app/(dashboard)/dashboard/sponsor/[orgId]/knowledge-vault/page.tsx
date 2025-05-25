@@ -342,7 +342,7 @@ export default function SponsorKnowledgeVaultPage() {
         }
     };
 
-    // Fetch documents
+    // Fetch documents with robust error handling and authentication checks
     const fetchDocuments = async () => {
         if (!user?.organization_id) {
             console.log("Cannot fetch documents: No organization ID available");
@@ -353,23 +353,74 @@ export default function SponsorKnowledgeVaultPage() {
             setLoading(true);
             console.log("Fetching documents for organization:", user.organization_id);
             
+            // First check if we have an authenticated session
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+                console.error('Authentication error:', sessionError);
+                throw new Error(`Authentication error: ${sessionError.message}`);
+            }
+            
+            if (!sessionData?.session?.user) {
+                console.error('No authenticated user session found');
+                throw new Error('Your session has expired. Please refresh the page and sign in again.');
+            }
+            
+            // Now try to fetch documents with full error logging
             const { data, error } = await supabase
                 .from('knowledge_vault_documents')
                 .select('*')
                 .eq('organization_id', user.organization_id)
                 .order('created_at', { ascending: false });
 
+            // Log detailed error information if there's a problem
             if (error) {
-                console.error('Supabase error fetching documents:', error);
-                throw error;
+                console.error('Supabase error details:', {
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint
+                });
+                
+                // Specific error handling for common issues
+                if (error.code === '42P01') {
+                    throw new Error('Database table not found. The knowledge_vault_documents table might not exist.');
+                } else if (error.code === '42501') {
+                    throw new Error('Permission denied. You may not have access to this data.');
+                } else if (error.code === 'PGRST301') {
+                    throw new Error('Foreign key violation. The organization_id might be invalid.');
+                } else {
+                    throw new Error(`Database error: ${error.message || JSON.stringify(error)}`);
+                }
             }
             
-            console.log(`Documents fetched successfully: ${data?.length || 0} documents found`);
-            setDocuments(data || []);
+            if (!data) {
+                console.log('No documents found but no error returned');
+                setDocuments([]);
+                return;
+            }
+            
+            console.log(`Documents fetched successfully: ${data.length} documents found`);
+            setDocuments(data);
         } catch (err: any) {
             console.error('Error fetching documents:', err);
-            // Don't show toast here as it might be disruptive during initial load
-            // Just log the error for debugging
+            
+            // Provide user-friendly error message based on error type
+            let errorMessage = 'Failed to load documents. Please try refreshing the page.';
+            
+            if (err.message?.includes('Authentication error')) {
+                errorMessage = 'Session expired. Please refresh the page and sign in again.';
+            } else if (err.message?.includes('Permission denied')) {
+                errorMessage = 'You don\'t have permission to access these documents.';
+            } else if (err.message?.includes('Database table not found')) {
+                errorMessage = 'Document storage is not set up correctly. Please contact support.';
+            }
+            
+            toast({
+                title: "Error Loading Documents",
+                description: errorMessage,
+                variant: "destructive"
+            });
         } finally {
             setLoading(false);
         }
@@ -887,65 +938,25 @@ export default function SponsorKnowledgeVaultPage() {
         }
     };
 
+    // Fetch documents, tones, and voices when user changes
     useEffect(() => {
         if (user?.organization_id) {
+            console.log("User change detected, fetching documents, tones, and voices.");
             fetchDocuments();
             fetchTones();
             fetchVoices();
+        }
+    }, [user]);
+
+    // Check social media connections only when the 'connections' tab is active and user is available
+    useEffect(() => {
+        if (activeTab === 'connections' && user?.organization_id) {
+            console.log("Connections tab active, checking social media connections.");
             checkLinkedInConnection();
             checkTwitterConnection();
             checkBuzzsproutConnection();
         }
-    }, [user]);
-    
-    // Check for success/error parameters from LinkedIn auth flow
-    useEffect(() => {
-        // Check URL parameters to show the appropriate toast for LinkedIn connection
-        const urlParams = new URLSearchParams(window.location.search);
-        const success = urlParams.get('success');
-        const error = urlParams.get('error');
-        const tab = urlParams.get('tab');
-        
-        if (success === 'linkedin') {
-            toast({
-                title: "LinkedIn Connected",
-                description: "Your LinkedIn account has been connected successfully.",
-                variant: "default"
-            });
-            // Remove parameters from URL
-            const url = new URL(window.location.href);
-            url.searchParams.delete('success');
-            window.history.replaceState({}, '', url);
-            checkLinkedInConnection();
-            
-            // Set the active tab to connections
-            setActiveTab('connections');
-        }
-        
-        if (error && error.startsWith('linkedin')) {
-            toast({
-                title: "LinkedIn Connection Failed",
-                description: "Failed to connect to LinkedIn. Please try again.",
-                variant: "destructive"
-            });
-            // Remove parameters from URL
-            const url = new URL(window.location.href);
-            url.searchParams.delete('error');
-            window.history.replaceState({}, '', url);
-        }
-        
-        // Switch to connections tab if specified
-        if (tab === 'connections') {
-            setActiveTab('connections');
-        }
-    }, [checkLinkedInConnection, setActiveTab, toast]);
-
-    // Fetch available voices when API key is valid
-    useEffect(() => {
-        if (hasValidApiKey && organizationApiKey) {
-            fetchAvailableVoices();
-        }
-    }, [hasValidApiKey, organizationApiKey]);
+    }, [activeTab, user?.organization_id]);
 
     // Listen for LinkedIn popup messages
     useEffect(() => {
@@ -993,14 +1004,6 @@ export default function SponsorKnowledgeVaultPage() {
             window.removeEventListener('message', handleAuthComplete);
         };
     }, [checkLinkedInConnection, setLinkedinConnected, setLinkedinLoading, toast]);
-
-    // Add effect to check LinkedIn connection on mount
-    useEffect(() => {
-        // Check LinkedIn connection when the page loads
-        if (user?.organization_id) {
-            checkLinkedInConnection();
-        }
-    }, [user?.organization_id]);
 
     // Add Twitter connection check function
     const checkTwitterConnection = async () => {
@@ -1191,16 +1194,6 @@ export default function SponsorKnowledgeVaultPage() {
       };
     }, []);
 
-    // Update the useEffect that checks connections on mount
-    useEffect(() => {
-      // Check LinkedIn and Twitter connections when the page loads
-      if (user?.organization_id) {
-        checkLinkedInConnection();
-        checkTwitterConnection();
-        checkBuzzsproutConnection();
-      }
-    }, [user?.organization_id]);
-
     // BuzzSprout connection check - improved with better error handling
     const checkBuzzsproutConnection = async () => {
       if (!user?.organization_id) return;
@@ -1251,22 +1244,6 @@ export default function SponsorKnowledgeVaultPage() {
         setConnectionStatuses(prev => ({ ...prev, buzzsprout: false }));
       }
     };
-
-    // Add explicit initialization for BuzzSprout connection check
-    useEffect(() => {
-      if (user?.organization_id) {
-        // Explicitly check BuzzSprout connection on component mount
-        checkBuzzsproutConnection();
-      }
-    }, [user?.organization_id]);
-
-    // Separate from the other connections to ensure this runs independently
-    useEffect(() => {
-      // Check BuzzSprout connection on tab switch to connections
-      if (activeTab === "connections" && user?.organization_id) {
-        checkBuzzsproutConnection();
-      }
-    }, [activeTab, user?.organization_id]);
 
     // Handle disconnecting BuzzSprout
     const handleDisconnectBuzzsprout = async () => {
@@ -1373,6 +1350,49 @@ export default function SponsorKnowledgeVaultPage() {
         }
     }, [activeTab, user?.organization_id, hasValidApiKey]);
 
+    // Add a function to delete documents
+    const deleteDocument = async (docId: string, docName: string, docUrl: string) => {
+        if (!window.confirm(`Are you sure you want to delete "${docName}"? This action cannot be undone.`)) {
+            return;
+        }
+        
+        try {
+            // Extract storage path from URL
+            const urlPath = new URL(docUrl).pathname;
+            const storagePath = urlPath.split('/storage/v1/object/public/documents/')[1];
+            
+            if (storagePath) {
+                // Delete file from storage
+                await supabase.storage
+                    .from('documents')
+                    .remove([storagePath]);
+            }
+            
+            // Delete record from database
+            const { error } = await supabase
+                .from('knowledge_vault_documents')
+                .delete()
+                .eq('id', docId);
+                
+            if (error) throw error;
+            
+            // Update local state to remove the document
+            setDocuments(documents.filter(doc => doc.id !== docId));
+            
+            toast({
+                title: "Document Deleted",
+                description: `"${docName}" has been removed from your knowledge vault`,
+            });
+        } catch (err: any) {
+            console.error('Error deleting document:', err);
+            toast({
+                title: "Error",
+                description: err.message || "Failed to delete document",
+                variant: "destructive"
+            });
+        }
+    };
+
     return (
         <div className="p-4 md:p-6">
             {/* Responsive Header */}
@@ -1383,50 +1403,51 @@ export default function SponsorKnowledgeVaultPage() {
             
             <Tabs defaultValue="documents" value={activeTab} onValueChange={(value) => {
                 setActiveTab(value);
+                // Remove the redundant ElevenLabs check here as it's handled by a separate effect
                 // Check if switching to connections tab - update connection statuses
-                if (value === "connections" && user?.organization_id) {
+                // if (value === "connections" && user?.organization_id) {
                     // Check for ElevenLabs API key
-                    const checkElevenLabsConnection = async () => {
-                        try {
+                    // const checkElevenLabsConnection = async () => {
+                        // try {
                             // First check oauth_tokens (preferred source)
-                            const { data: oauthToken, error: oauthError } = await supabase
-                                .from('oauth_tokens')
-                                .select('access_token')
-                                .eq('organization_id', user.organization_id)
-                                .eq('provider', 'elevenlabs')
-                                .maybeSingle();
+                            // const { data: oauthToken, error: oauthError } = await supabase
+                                // .from('oauth_tokens')
+                                // .select('access_token')
+                                // .eq('organization_id', user.organization_id)
+                                // .eq('provider', 'elevenlabs')
+                                // .maybeSingle();
                                 
-                            if (!oauthError && oauthToken?.access_token) {
-                                setOrganizationApiKey(oauthToken.access_token);
-                                setHasValidApiKey(true);
-                                console.log('Found ElevenLabs API key in oauth_tokens');
-                                return;
-                            }
+                            // if (!oauthError && oauthToken?.access_token) {
+                                // setOrganizationApiKey(oauthToken.access_token);
+                                // setHasValidApiKey(true);
+                                // console.log('Found ElevenLabs API key in oauth_tokens');
+                                // return;
+                            // }
                                 
                             // Fall back to organization_settings if not found in oauth_tokens
-                            const { data, error } = await supabase
-                                .from('organization_settings')
-                                .select('elevenlabs_api_key')
-                                .eq('organization_id', user.organization_id)
-                                .single();
+                            // const { data, error } = await supabase
+                                // .from('organization_settings')
+                                // .select('elevenlabs_api_key')
+                                // .eq('organization_id', user.organization_id)
+                                // .single();
                                 
-                            if (!error && data?.elevenlabs_api_key) {
-                                setOrganizationApiKey(data.elevenlabs_api_key);
-                                setHasValidApiKey(true);
-                                console.log('Found ElevenLabs API key in organization_settings');
-                            } else {
-                                console.log('ElevenLabs API key not found in either oauth_tokens or organization_settings');
-                                setHasValidApiKey(false);
-                            }
-                        } catch (err) {
-                            console.error('Error checking ElevenLabs connection:', err);
-                            setHasValidApiKey(false);
-                        }
-                    };
-                    checkElevenLabsConnection();
+                            // if (!error && data?.elevenlabs_api_key) {
+                                // setOrganizationApiKey(data.elevenlabs_api_key);
+                                // setHasValidApiKey(true);
+                                // console.log('Found ElevenLabs API key in organization_settings');
+                            // } else {
+                                // console.log('ElevenLabs API key not found in either oauth_tokens or organization_settings');
+                                // setHasValidApiKey(false);
+                            // }
+                        // } catch (err) {
+                            // console.error('Error checking ElevenLabs connection:', err);
+                            // setHasValidApiKey(false);
+                        // }
+                    // };
+                    // checkElevenLabsConnection();
                     
                     // Add more connection checks here as needed in the future
-                }
+                // }
             }} className="w-full">
                 <TabsList className="w-full flex overflow-x-auto p-0.5 mb-2 space-x-1">
                     <TabsTrigger 
@@ -1538,15 +1559,30 @@ export default function SponsorKnowledgeVaultPage() {
                                                 </div>
                                             </div>
                                             <div className="flex space-x-2">
-                                                <button
-                                                    onClick={() => window.open(doc.url, '_blank')}
-                                                    className="text-gray-400 hover:text-gray-500"
-                                                >
-                                                    <Download className="h-5 w-5" />
-                                                </button>
+                                                {doc.url?.startsWith('data:') ? (
+                                                    <a
+                                                        href={doc.url}
+                                                        download={doc.name}
+                                                        className="text-gray-400 hover:text-gray-500"
+                                                    >
+                                                        <Download className="h-5 w-5" />
+                                                    </a>
+                                                ) : doc.url?.startsWith('pending-upload://') ? (
+                                                    <span className="text-amber-500 text-xs font-medium flex items-center">
+                                                        <AlertTriangle className="h-4 w-4 mr-1" />
+                                                        Processing
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => window.open(doc.url, '_blank')}
+                                                        className="text-gray-400 hover:text-gray-500"
+                                                    >
+                                                        <Download className="h-5 w-5" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => {
-                                                        // Add delete functionality
+                                                        deleteDocument(doc.id, doc.name, doc.url);
                                                     }}
                                                     className="text-gray-400 hover:text-red-500"
                                                 >
