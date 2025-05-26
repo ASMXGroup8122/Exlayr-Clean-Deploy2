@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowLeft, Share2, Download, Save, CheckCircle, Sparkles } from 'lucide-react';
@@ -42,9 +42,16 @@ export default function CanvasEditor({
   // Track local changes for unsaved indicator
   const [localChanges, setLocalChanges] = useState<Record<string, string | undefined>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Handle client-side mounting
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // AI Prompt Bar state
   const [isPromptBarVisible, setIsPromptBarVisible] = useState(false);
+  const [promptBarWidth, setPromptBarWidth] = useState(480);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [activeFieldTitle, setActiveFieldTitle] = useState<string>('');
   const [activeFieldContent, setActiveFieldContent] = useState<string>('');
@@ -184,6 +191,11 @@ export default function CanvasEditor({
     setIsPromptBarVisible(!isPromptBarVisible);
   }, [isPromptBarVisible]);
 
+  // Handle prompt bar width changes
+  const handlePromptBarWidthChange = useCallback((width: number) => {
+    setPromptBarWidth(width);
+  }, []);
+
   // Handle AI content insertion
   const handleInsertContent = useCallback(async (fieldId: string, content: string, mode: 'insert' | 'replace') => {
     const supabase = getSupabaseClient();
@@ -228,151 +240,188 @@ export default function CanvasEditor({
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm relative z-30">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 sm:py-4 lg:py-5 bg-white border-b border-gray-200 shadow-sm relative z-30">
+        <div className="flex items-center gap-3 sm:gap-4 lg:gap-6">
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={handleBackToBoxMode}
-            className="flex items-center gap-2 hover:bg-gray-100"
+            className="flex items-center gap-1 sm:gap-2 hover:bg-gray-100 text-gray-600 hover:text-gray-900 px-2 sm:px-3 py-2 rounded-lg"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Box Mode
+            <span className="hidden sm:inline">Box Mode</span>
+            <span className="sm:hidden">Box</span>
           </Button>
-          <div className="h-6 w-px bg-gray-300" />
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">
+          <div className="h-4 sm:h-5 w-px bg-gray-300" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
               Canvas Mode
             </h1>
-            <p className="text-sm text-gray-600">Document {documentId}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
           {/* Save Status Indicator */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="hidden sm:flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-gray-50">
             {hasUnsavedChanges ? (
               <>
                 <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
-                <span className="text-amber-700 font-medium">Unsaved changes</span>
+                <span className="text-amber-700 font-medium hidden lg:inline">Unsaved changes</span>
+                <span className="text-amber-700 font-medium lg:hidden">Unsaved</span>
               </>
             ) : (
               <>
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-700 font-medium">All changes saved</span>
+                <span className="text-green-700 font-medium hidden lg:inline">All saved</span>
+                <span className="text-green-700 font-medium lg:hidden">Saved</span>
               </>
             )}
           </div>
 
           {/* Action Buttons */}
-          <Button
-            onClick={() => setIsShareModalOpen(true)}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2 hover:bg-gray-100"
-          >
-            <Share2 className="h-4 w-4" />
-            Share
-          </Button>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button
+              onClick={() => setIsShareModalOpen(true)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1 sm:gap-2 hover:bg-gray-50 border-gray-300 text-gray-700 hover:text-gray-900 px-2 sm:px-3"
+            >
+              <Share2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
 
-          <Button
-            onClick={handleSaveAll}
-            disabled={!hasUnsavedChanges || isSaving}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            {isSaving ? (
-              <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {isSaving ? 'Saving...' : 'Save All'}
-          </Button>
+            <Button
+              onClick={handleSaveAll}
+              disabled={!hasUnsavedChanges || isSaving}
+              size="sm"
+              variant={hasUnsavedChanges ? "default" : "outline"}
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
+            >
+              {isSaving ? (
+                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save All'}</span>
+            </Button>
 
-          <Button
-            size="sm"
-            onClick={handlePromptBarToggle}
-            className={`flex items-center gap-2 ${
-              isPromptBarVisible ? 'bg-blue-600 hover:bg-blue-700' : ''
-            }`}
-          >
-            <Sparkles className="h-4 w-4" />
-            AI Assistant
-          </Button>
+            <Button
+              size="sm"
+              onClick={handlePromptBarToggle}
+              variant={isPromptBarVisible ? "default" : "outline"}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 ${
+                isPromptBarVisible 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">AI Assistant</span>
+              <span className="sm:hidden">AI</span>
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden bg-white">
         <ScrollArea className="h-full">
-          <div className={`mx-auto py-8 transition-all duration-300 ${
-            isPromptBarVisible ? 'max-w-none pr-[420px] pl-2 space-y-6' : 'max-w-6xl px-8 space-y-8'
-          }`}>
-            {/* Document Title */}
-            <div className="text-center border-b pb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-3">
-                Listing Document
-              </h1>
-              <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
-                <span>Document ID: {documentId}</span>
-                <span>•</span>
-                <span>Edited by: {userName}</span>
-                <span>•</span>
-                <span>{initialSections.length} sections</span>
-              </div>
-            </div>
-
-            {/* Render all sections and fields */}
-            {initialSections.map((section, sectionIndex) => (
-              <div key={section.id} className="space-y-6">
-                {/* Section Header */}
-                <div className="border-l-4 border-blue-500 pl-6 py-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                        {section.title}
-                      </h2>
-                      <div className="flex items-center gap-3 text-sm text-gray-600">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          section.status === 'approved' ? 'bg-green-100 text-green-800 border border-green-200' :
-                          section.status === 'locked' ? 'bg-red-100 text-red-800 border border-red-200' :
-                          section.status === 'in_progress' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                          'bg-gray-100 text-gray-800 border border-gray-200'
-                        }`}>
-                          {section.status?.replace('_', ' ') || 'pending'}
-                        </span>
-                        <span>•</span>
-                        <span>{section.subsections.length} fields</span>
+          <div 
+            className="transition-all duration-300 ease-in-out"
+            style={{
+              paddingRight: isMounted && isPromptBarVisible && typeof window !== 'undefined' && window.innerWidth >= 1024 
+                ? `${promptBarWidth}px` 
+                : '0px'
+            }}
+          >
+            <div className={`mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12 min-h-full ${
+              isPromptBarVisible ? 'lg:max-w-5xl' : 'max-w-4xl'
+            }`}>
+              {/* Document Header */}
+              <div className="mb-8 sm:mb-10 lg:mb-12">
+                <div className="flex items-start justify-between mb-4 sm:mb-6">
+                  <div className="flex-1">
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 sm:mb-3 leading-tight">
+                      {listingName || 'Listing Document'}
+                    </h1>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-6 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="truncate">Document ID: {documentId}</span>
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-400 font-mono">
-                      Section {sectionIndex + 1}
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="truncate">Edited by: {userName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <span>{initialSections.length} sections</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Section Fields (Subsections) */}
-                <div className={`space-y-6 ${isPromptBarVisible ? 'ml-2' : 'ml-4'}`}>
-                  {section.subsections?.map((subsection) => (
-                    <CanvasField
-                      key={subsection.id}
-                      fieldId={subsection.id}
-                      title={subsection.title}
-                      content={subsection.content ?? ''}
-                      isLocked={section.status === 'approved' || section.status === 'locked'}
-                      onChange={handleFieldChange}
-                      onSave={handleFieldSave}
-                      onFocus={(fieldId, fieldTitle, content) => handleFieldFocus(fieldId, fieldTitle, content)}
-                      comments={groupedComments[subsection.id] || []}
-                      userId={userId}
-                    />
-                  ))}
-                </div>
+                <div className="h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200"></div>
               </div>
-            ))}
 
-            {/* Footer Spacer */}
-            <div className="h-20" />
+              {/* Document Sections */}
+              <div className="space-y-10 sm:space-y-12 lg:space-y-16">
+                {initialSections.map((section, sectionIndex) => (
+                  <div key={section.id} className="relative">
+                    {/* Section Header */}
+                    <div className="mb-6 sm:mb-8">
+                      <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+                        <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 text-blue-700 rounded-lg font-semibold text-xs sm:text-sm">
+                          {sectionIndex + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2 truncate">
+                            {section.title}
+                          </h2>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                            <span className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
+                              section.status === 'approved' ? 'bg-green-100 text-green-800' :
+                              section.status === 'locked' ? 'bg-red-100 text-red-800' :
+                              section.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {section.status?.replace('_', ' ') || 'pending'}
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              {section.subsections.length} field{section.subsections.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="h-px bg-gradient-to-r from-blue-200 via-blue-100 to-transparent ml-10 sm:ml-12"></div>
+                    </div>
+
+                    {/* Section Fields */}
+                    <div className="ml-4 sm:ml-8 lg:ml-12 space-y-6 sm:space-y-8">
+                      {section.subsections?.map((subsection, fieldIndex) => (
+                        <CanvasField
+                          key={subsection.id}
+                          fieldId={subsection.id}
+                          title={subsection.title}
+                          content={subsection.content ?? ''}
+                          isLocked={section.status === 'approved' || section.status === 'locked'}
+                          onChange={handleFieldChange}
+                          onSave={handleFieldSave}
+                          onFocus={(fieldId, fieldTitle, content) => handleFieldFocus(fieldId, fieldTitle, content)}
+                          comments={groupedComments[subsection.id] || []}
+                          userId={userId}
+                          fieldIndex={fieldIndex + 1}
+                          isActive={activeFieldId === subsection.id}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer Spacer */}
+              <div className="h-24"></div>
+            </div>
           </div>
         </ScrollArea>
       </div>
@@ -386,6 +435,7 @@ export default function CanvasEditor({
         activeFieldContent={activeFieldContent}
         onInsertContent={handleInsertContent}
         documentId={documentId}
+        onWidthChange={handlePromptBarWidthChange}
       />
 
       {/* Share Modal */}
