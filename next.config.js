@@ -27,32 +27,8 @@ const nextConfig = {
             '@': require('path').resolve(__dirname, './src'),
         };
         
-        // Optimize chunks for more reliable loading - only apply to client builds
-        if (!isServer) {
-            config.optimization.splitChunks = {
-                chunks: 'all',
-                cacheGroups: {
-                    default: false,
-                    vendors: false,
-                    // Vendor chunk for node_modules
-                    vendor: {
-                        name: 'vendor',
-                        chunks: 'all',
-                        test: /node_modules/,
-                        priority: 20,
-                    },
-                    // Common chunk for shared code
-                    common: {
-                        name: 'common',
-                        minChunks: 2,
-                        chunks: 'all',
-                        priority: 10,
-                        reuseExistingChunk: true,
-                        enforce: true,
-                    },
-                },
-            };
-        }
+        // Use Next.js default chunk optimization - more reliable
+        // Removed custom splitChunks configuration that was causing vendor chunk issues
         
         // Polyfill `self` for the server build
         if (isServer) {
