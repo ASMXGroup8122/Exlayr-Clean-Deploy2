@@ -1,12 +1,11 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function PATCH(
   request: Request,
   { params }: { params: { organizationType: string; id: string } }
 ) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createClient();
   
   try {
     const { newStatus, reason } = await request.json();

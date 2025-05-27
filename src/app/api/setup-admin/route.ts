@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -10,8 +9,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Invalid setup key' }, { status: 401 });
         }
 
-        const cookieStore = cookies();
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+        const supabase = await createClient();
 
         // Create the admin user in auth.users
         const { data, error: signUpError } = await supabase.auth.signUp({

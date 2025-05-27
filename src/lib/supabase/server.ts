@@ -1,13 +1,9 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { Database } from '@/types/supabase';
 
 // Create a Supabase client for server-side operations with proper cookie handling
 export async function createServerSupabaseClient() {
-    const cookieStore = cookies();
-    return createRouteHandlerClient<Database>({ 
-        cookies: () => cookieStore 
-    });
+    return await createClient();
 }
 
 // Helper function to get the current session with proper cookie handling

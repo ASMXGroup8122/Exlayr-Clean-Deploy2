@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Share2, Download, Save, CheckCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, Share2, Download, Save, CheckCircle, Sparkles, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -11,6 +11,7 @@ import type { Section, Subsection, Comment } from '@/types/documents';
 import CanvasField from './CanvasField';
 import CanvasPromptBar from './CanvasPromptBar';
 import { ShareModal } from './ShareModal';
+import { ResearchPanel } from './ResearchPanel';
 
 interface CanvasEditorProps {
   initialSections: Section[];
@@ -58,6 +59,11 @@ export default function CanvasEditor({
   const [activeFieldTitle, setActiveFieldTitle] = useState<string>('');
   const [activeFieldContent, setActiveFieldContent] = useState<string>('');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isResearchPanelOpen, setIsResearchPanelOpen] = useState(false);
+  const [researchPanelSuggestion, setResearchPanelSuggestion] = useState<{
+    category?: string;
+    label?: string;
+  }>({});
 
   // Calculate if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => 
@@ -198,6 +204,31 @@ export default function CanvasEditor({
     setPromptBarWidth(width);
   }, []);
 
+  // Handle research panel toggle
+  const handleResearchPanelToggle = useCallback(() => {
+    setIsResearchPanelOpen(!isResearchPanelOpen);
+  }, [isResearchPanelOpen]);
+
+  // Handle triggering research panel from Smart Agent
+  const handleTriggerResearchPanel = useCallback((suggestedCategory?: string, suggestedLabel?: string) => {
+    console.log('🤖 Canvas Editor: Triggering Research Panel with suggestions:', { suggestedCategory, suggestedLabel });
+    
+    setResearchPanelSuggestion({
+      category: suggestedCategory,
+      label: suggestedLabel
+    });
+    setIsResearchPanelOpen(true);
+  }, []);
+
+  // Handle content insertion from research panel
+  const handleInsertFromResearch = useCallback((content: string) => {
+    if (activeFieldId) {
+      // Update the active field with the research content
+      setActiveFieldContent(prev => prev + '\n\n' + content);
+      handleFieldChange(activeFieldId, activeFieldContent + '\n\n' + content);
+    }
+  }, [activeFieldId, activeFieldContent, handleFieldChange]);
+
   // Handle AI content insertion
   const handleInsertContent = useCallback(async (fieldId: string, content: string, mode: 'insert' | 'replace') => {
     const supabase = getSupabaseClient();
@@ -306,6 +337,16 @@ export default function CanvasEditor({
                 <Save className="h-4 w-4" />
               )}
               <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save All'}</span>
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={handleResearchPanelToggle}
+              variant="outline"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline">Research</span>
             </Button>
 
             <Button
@@ -439,6 +480,7 @@ export default function CanvasEditor({
         documentId={documentId}
         organizationId={organizationId}
         onWidthChange={handlePromptBarWidthChange}
+        onTriggerResearchPanel={handleTriggerResearchPanel}
       />
 
       {/* Share Modal */}
@@ -447,6 +489,22 @@ export default function CanvasEditor({
         onClose={() => setIsShareModalOpen(false)}
         listingId={documentId}
         listingName={listingName}
+      />
+
+      {/* Research Panel */}
+      <ResearchPanel
+        isOpen={isResearchPanelOpen}
+        onClose={() => {
+          setIsResearchPanelOpen(false);
+          setResearchPanelSuggestion({});
+        }}
+        listingId={documentId}
+        organizationId={organizationId}
+        activeFieldId={activeFieldId ?? undefined}
+        activeFieldTitle={activeFieldTitle}
+        onInsertContent={handleInsertFromResearch}
+        suggestedCategory={researchPanelSuggestion.category}
+        suggestedLabel={researchPanelSuggestion.label}
       />
     </div>
   );

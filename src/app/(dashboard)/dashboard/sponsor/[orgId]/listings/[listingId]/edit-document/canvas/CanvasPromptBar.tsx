@@ -27,7 +27,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { type SectionContext, type AssistantMode } from '@/lib/ai/context/getSectionContext';
-import { CanvasUploadModal } from '@/components/documents/CanvasUploadModal';
 import { 
   storeSectionCompletion, 
   storeEntityFact, 
@@ -114,6 +113,7 @@ interface CanvasPromptBarProps {
   documentId: string;
   organizationId: string;
   onWidthChange?: (width: number) => void;
+  onTriggerResearchPanel?: (suggestedCategory?: string, suggestedLabel?: string) => void;
 }
 
 export default function CanvasPromptBar({
@@ -125,11 +125,13 @@ export default function CanvasPromptBar({
   onInsertContent,
   documentId,
   organizationId,
-  onWidthChange
+  onWidthChange,
+  onTriggerResearchPanel
 }: CanvasPromptBarProps) {
   const { toast } = useToast();
   const [prompt, setPrompt] = useState('');
-  const [selectedAgent, setSelectedAgent] = useState(CANVAS_AGENTS[0]);
+  // Always use Smart Agent - no selection needed
+  const selectedAgent = CANVAS_AGENTS.find(agent => agent.id === 'agent_mode') || CANVAS_AGENTS[0];
   const [isLoading, setIsLoading] = useState(false);
   const [responses, setResponses] = useState<AIResponse[]>([]);
   const [copiedResponseId, setCopiedResponseId] = useState<string | null>(null);
@@ -138,7 +140,7 @@ export default function CanvasPromptBar({
   const [isMounted, setIsMounted] = useState(false);
   const [currentContext, setCurrentContext] = useState<SectionContext | null>(null);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  // Removed showUploadModal state - using ResearchPanel instead via onTriggerResearchPanel
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -161,15 +163,7 @@ export default function CanvasPromptBar({
     }
   }, [activeFieldId, documentId]);
 
-  // Auto-select agent based on field context
-  useEffect(() => {
-    if (currentContext?.mode) {
-      const matchingAgent = CANVAS_AGENTS.find(agent => agent.mode === currentContext.mode);
-      if (matchingAgent && matchingAgent.id !== selectedAgent.id) {
-        setSelectedAgent(matchingAgent);
-      }
-    }
-  }, [currentContext?.mode]);
+  // Smart Agent automatically adapts to field context - no manual selection needed
 
   // Notify parent of width changes
   useEffect(() => {
@@ -210,7 +204,8 @@ export default function CanvasPromptBar({
               content: contextMessage
             }
           ],
-          orgId: organizationId
+          orgId: organizationId,
+          mode: selectedAgent.mode
         }),
       });
 
@@ -222,6 +217,23 @@ export default function CanvasPromptBar({
       
       if (data.error) {
         throw new Error(data.error);
+      }
+
+      // Handle Smart Agent response with upload suggestions
+      if (data.shouldTriggerUpload && onTriggerResearchPanel) {
+        console.log('🤖 Smart Agent: Triggering upload panel with suggestion:', data.uploadSuggestion);
+        
+        // Trigger the Research Panel (upload interface)
+        onTriggerResearchPanel(
+          data.uploadSuggestion?.category,
+          data.uploadSuggestion?.label
+        );
+
+        toast({
+          title: "Documents Needed",
+          description: "Please upload the suggested documents to continue",
+          variant: "default",
+        });
       }
 
       // Create AI response object
@@ -237,8 +249,9 @@ export default function CanvasPromptBar({
           existingContent: activeFieldContent || ''
         } : undefined,
         sectionContext: currentContext || undefined,
-        sources: currentContext?.source_trace || [],
-        missingData: currentContext?.missing_flags || []
+        sources: data.foundDocuments?.map((doc: any) => doc.name) || currentContext?.source_trace || [],
+        missingData: data.missingDocuments?.map((doc: any) => doc.label) || currentContext?.missing_flags || [],
+        uploadRecommendation: data.uploadSuggestion?.message
       };
 
       setResponses(prev => [...prev, aiResponse]);
@@ -560,49 +573,32 @@ export default function CanvasPromptBar({
           </div>
         )}
 
-        {/* Agent Selection */}
-        <div className="p-4 sm:p-6 border-b bg-gray-50/50 flex-shrink-0">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Select Assistant Mode</h3>
-          <div className="grid grid-cols-1 gap-2">
-            {CANVAS_AGENTS.map((agent) => (
-              <button
-                key={agent.id}
-                onClick={() => setSelectedAgent(agent)}
-                className={cn(
-                  "p-3 rounded-lg border-2 transition-all duration-200 text-left group",
-                  selectedAgent.id === agent.id
-                    ? `${agent.borderColor} ${agent.bgColor} shadow-sm`
-                    : "border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "p-2 rounded-lg transition-all duration-200",
-                    selectedAgent.id === agent.id
-                      ? `bg-gradient-to-r ${agent.color} text-white`
-                      : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
-                  )}>
-                    {agent.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={cn(
-                      "font-medium text-sm transition-colors duration-200",
-                      selectedAgent.id === agent.id ? agent.textColor : "text-gray-900"
-                    )}>
-                      {agent.name}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-0.5 leading-tight">
-                      {agent.description}
-                    </div>
-                  </div>
-                  {selectedAgent.id === agent.id && (
-                    <div className={cn("p-1 rounded-full", agent.bgColor)}>
-                      <Check className={cn("h-3 w-3", agent.textColor)} />
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
+        {/* Smart Agent Status */}
+        <div className="p-4 sm:p-6 border-b bg-gradient-to-r from-orange-50 to-amber-50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-gray-900">Smart Agent</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {currentContext?.mode ? 
+                    currentContext.mode.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
+                    'Autonomous Mode'
+                  }
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">
+                {currentContext?.mode === 'document_completion' && 'Generating content from structured data'}
+                {currentContext?.mode === 'industry_research' && 'Conducting research with citations'}
+                {currentContext?.mode === 'regulatory_guidance' && 'Ensuring regulatory compliance'}
+                {!currentContext?.mode && 'Analyzing context and selecting optimal approach'}
+              </p>
+            </div>
+            {isLoadingContext && (
+              <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+            )}
           </div>
         </div>
 
@@ -628,7 +624,7 @@ export default function CanvasPromptBar({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setShowUploadModal(true)}
+                        onClick={() => onTriggerResearchPanel && onTriggerResearchPanel()}
                         className="h-8 text-xs"
                       >
                         Upload Documents
@@ -698,7 +694,7 @@ export default function CanvasPromptBar({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setShowUploadModal(true)}
+                            onClick={() => onTriggerResearchPanel && onTriggerResearchPanel(response.uploadRecommendation?.split(' ')[0])}
                             className="h-6 text-xs px-2"
                           >
                             Upload
@@ -765,7 +761,10 @@ export default function CanvasPromptBar({
               
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>
-                  {selectedAgent.name} • {currentContext?.mode.replace('_', ' ') || 'Standard mode'}
+                  Smart Agent • {currentContext?.mode ? 
+                    currentContext.mode.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
+                    'Autonomous Mode'
+                  }
                 </span>
                 <span>⌘↵ to send</span>
               </div>
@@ -775,21 +774,7 @@ export default function CanvasPromptBar({
       </div>
 
       {/* Upload Modal */}
-      <CanvasUploadModal
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        fieldId={activeFieldId}
-        fieldTitle={activeFieldTitle}
-        missingData={currentContext?.missing_flags}
-        uploadRecommendation={responses.find(r => r.uploadRecommendation)?.uploadRecommendation}
-        organizationId={organizationId}
-        listingId={documentId}
-        onUploadComplete={() => {
-          // Reload context after upload
-          loadSectionContext();
-          setShowUploadModal(false);
-        }}
-      />
+             {/* Upload functionality now handled by ResearchPanel via onTriggerResearchPanel */}
     </>
   );
 } 

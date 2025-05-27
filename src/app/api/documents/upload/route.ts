@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('📤 Document upload API called - v3 - DEBUGGING BUCKET ISSUE');
+    
     // Get the form data
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -11,19 +13,45 @@ export async function POST(request: NextRequest) {
     const organizationId = formData.get('organizationId') as string;
     const issuerId = formData.get('issuerId') as string;
 
+    console.log('📤 Upload request details:', {
+      fileName: file?.name,
+      fileSize: file?.size,
+      category,
+      organizationId,
+      issuerId
+    });
+
     if (!file || !category || !organizationId) {
+      console.error('❌ Missing required fields:', { file: !!file, category, organizationId });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Initialize Supabase client
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // Initialize Supabase clients
+    const supabase = await createClient(); // For auth and database
+    const supabaseAdmin = createServiceClient( // For storage operations
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Check if user is authenticated
+    console.log('🔐 Checking authentication...');
     const { data: { session }, error: authError } = await supabase.auth.getSession();
     
-    if (authError || !session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    console.log('🔐 Auth check result:', { 
+      hasSession: !!session, 
+      hasError: !!authError, 
+      userId: session?.user?.id,
+      error: authError?.message 
+    });
+    
+    if (authError) {
+      console.error('❌ Auth error:', authError);
+      return NextResponse.json({ error: 'Authentication error' }, { status: 401 });
+    }
+    
+    if (!session) {
+      console.error('❌ No session found');
+      return NextResponse.json({ error: 'No active session' }, { status: 401 });
     }
 
     // Get file details
@@ -31,41 +59,62 @@ export async function POST(request: NextRequest) {
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${category}/${fileName}`;
 
-    // Check if documents bucket exists
-    const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
+    // Check if documents bucket exists using admin client
+    console.log('🗂️ Checking storage buckets with admin client...');
+    const { data: buckets, error: bucketError } = await supabaseAdmin.storage.listBuckets();
+    
+    console.log('🗂️ Bucket check result:', { 
+      bucketsCount: buckets?.length, 
+      hasError: !!bucketError,
+      error: bucketError?.message,
+      buckets: buckets?.map(b => ({ name: b.name, public: b.public }))
+    });
     
     if (bucketError) {
+      console.error('❌ Bucket error:', bucketError);
       return NextResponse.json({ error: 'Failed to check storage buckets' }, { status: 500 });
     }
     
-    const bucketExists = buckets.some(bucket => bucket.name === 'documents');
+    // Use the existing 'documents' bucket
+    const bucketExists = buckets?.some((bucket: any) => bucket.name === 'documents');
+    
+    console.log('🔍 Looking for documents bucket:', {
+      bucketExists,
+      availableBuckets: buckets?.map(b => b.name),
+      searchingFor: 'documents'
+    });
     
     if (!bucketExists) {
-      // Create the bucket
-      const { error: createError } = await supabase.storage.createBucket('documents', {
-        public: true,
-        fileSizeLimit: 50 * 1024 * 1024
-      });
-      
-      if (createError) {
-        return NextResponse.json({ error: 'Failed to create storage bucket' }, { status: 500 });
-      }
+      console.error('❌ Documents bucket does not exist');
+      console.log('📋 Available buckets:', buckets?.map(b => b.name));
+      return NextResponse.json({ 
+        error: 'Storage bucket not found', 
+        availableBuckets: buckets?.map(b => b.name) 
+      }, { status: 500 });
     }
 
-    // Upload file to storage
-    const { error: uploadError, data: uploadData } = await supabase.storage
+    // Upload file to storage using admin client
+    console.log('📤 Starting file upload to storage...', { filePath, fileSize: file.size });
+    const { error: uploadError, data: uploadData } = await supabaseAdmin.storage
       .from('documents')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: true
       });
     
+    console.log('📤 Upload result:', { 
+      hasError: !!uploadError, 
+      hasData: !!uploadData,
+      error: uploadError?.message 
+    });
+    
     if (uploadError) {
-      return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+      console.error('❌ Storage upload error:', uploadError);
+      return NextResponse.json({ error: `Failed to upload file: ${uploadError.message}` }, { status: 500 });
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    // Get public URL using admin client
+    const { data: { publicUrl } } = supabaseAdmin.storage
       .from('documents')
       .getPublicUrl(filePath);
 
@@ -88,12 +137,21 @@ export async function POST(request: NextRequest) {
       .single();
     
     if (dbError) {
-      return NextResponse.json({ error: 'Failed to save document metadata' }, { status: 500 });
+      console.error('Database insert error:', dbError);
+      // Try to clean up the uploaded file using admin client
+      await supabaseAdmin.storage.from('documents').remove([filePath]);
+      return NextResponse.json({ error: `Failed to save document metadata: ${dbError.message}` }, { status: 500 });
     }
+
+    console.log('✅ Document upload successful:', {
+      documentId: document.id,
+      fileName: file.name,
+      publicUrl
+    });
 
     return NextResponse.json({ success: true, document });
   } catch (error: any) {
-    console.error('Error in document upload API:', error);
+    console.error('❌ Error in document upload API:', error);
     return NextResponse.json(
       { error: error.message || 'An unexpected error occurred' },
       { status: 500 }

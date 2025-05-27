@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 // In-memory storage for approval items (resets on server restart)
@@ -40,7 +39,7 @@ export async function POST(req: Request) {
 
 // (Optionally protected) GET handler for UI
 export async function GET() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createClient();
 
   try {
     console.log('Received GET request to /api/approvals');
