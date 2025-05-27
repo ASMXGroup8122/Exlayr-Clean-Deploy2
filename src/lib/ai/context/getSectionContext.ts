@@ -1,4 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { 
+  searchSectionMemories, 
+  searchEntityFacts, 
+  getToneReferences,
+  isMem0Configured 
+} from '../memory/mem0Client';
 
 // Types for the context system
 export interface SectionContext {
@@ -278,10 +284,58 @@ export async function getSectionContext(
       }
     }
 
-    // 4. Determine mode based on field mapping
+    // 4. Query Mem0 for prior completions and summaries
+    if (isMem0Configured() && issuerData?.id) {
+      try {
+        console.log('🧠 Mem0: Searching for relevant memories...');
+        
+        // Search for section-specific memories
+        const sectionMemories = await searchSectionMemories(
+          issuerData.id,
+          field_key,
+          userPrompt || context.section_label,
+          'system'
+        );
+
+        // Search for entity facts about the issuer
+        const entityFacts = await searchEntityFacts(
+          issuerData.id,
+          userPrompt || context.section_label,
+          'system'
+        );
+
+        // Get tone references for consistency
+        const toneReferences = await getToneReferences(
+          issuerData.id,
+          'system'
+        );
+
+        // Combine all memory results
+        context.mem0_results = [
+          ...sectionMemories.map(m => ({ ...m, type: 'section_memory' })),
+          ...entityFacts.map(m => ({ ...m, type: 'entity_fact' })),
+          ...toneReferences.map(m => ({ ...m, type: 'tone_reference' }))
+        ];
+
+        if (context.mem0_results.length > 0) {
+          context.source_trace.push('Mem0');
+          console.log(`🧠 Mem0: Found ${context.mem0_results.length} relevant memories`);
+        } else {
+          console.log('🧠 Mem0: No relevant memories found');
+        }
+      } catch (error) {
+        console.error('❌ Mem0: Error querying memories:', error);
+        context.mem0_results = [];
+      }
+    } else {
+      console.log('⚠️ Mem0: Not configured or no issuer ID available');
+      context.mem0_results = [];
+    }
+
+    // 5. Determine mode based on field mapping
     context.mode = FIELD_MODE_MAP[field_key] || 'agent_mode';
 
-    // 5. Detect missing data and conflicts
+    // 6. Detect missing data and conflicts
     context.missing_flags = detectMissingData(context, field_key);
     context.conflicts = detectSourceConflicts(context);
 

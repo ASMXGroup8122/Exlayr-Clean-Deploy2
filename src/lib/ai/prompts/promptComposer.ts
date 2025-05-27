@@ -406,8 +406,38 @@ function formatMem0Results(mem0Results: any[]): string {
     return 'No memory context available.';
   }
 
-  // Will be implemented when Mem0 is integrated
-  return 'Memory context will be available when Mem0 is integrated.';
+  const sections: string[] = [];
+
+  // Group memories by type
+  const sectionMemories = mem0Results.filter(m => m.type === 'section_memory');
+  const entityFacts = mem0Results.filter(m => m.type === 'entity_fact');
+  const toneReferences = mem0Results.filter(m => m.type === 'tone_reference');
+
+  // Format section memories
+  if (sectionMemories.length > 0) {
+    sections.push('**Prior Section Completions:**');
+    sectionMemories.forEach((memory, index) => {
+      sections.push(`${index + 1}. ${memory.memory} (Score: ${memory.score?.toFixed(2) || 'N/A'})`);
+    });
+  }
+
+  // Format entity facts
+  if (entityFacts.length > 0) {
+    sections.push('\n**Entity Facts:**');
+    entityFacts.forEach((memory, index) => {
+      sections.push(`${index + 1}. ${memory.memory} (Score: ${memory.score?.toFixed(2) || 'N/A'})`);
+    });
+  }
+
+  // Format tone references
+  if (toneReferences.length > 0) {
+    sections.push('\n**Tone References:**');
+    toneReferences.forEach((memory, index) => {
+      sections.push(`${index + 1}. ${memory.memory} (Score: ${memory.score?.toFixed(2) || 'N/A'})`);
+    });
+  }
+
+  return sections.join('\n');
 }
 
 /**

@@ -16,6 +16,7 @@ interface CanvasEditorProps {
   initialSections: Section[];
   groupedComments: Record<string, Comment[]>;
   documentId: string;
+  organizationId: string;
   userId: string;
   userName: string;
   documentData: Record<string, any>;
@@ -30,6 +31,7 @@ export default function CanvasEditor({
   initialSections,
   groupedComments,
   documentId,
+  organizationId,
   userId,
   userName,
   documentData,
@@ -435,6 +437,7 @@ export default function CanvasEditor({
         activeFieldContent={activeFieldContent}
         onInsertContent={handleInsertContent}
         documentId={documentId}
+        organizationId={organizationId}
         onWidthChange={handlePromptBarWidthChange}
       />
 

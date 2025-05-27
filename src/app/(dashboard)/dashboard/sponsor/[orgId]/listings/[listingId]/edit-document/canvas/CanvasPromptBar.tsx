@@ -27,6 +27,13 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { type SectionContext, type AssistantMode } from '@/lib/ai/context/getSectionContext';
+import { CanvasUploadModal } from '@/components/documents/CanvasUploadModal';
+import { 
+  storeSectionCompletion, 
+  storeEntityFact, 
+  storeToneReference,
+  isMem0Configured 
+} from '@/lib/ai/memory/mem0Client';
 
 // Enhanced agent definitions with mode mapping
 const CANVAS_AGENTS = [
@@ -105,6 +112,7 @@ interface CanvasPromptBarProps {
   activeFieldContent?: string;
   onInsertContent: (fieldId: string, content: string, mode: 'insert' | 'replace') => void;
   documentId: string;
+  organizationId: string;
   onWidthChange?: (width: number) => void;
 }
 
@@ -116,6 +124,7 @@ export default function CanvasPromptBar({
   activeFieldContent,
   onInsertContent,
   documentId,
+  organizationId,
   onWidthChange
 }: CanvasPromptBarProps) {
   const { toast } = useToast();
@@ -129,6 +138,7 @@ export default function CanvasPromptBar({
   const [isMounted, setIsMounted] = useState(false);
   const [currentContext, setCurrentContext] = useState<SectionContext | null>(null);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +177,227 @@ export default function CanvasPromptBar({
       onWidthChange(panelWidth);
     }
   }, [panelWidth, onWidthChange]);
+
+  // Handle AI prompt submission
+  const handleSubmit = useCallback(async () => {
+    if (!prompt.trim() || isLoading) return;
+
+    setIsLoading(true);
+    const currentPrompt = prompt;
+    setPrompt('');
+
+    try {
+      // Create context-aware message
+      const contextMessage = activeFieldId && activeFieldContent
+        ? `Field: ${activeFieldTitle}\nCurrent content: ${activeFieldContent}\n\nUser request: ${currentPrompt}`
+        : currentPrompt;
+
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'system',
+              content: `You are an AI assistant helping with listing document creation. The user is working on a ${selectedAgent.name} task. ${
+                currentContext ? `Context: ${JSON.stringify(currentContext)}` : ''
+              }`
+            },
+            {
+              role: 'user',
+              content: contextMessage
+            }
+          ],
+          orgId: organizationId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Create AI response object
+      const aiResponse: AIResponse = {
+        id: Date.now().toString(),
+        content: data.message,
+        agentId: selectedAgent.id,
+        agentName: selectedAgent.name,
+        timestamp: new Date(),
+        fieldContext: activeFieldId ? {
+          fieldId: activeFieldId,
+          fieldTitle: activeFieldTitle || activeFieldId,
+          existingContent: activeFieldContent || ''
+        } : undefined,
+        sectionContext: currentContext || undefined,
+        sources: currentContext?.source_trace || [],
+        missingData: currentContext?.missing_flags || []
+      };
+
+      setResponses(prev => [...prev, aiResponse]);
+
+      toast({
+        title: "AI Response Generated",
+        description: `${selectedAgent.name} has provided a response`,
+      });
+
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to get AI response",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [prompt, isLoading, activeFieldId, activeFieldTitle, activeFieldContent, selectedAgent, currentContext, organizationId, toast]);
+
+  // Handle inserting AI response into field
+  const handleInsert = useCallback(async (response: AIResponse, mode: 'insert' | 'replace') => {
+    if (!activeFieldId) {
+      toast({
+        title: "No Field Selected",
+        description: "Please click on a field to insert content",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Insert content into the field
+      onInsertContent(activeFieldId, response.content, mode);
+
+      // Store in MEM0 if configured and this is a significant completion
+      if (isMem0Configured() && response.content.length > 50) {
+        try {
+          console.log('🧠 MEM0: Attempting to store memory for field:', activeFieldId);
+          console.log('🧠 MEM0: Content length:', response.content.length);
+          console.log('🧠 MEM0: Current context:', currentContext);
+          
+          // Get issuer ID from current context or use document ID as fallback
+          const issuerData = currentContext?.structured_data?.listing?.instrumentissuerid || 
+                           currentContext?.structured_data?.instrumentissuerid ||
+                           organizationId || 
+                           documentId;
+          
+          console.log('🧠 MEM0: Using issuer/org ID:', issuerData);
+
+          // Always store as section completion for significant content
+          if (response.content.length > 100) {
+            const memoryId = await storeSectionCompletion(
+              issuerData,
+              documentId,
+              activeFieldId,
+              response.content,
+              'system'
+            );
+
+            if (memoryId) {
+              console.log('✅ MEM0: Stored section completion with ID:', memoryId);
+            } else {
+              console.warn('⚠️ MEM0: Section completion storage returned null');
+            }
+          }
+
+          // If this looks like an entity fact, store it separately
+          if (response.content.includes('company') || response.content.includes('business') || 
+              response.content.includes('entity') || response.content.includes('organization')) {
+            const memoryId = await storeEntityFact(
+              issuerData,
+              response.content.substring(0, 500), // Truncate for entity facts
+              'system'
+            );
+
+            if (memoryId) {
+              console.log('✅ MEM0: Stored entity fact with ID:', memoryId);
+            } else {
+              console.warn('⚠️ MEM0: Entity fact storage returned null');
+            }
+          }
+
+          // If this has a consistent tone/style, store as tone reference
+          if (response.content.length > 150 && 
+              (response.agentId === 'document_completion' || response.agentId === 'regulatory_guidance')) {
+            const memoryId = await storeToneReference(
+              issuerData,
+              response.content.substring(0, 300), // Sample for tone
+              'system'
+            );
+
+            if (memoryId) {
+              console.log('✅ MEM0: Stored tone reference with ID:', memoryId);
+            } else {
+              console.warn('⚠️ MEM0: Tone reference storage returned null');
+            }
+          }
+
+        } catch (memError) {
+          console.error('❌ MEM0: Failed to store memory:', memError);
+          // Don't fail the insert operation if MEM0 storage fails
+        }
+      } else if (!isMem0Configured()) {
+        console.log('⚠️ MEM0: Not configured, skipping memory storage');
+      } else {
+        console.log('⚠️ MEM0: Content too short for storage:', response.content.length);
+      }
+
+      toast({
+        title: `Content ${mode === 'insert' ? 'Inserted' : 'Replaced'}`,
+        description: `AI response has been ${mode === 'insert' ? 'inserted into' : 'replaced in'} ${activeFieldTitle}`,
+      });
+
+    } catch (error) {
+      console.error('Error inserting content:', error);
+      toast({
+        title: "Error",
+        description: "Failed to insert content",
+        variant: "destructive",
+      });
+    }
+  }, [activeFieldId, activeFieldTitle, onInsertContent, currentContext, documentId, toast]);
+
+  // Handle copying response to clipboard
+  const handleCopy = useCallback(async (response: AIResponse) => {
+    try {
+      await navigator.clipboard.writeText(response.content);
+      setCopiedResponseId(response.id);
+      
+      setTimeout(() => {
+        setCopiedResponseId(null);
+      }, 2000);
+
+      toast({
+        title: "Copied to Clipboard",
+        description: "AI response has been copied",
+      });
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  // Handle keyboard shortcuts
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    }
+    if (e.key === 'Escape') {
+      onToggle();
+    }
+  }, [handleSubmit, onToggle]);
 
   // Load section context for current field
   const loadSectionContext = useCallback(async () => {
@@ -234,153 +465,7 @@ export default function CanvasPromptBar({
     document.addEventListener('mouseup', handleMouseUp);
   }, [panelWidth]);
 
-  // Handle prompt submission with enhanced context
-  const handleSubmit = useCallback(async () => {
-    if (!prompt.trim() || isLoading) return;
 
-    const userPrompt = prompt.trim();
-    setPrompt('');
-    setIsLoading(true);
-
-    try {
-      let sectionContext = currentContext;
-
-      // The new Canvas Mode endpoint handles all context loading and prompt composition
-
-      // Validate required data
-      if (!documentId) {
-        throw new Error('Missing required context: documentId');
-      }
-
-      // If no field is selected, use a general field for context
-      const fieldId = activeFieldId || 'general_inquiry';
-
-      // Use dedicated Canvas Mode endpoint for context-aware responses
-      const requestBody = {
-        userPrompt: userPrompt.trim(),
-        listingId: documentId,
-        fieldId: fieldId,
-        mode: selectedAgent.mode
-      };
-
-      console.log('🎯 Canvas Mode: Using context-aware endpoint /api/ai-assistant/canvas-chat');
-      console.log('🎯 Request body:', requestBody);
-      console.log('🎯 JSON string:', JSON.stringify(requestBody));
-      
-      const response = await fetch('/api/ai-assistant/canvas-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Create enhanced AI response object with context from new endpoint
-      const aiResponse: AIResponse = {
-        id: Date.now().toString(),
-        content: data.message || 'No response generated.',
-        agentId: selectedAgent.id,
-        agentName: selectedAgent.name,
-        timestamp: new Date(),
-        fieldContext: activeFieldId ? {
-          fieldId: activeFieldId,
-          fieldTitle: activeFieldTitle || '',
-          existingContent: activeFieldContent || ''
-        } : undefined,
-        sectionContext: data.context ? {
-          field_key: data.context.field_key,
-          section_label: data.context.section_label,
-          structured_data: {},
-          upload_matches: [],
-          mem0_results: [],
-          mode: data.context.mode,
-          source_trace: data.context.sources || [],
-          missing_flags: data.context.missing_data || [],
-          conflicts: []
-        } : undefined,
-        sources: data.context?.sources || [],
-        missingData: data.context?.missing_data || [],
-        uploadRecommendation: data.context?.upload_recommendation
-      };
-
-      setResponses(prev => [aiResponse, ...prev]);
-
-      toast({
-        title: "AI Response Generated",
-        description: `${selectedAgent.name} has provided a response${data.context?.sources?.length ? ` using ${data.context.sources.join(', ')}` : ''}.`,
-      });
-
-    } catch (error) {
-      console.error('Error calling AI agent:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to get AI response. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [prompt, selectedAgent, activeFieldId, activeFieldTitle, activeFieldContent, documentId, isLoading, currentContext, toast]);
-
-  // Handle keyboard shortcuts
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSubmit();
-    }
-    if (e.key === 'Escape') {
-      onToggle();
-    }
-  }, [handleSubmit, onToggle]);
-
-  // Handle content insertion
-  const handleInsert = useCallback((response: AIResponse, mode: 'insert' | 'replace') => {
-    if (!activeFieldId) {
-      toast({
-        title: "No Active Field",
-        description: "Please click on a field to insert content.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    onInsertContent(activeFieldId, response.content, mode);
-    
-    toast({
-      title: "Content Inserted",
-      description: `Content ${mode === 'insert' ? 'inserted into' : 'replaced in'} ${activeFieldTitle}.`,
-    });
-  }, [activeFieldId, activeFieldTitle, onInsertContent, toast]);
-
-  // Handle copy to clipboard
-  const handleCopy = useCallback(async (response: AIResponse) => {
-    try {
-      await navigator.clipboard.writeText(response.content);
-      setCopiedResponseId(response.id);
-      setTimeout(() => setCopiedResponseId(null), 2000);
-      
-      toast({
-        title: "Copied to Clipboard",
-        description: "Response content copied successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Copy Failed",
-        description: "Could not copy to clipboard.",
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
 
   if (!isVisible) return null;
 
@@ -535,9 +620,19 @@ export default function CanvasPromptBar({
                 </p>
                                  {currentContext?.missing_flags && currentContext.missing_flags.length > 0 && (
                   <div className="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="flex items-center gap-2 text-sm text-orange-700">
-                      <Upload className="h-4 w-4" />
-                      <span>Consider uploading supporting documents for better results</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-orange-700">
+                        <Upload className="h-4 w-4" />
+                        <span>Consider uploading supporting documents for better results</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowUploadModal(true)}
+                        className="h-8 text-xs"
+                      >
+                        Upload Documents
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -595,9 +690,19 @@ export default function CanvasPromptBar({
                     {/* Upload Recommendation */}
                     {response.uploadRecommendation && (
                       <div className="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
-                        <div className="flex items-center gap-2 text-xs text-blue-700">
-                          <Upload className="h-3 w-3" />
-                          <span>{response.uploadRecommendation}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs text-blue-700">
+                            <Upload className="h-3 w-3" />
+                            <span>{response.uploadRecommendation}</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowUploadModal(true)}
+                            className="h-6 text-xs px-2"
+                          >
+                            Upload
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -668,6 +773,23 @@ export default function CanvasPromptBar({
           </div>
         </div>
       </div>
+
+      {/* Upload Modal */}
+      <CanvasUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        fieldId={activeFieldId}
+        fieldTitle={activeFieldTitle}
+        missingData={currentContext?.missing_flags}
+        uploadRecommendation={responses.find(r => r.uploadRecommendation)?.uploadRecommendation}
+        organizationId={organizationId}
+        listingId={documentId}
+        onUploadComplete={() => {
+          // Reload context after upload
+          loadSectionContext();
+          setShowUploadModal(false);
+        }}
+      />
     </>
   );
 } 

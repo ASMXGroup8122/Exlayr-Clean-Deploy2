@@ -120,7 +120,7 @@ export default async function CanvasModePage({
 }) {
   try {
     // Await params before accessing properties
-    const { listingId: listingIdParam } = await params;
+    const { orgId, listingId: listingIdParam } = await params;
     
     // Fetch the page data using the same logic as box-mode
     const { sections, groupedComments, userId, userName, documentData, listingName } = await getCanvasPageData(listingIdParam);
@@ -134,6 +134,7 @@ export default async function CanvasModePage({
           initialSections={sections} 
           groupedComments={groupedComments}
           documentId={listingIdParam}
+          organizationId={orgId}
           userId={userId}
           userName={userName}
           documentData={documentData}
