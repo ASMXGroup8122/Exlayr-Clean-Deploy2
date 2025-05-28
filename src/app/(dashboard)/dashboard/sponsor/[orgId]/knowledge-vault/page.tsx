@@ -72,6 +72,13 @@ export default function SponsorKnowledgeVaultPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("documents");
     
+    // Organization and client filtering states
+    const [organizationName, setOrganizationName] = useState<string>('');
+    const [selectedClient, setSelectedClient] = useState<string>('all');
+    const [selectedDocCategory, setSelectedDocCategory] = useState<string>('all');
+    const [clients, setClients] = useState<any[]>([]);
+    const [loadingClients, setLoadingClients] = useState(false);
+    
     // Tone of Voice states
     const [tones, setTones] = useState<ToneOfVoice[]>([]);
     const [loadingTones, setLoadingTones] = useState(false);
@@ -938,10 +945,82 @@ export default function SponsorKnowledgeVaultPage() {
         }
     };
 
+    // Fetch organization name from exchange_sponsors table
+    const fetchOrganizationName = async () => {
+        if (!user?.organization_id) return;
+        
+        try {
+            // First try to use the company_name from user profile
+            if (user.company_name) {
+                setOrganizationName(user.company_name);
+                return;
+            }
+            
+            // Query exchange_sponsors table for sponsor organizations
+            const { data, error } = await supabase
+                .from('exchange_sponsors')
+                .select('name')
+                .eq('id', user.organization_id)
+                .single();
+
+            if (error) {
+                console.warn('Could not fetch organization name:', error);
+                setOrganizationName('Organization');
+                return;
+            }
+
+            setOrganizationName(data?.name || 'Organization');
+        } catch (error) {
+            console.error('Error fetching organization name:', error);
+            setOrganizationName('Organization');
+        }
+    };
+
+    // Fetch clients for filtering
+    const fetchClients = async () => {
+        if (!user?.organization_id) {
+            console.log("❌ fetchClients: No organization_id available");
+            return;
+        }
+        
+        try {
+            setLoadingClients(true);
+            console.log("🔍 Fetching clients for organization:", user.organization_id);
+            
+            const { data, error } = await supabase
+                .from('issuers')
+                .select('id, issuer_name, status')
+                .eq('exchange_sponsor', user.organization_id)
+                .order('issuer_name', { ascending: true });
+
+            if (error) {
+                console.error('❌ Supabase error fetching clients:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                });
+                setClients([]);
+                return;
+            }
+
+            console.log(`✅ Fetched ${data?.length || 0} clients:`, data);
+            setClients(data || []);
+        } catch (error) {
+            console.error('❌ Exception fetching clients:', error);
+            setClients([]);
+        } finally {
+            setLoadingClients(false);
+        }
+    };
+
     // Fetch documents, tones, and voices when user changes
     useEffect(() => {
         if (user?.organization_id) {
-            console.log("User change detected, fetching documents, tones, and voices.");
+            console.log("🔄 Knowledge Vault: Loading organization data for:", user.organization_id);
+            fetchOrganizationName();
+            fetchClients();
             fetchDocuments();
             fetchTones();
             fetchVoices();
@@ -1498,15 +1577,98 @@ export default function SponsorKnowledgeVaultPage() {
                         </Button>
                     </div>
 
+                    {/* Enhanced Filtering Controls */}
+                    <div className="mb-6 flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
+                        {/* Organisation Filter */}
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Filter by Organisation
+                            </label>
+                            <select
+                                value={selectedClient}
+                                onChange={(e) => setSelectedClient(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            >
+                                <option value="all">All Documents</option>
+                                <option value="sponsor">{organizationName} Documents</option>
+                                {clients.map(client => (
+                                    <option key={client.id} value={client.id}>
+                                        {client.issuer_name} {client.status && `(${client.status})`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Category Filter */}
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Filter by Category
+                            </label>
+                            <select
+                                value={selectedDocCategory}
+                                onChange={(e) => setSelectedDocCategory(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            >
+                                <option value="all">All Categories</option>
+                                <option value="memorandum_articles">Memorandum & Articles</option>
+                                <option value="director_cvs">Director CVs</option>
+                                <option value="director_contracts">Director Contracts</option>
+                                <option value="material_contracts">Material Contracts</option>
+                                <option value="business_plan">Business Plan</option>
+                                <option value="investment_deck">Investment Deck</option>
+                                <option value="accounts">Financial Statements & Accounts</option>
+                                <option value="press_releases">Press Releases</option>
+                                <option value="sponsor_guidelines">Sponsor Guidelines</option>
+                                <option value="compliance_docs">Compliance Documents</option>
+                                <option value="due_diligence">Due Diligence</option>
+                                <option value="templates">Templates</option>
+                                <option value="procedures">Procedures</option>
+                                <option value="regulations">Regulations</option>
+                                <option value="training">Training Materials</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
                     {showUpload && user?.organization_id && (
                         <div className="mb-6 p-4 bg-white rounded-lg shadow">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Upload Document</h3>
+                            
+                            {/* Client Selection */}
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700">Document Category</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Assign to Client
+                                </label>
+                                <select
+                                    value={selectedClient}
+                                    onChange={(e) => setSelectedClient(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="sponsor">{organizationName} Documents</option>
+                                    {clients.map(client => (
+                                        <option key={client.id} value={client.id}>
+                                            {client.issuer_name} {client.status && `(${client.status})`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Document Category */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Document Category</label>
                                 <select
                                     value={selectedCategory}
                                     onChange={(e) => setSelectedCategory(e.target.value as DocumentCategory)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 >
+                                    <option value="memorandum_articles">Memorandum & Articles</option>
+                                    <option value="director_cvs">Director CVs</option>
+                                    <option value="director_contracts">Director Contracts</option>
+                                    <option value="material_contracts">Material Contracts</option>
+                                    <option value="business_plan">Business Plan</option>
+                                    <option value="investment_deck">Investment Deck</option>
+                                    <option value="accounts">Financial Statements & Accounts</option>
+                                    <option value="press_releases">Press Releases</option>
                                     <option value="sponsor_guidelines">Sponsor Guidelines</option>
                                     <option value="compliance_docs">Compliance Documents</option>
                                     <option value="due_diligence">Due Diligence Templates</option>
@@ -1517,9 +1679,11 @@ export default function SponsorKnowledgeVaultPage() {
                                     <option value="other">Other Documents</option>
                                 </select>
                             </div>
+                            
                             <DocumentUpload
                                 category={selectedCategory}
                                 organizationId={user.organization_id}
+                                issuerId={selectedClient === 'sponsor' ? undefined : parseInt(selectedClient)}
                                 onUploadComplete={() => {
                                     setShowUpload(false);
                                     fetchDocuments();
@@ -1542,27 +1706,57 @@ export default function SponsorKnowledgeVaultPage() {
                                 <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
                                 <p className="mt-1 text-sm text-gray-500">Get started by adding some documents.</p>
                             </div>
-                        ) : (
-                            documents
-                                .filter(doc => 
-                                    doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                    doc.category.toLowerCase().includes(searchQuery.toLowerCase())
-                                )
-                                .map(doc => (
+                        ) : (() => {
+                            // Filter documents based on selected criteria
+                            const filteredDocuments = documents.filter(doc => {
+                                const matchesSearch = searchQuery === '' || 
+                                    doc.file_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    doc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    doc.category?.toLowerCase().includes(searchQuery.toLowerCase());
+                                
+                                const matchesClient = selectedClient === 'all' || 
+                                    (selectedClient === 'sponsor' && !doc.issuer_id) ||
+                                    (selectedClient !== 'sponsor' && doc.issuer_id === selectedClient);
+                                
+                                const matchesCategory = selectedDocCategory === 'all' || doc.category === selectedDocCategory;
+                                
+                                return matchesSearch && matchesClient && matchesCategory;
+                            });
+
+                            return filteredDocuments.length === 0 ? (
+                                <div className="col-span-full text-center py-12 bg-white rounded-lg shadow">
+                                    <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
+                                    <h3 className="mt-2 text-sm font-medium text-gray-900">
+                                        {documents.length === 0 ? 'No documents' : 'No documents match your filters'}
+                                    </h3>
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        {documents.length === 0 
+                                            ? 'Get started by adding some documents.' 
+                                            : 'Try adjusting your search or filter criteria.'
+                                        }
+                                    </p>
+                                </div>
+                            ) : (
+                                filteredDocuments.map(doc => (
                                     <div key={doc.id} className="bg-white p-4 rounded-lg shadow">
                                         <div className="flex items-start justify-between">
                                             <div className="flex items-center">
                                                 <File className="h-6 w-6 text-blue-500 mr-2" />
                                                 <div>
-                                                    <h3 className="text-sm font-medium text-gray-900">{doc.name}</h3>
+                                                    <h3 className="text-sm font-medium text-gray-900">{doc.file_name || doc.name}</h3>
                                                     <p className="text-sm text-gray-500">{doc.category}</p>
+                                                    {doc.issuer_id && (
+                                                        <p className="text-xs text-blue-600">
+                                                            Client: {clients.find(c => c.id === doc.issuer_id)?.issuer_name || 'Unknown'}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex space-x-2">
                                                 {doc.url?.startsWith('data:') ? (
                                                     <a
                                                         href={doc.url}
-                                                        download={doc.name}
+                                                        download={doc.file_name || doc.name}
                                                         className="text-gray-400 hover:text-gray-500"
                                                     >
                                                         <Download className="h-5 w-5" />
@@ -1582,7 +1776,7 @@ export default function SponsorKnowledgeVaultPage() {
                                                 )}
                                                 <button
                                                     onClick={() => {
-                                                        deleteDocument(doc.id, doc.name, doc.url);
+                                                        deleteDocument(doc.id, doc.file_name || doc.name, doc.url);
                                                     }}
                                                     className="text-gray-400 hover:text-red-500"
                                                 >
@@ -1592,7 +1786,8 @@ export default function SponsorKnowledgeVaultPage() {
                                         </div>
                                     </div>
                                 ))
-                        )}
+                            );
+                        })()}
                     </div>
                 </TabsContent>
                 
