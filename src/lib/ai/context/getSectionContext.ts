@@ -284,8 +284,8 @@ export async function getSectionContext(
       }
     }
 
-    // 4. Query Mem0 for prior completions and summaries
-    if (isMem0Configured() && issuerData?.id) {
+    // 4. Query Mem0 for prior completions and summaries (only when user has a prompt)
+    if (isMem0Configured() && issuerData?.id && userPrompt && userPrompt.trim().length > 0) {
       try {
         console.log('🧠 Mem0: Searching for relevant memories...');
         
@@ -293,14 +293,14 @@ export async function getSectionContext(
         const sectionMemories = await searchSectionMemories(
           issuerData.id,
           field_key,
-          userPrompt || context.section_label,
+          userPrompt,
           'system'
         );
 
         // Search for entity facts about the issuer
         const entityFacts = await searchEntityFacts(
           issuerData.id,
-          userPrompt || context.section_label,
+          userPrompt,
           'system'
         );
 
@@ -327,6 +327,9 @@ export async function getSectionContext(
         console.error('❌ Mem0: Error querying memories:', error);
         context.mem0_results = [];
       }
+    } else if (!userPrompt || userPrompt.trim().length === 0) {
+      console.log('⚠️ Mem0: Skipping memory search - no user prompt provided');
+      context.mem0_results = [];
     } else {
       console.log('⚠️ Mem0: Not configured or no issuer ID available');
       context.mem0_results = [];
