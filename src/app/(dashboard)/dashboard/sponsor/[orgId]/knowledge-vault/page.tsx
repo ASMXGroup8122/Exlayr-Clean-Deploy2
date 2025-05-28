@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { BookOpen, Plus, File, Download, Trash2, CheckCircle, Search, Filter, Pencil, AlertTriangle, Info, Sparkles, Mic, VolumeIcon, KeyIcon, ChevronDown, Edit, CalendarIcon, MailIcon, Bot } from 'lucide-react';
+import { BookOpen, Plus, File, Download, Trash2, CheckCircle, Search, Filter, Pencil, AlertTriangle, Info, Sparkles, Mic, VolumeIcon, KeyIcon, ChevronDown, Edit, CalendarIcon, MailIcon, Bot, Brain, Zap } from 'lucide-react';
 import { DocumentUpload } from '@/components/documents/DocumentUpload';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -1473,11 +1473,37 @@ export default function SponsorKnowledgeVaultPage() {
     };
 
     return (
-        <div className="p-4 md:p-6">
-            {/* Responsive Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                {/* Title */}
-                <h1 className="text-xl sm:text-2xl font-bold">Knowledge Vault</h1>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-4 md:p-6">
+            {/* Enhanced Header */}
+            <div className="relative mb-8">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-6 md:p-8">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
+                                <Brain className="h-8 w-8 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
+                                    Knowledge Vault
+                                </h1>
+                                <p className="text-gray-600 mt-1">
+                                    Your AI-powered central intelligence hub
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                <span>Active</span>
+                            </div>
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+                                <Zap className="w-3 h-3 mr-1" />
+                                AI Enhanced
+                            </Badge>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <Tabs defaultValue="documents" value={activeTab} onValueChange={(value) => {
@@ -1557,82 +1583,94 @@ export default function SponsorKnowledgeVaultPage() {
                 
                 {/* Document Tab Content */}
                 <TabsContent value="documents">
-                    <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
-                        <div className="relative w-full sm:w-80">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                            <Input
-                                type="text"
-                                placeholder="Search documents..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-10 pr-4 py-2 h-9 text-sm w-full"
-                            />
+                    {/* Enhanced Search Section */}
+                    <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div className="relative w-full sm:w-80">
+                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                <Input
+                                    type="text"
+                                    placeholder="Search your knowledge base..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-12 pr-4 py-3 h-12 text-sm w-full bg-white/50 border-gray-200/50 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-300"
+                                />
+                            </div>
+                            <Button
+                                onClick={() => setShowUpload(!showUpload)}
+                                className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm h-12 w-full sm:w-auto"
+                            >
+                                <Plus className="h-5 w-5 mr-2" />
+                                Add Document
+                            </Button>
                         </div>
-                        <Button
-                            onClick={() => setShowUpload(!showUpload)}
-                            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm h-9 w-full sm:w-auto"
-                        >
-                            <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                            Add Document
-                        </Button>
                     </div>
 
                     {/* Enhanced Filtering Controls */}
-                    <div className="mb-6 flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
-                        {/* Organisation Filter */}
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Filter by Organisation
-                            </label>
-                            <select
-                                value={selectedClient}
-                                onChange={(e) => setSelectedClient(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            >
-                                <option value="all">All Documents</option>
-                                <option value="sponsor">{organizationName} Documents</option>
-                                {clients.map(client => (
-                                    <option key={client.id} value={client.id}>
-                                        {client.issuer_name} {client.status && `(${client.status})`}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                    <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-6">
+                        <div className="flex flex-col sm:flex-row gap-6">
+                            {/* Organisation Filter */}
+                            <div className="flex-1">
+                                <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                    <div className="w-4 h-4 mr-2 bg-blue-500 rounded-full" />
+                                    Filter by Organisation
+                                </label>
+                                <select
+                                    value={selectedClient}
+                                    onChange={(e) => setSelectedClient(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm bg-white/50 transition-all duration-300"
+                                >
+                                    <option value="all">All Documents</option>
+                                    <option value="sponsor">{organizationName} Documents</option>
+                                    {clients.map(client => (
+                                        <option key={client.id} value={client.id}>
+                                            {client.issuer_name} {client.status && `(${client.status})`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
-                        {/* Category Filter */}
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Filter by Category
-                            </label>
-                            <select
-                                value={selectedDocCategory}
-                                onChange={(e) => setSelectedDocCategory(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            >
-                                <option value="all">All Categories</option>
-                                <option value="memorandum_articles">Memorandum & Articles</option>
-                                <option value="director_cvs">Director CVs</option>
-                                <option value="director_contracts">Director Contracts</option>
-                                <option value="material_contracts">Material Contracts</option>
-                                <option value="business_plan">Business Plan</option>
-                                <option value="investment_deck">Investment Deck</option>
-                                <option value="accounts">Financial Statements & Accounts</option>
-                                <option value="press_releases">Press Releases</option>
-                                <option value="sponsor_guidelines">Sponsor Guidelines</option>
-                                <option value="compliance_docs">Compliance Documents</option>
-                                <option value="due_diligence">Due Diligence</option>
-                                <option value="templates">Templates</option>
-                                <option value="procedures">Procedures</option>
-                                <option value="regulations">Regulations</option>
-                                <option value="training">Training Materials</option>
-                                <option value="other">Other</option>
-                            </select>
+                            {/* Category Filter */}
+                            <div className="flex-1">
+                                <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                    <div className="w-4 h-4 mr-2 bg-indigo-500 rounded-full" />
+                                    Filter by Category
+                                </label>
+                                <select
+                                    value={selectedDocCategory}
+                                    onChange={(e) => setSelectedDocCategory(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm bg-white/50 transition-all duration-300"
+                                >
+                                    <option value="all">All Categories</option>
+                                    <option value="memorandum_articles">Memorandum & Articles</option>
+                                    <option value="director_cvs">Director CVs</option>
+                                    <option value="director_contracts">Director Contracts</option>
+                                    <option value="material_contracts">Material Contracts</option>
+                                    <option value="business_plan">Business Plan</option>
+                                    <option value="investment_deck">Investment Deck</option>
+                                    <option value="accounts">Financial Statements & Accounts</option>
+                                    <option value="press_releases">Press Releases</option>
+                                    <option value="sponsor_guidelines">Sponsor Guidelines</option>
+                                    <option value="compliance_docs">Compliance Documents</option>
+                                    <option value="due_diligence">Due Diligence</option>
+                                    <option value="templates">Templates</option>
+                                    <option value="procedures">Procedures</option>
+                                    <option value="regulations">Regulations</option>
+                                    <option value="training">Training Materials</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     {showUpload && user?.organization_id && (
-                        <div className="mb-6 p-4 bg-white rounded-lg shadow">
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Upload Document</h3>
+                        <div className="mb-6 bg-white/90 backdrop-blur-sm rounded-xl shadow-xl border border-white/50 p-6">
+                            <div className="flex items-center space-x-3 mb-6">
+                                <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg">
+                                    <Plus className="h-5 w-5 text-white" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900">Upload Document</h3>
+                            </div>
                             
                             {/* Client Selection */}
                             <div className="mb-4">
@@ -1694,17 +1732,14 @@ export default function SponsorKnowledgeVaultPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {loading ? (
-                            <div className="col-span-full flex justify-center items-center py-12">
+                            <div className="col-span-full flex justify-center items-center py-16">
                                 <div className="text-center">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                                    <p className="mt-2 text-gray-500">Loading documents...</p>
+                                    <div className="relative">
+                                        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
+                                        <div className="absolute inset-0 rounded-full bg-blue-100/20 animate-pulse"></div>
+                                    </div>
+                                    <p className="mt-4 text-gray-600 font-medium">Loading your knowledge base...</p>
                                 </div>
-                            </div>
-                        ) : documents.length === 0 ? (
-                            <div className="col-span-full text-center py-12 bg-white rounded-lg shadow">
-                                <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
-                                <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
-                                <p className="mt-1 text-sm text-gray-500">Get started by adding some documents.</p>
                             </div>
                         ) : (() => {
                             // Filter documents based on selected criteria
@@ -1724,52 +1759,70 @@ export default function SponsorKnowledgeVaultPage() {
                             });
 
                             return filteredDocuments.length === 0 ? (
-                                <div className="col-span-full text-center py-12 bg-white rounded-lg shadow">
-                                    <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
-                                    <h3 className="mt-2 text-sm font-medium text-gray-900">
-                                        {documents.length === 0 ? 'No documents' : 'No documents match your filters'}
+                                <div className="col-span-full text-center py-16 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50">
+                                    <div className="mx-auto rounded-full w-20 h-20 flex items-center justify-center bg-gradient-to-r from-blue-100 to-indigo-100 mb-6">
+                                        <BookOpen className="h-10 w-10 text-blue-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                        {documents.length === 0 ? 'No documents yet' : 'No documents match your filters'}
                                     </h3>
-                                    <p className="mt-1 text-sm text-gray-500">
+                                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
                                         {documents.length === 0 
-                                            ? 'Get started by adding some documents.' 
-                                            : 'Try adjusting your search or filter criteria.'
+                                            ? 'Start building your knowledge vault by uploading your first document.' 
+                                            : 'Try adjusting your search or filter criteria to find what you\'re looking for.'
                                         }
                                     </p>
+                                    {documents.length === 0 && (
+                                        <Button
+                                            onClick={() => setShowUpload(true)}
+                                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                                        >
+                                            <Plus className="h-5 w-5 mr-2" />
+                                            Add Your First Document
+                                        </Button>
+                                    )}
                                 </div>
                             ) : (
                                 filteredDocuments.map(doc => (
-                                    <div key={doc.id} className="bg-white p-4 rounded-lg shadow">
+                                    <div key={doc.id} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-6 hover:shadow-xl transition-all duration-300 group">
                                         <div className="flex items-start justify-between">
-                                            <div className="flex items-center">
-                                                <File className="h-6 w-6 text-blue-500 mr-2" />
-                                                <div>
-                                                    <h3 className="text-sm font-medium text-gray-900">{doc.file_name || doc.name}</h3>
-                                                    <p className="text-sm text-gray-500">{doc.category}</p>
+                                            <div className="flex items-center flex-1">
+                                                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg mr-4 group-hover:scale-110 transition-transform duration-300">
+                                                    <File className="h-6 w-6 text-white" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="text-sm font-semibold text-gray-900 truncate">{doc.file_name || doc.name}</h3>
+                                                    <p className="text-sm text-gray-600 mt-1">{doc.category}</p>
                                                     {doc.issuer_id && (
-                                                        <p className="text-xs text-blue-600">
-                                                            Client: {clients.find(c => c.id === doc.issuer_id)?.issuer_name || 'Unknown'}
-                                                        </p>
+                                                        <div className="flex items-center mt-2">
+                                                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-2" />
+                                                            <p className="text-xs text-blue-700 font-medium">
+                                                                {clients.find(c => c.id === doc.issuer_id)?.issuer_name || 'Unknown Client'}
+                                                            </p>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex space-x-2">
+                                            <div className="flex space-x-2 ml-4">
                                                 {doc.url?.startsWith('data:') ? (
                                                     <a
                                                         href={doc.url}
                                                         download={doc.file_name || doc.name}
-                                                        className="text-gray-400 hover:text-gray-500"
+                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                                        title="Download"
                                                     >
                                                         <Download className="h-5 w-5" />
                                                     </a>
                                                 ) : doc.url?.startsWith('pending-upload://') ? (
-                                                    <span className="text-amber-500 text-xs font-medium flex items-center">
+                                                    <div className="flex items-center px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium">
                                                         <AlertTriangle className="h-4 w-4 mr-1" />
                                                         Processing
-                                                    </span>
+                                                    </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => window.open(doc.url, '_blank')}
-                                                        className="text-gray-400 hover:text-gray-500"
+                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                                        title="Open"
                                                     >
                                                         <Download className="h-5 w-5" />
                                                     </button>
@@ -1778,7 +1831,8 @@ export default function SponsorKnowledgeVaultPage() {
                                                     onClick={() => {
                                                         deleteDocument(doc.id, doc.file_name || doc.name, doc.url);
                                                     }}
-                                                    className="text-gray-400 hover:text-red-500"
+                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                                    title="Delete"
                                                 >
                                                     <Trash2 className="h-5 w-5" />
                                                 </button>

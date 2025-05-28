@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Upload, FileText, X, Plus, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Plus, Check, AlertTriangle, Loader2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +33,12 @@ interface KnowledgeDocument {
   issuer_id?: string;
 }
 
+interface Client {
+  id: string;
+  issuer_name: string;
+  status: string;
+}
+
 // Document categories for Knowledge Vault
 const DOCUMENT_CATEGORIES = [
   { value: 'accounts', label: 'Accounts & Financial Statements' },
@@ -59,15 +65,82 @@ export function ResearchPanel({
   suggestedCategory,
   suggestedLabel
 }: ResearchPanelProps) {
-  const [selectedCategory, setSelectedCategory] = useState(suggestedCategory || 'other');
+  const [selectedCategory, setSelectedCategory] = useState(suggestedCategory || '');
+  const [selectedClient, setSelectedClient] = useState<string>('');
   const [customLabel, setCustomLabel] = useState(suggestedLabel || '');
   const [isUploading, setIsUploading] = useState(false);
   const [recentDocuments, setRecentDocuments] = useState<KnowledgeDocument[]>([]);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [organizationName, setOrganizationName] = useState<string>('');
 
   const supabase = getSupabaseClient();
 
-  // Load recent documents
+  // Fetch organization name
+  const fetchOrganizationName = async () => {
+    if (!organizationId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('exchange_sponsors')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+
+      if (error) {
+        console.warn('Could not fetch organization name:', error);
+        setOrganizationName('Organization');
+        return;
+      }
+
+      setOrganizationName(data?.name || 'Organization');
+    } catch (error) {
+      console.error('Error fetching organization name:', error);
+      setOrganizationName('Organization');
+    }
+  };
+
+  // Fetch clients for assignment
+  const fetchClients = async () => {
+    if (!organizationId) {
+      console.log("❌ fetchClients: No organization_id available");
+      return;
+    }
+    
+    try {
+      setLoadingClients(true);
+      console.log("🔍 Fetching clients for organization:", organizationId);
+      
+      const { data, error } = await supabase
+        .from('issuers')
+        .select('id, issuer_name, status')
+        .eq('exchange_sponsor', organizationId)
+        .order('issuer_name', { ascending: true });
+
+      if (error) {
+        console.error('❌ Supabase error fetching clients:', error);
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        setClients([]);
+        return;
+      }
+
+      console.log("✅ Successfully fetched clients:", data);
+      setClients(data || []);
+    } catch (error) {
+      console.error('❌ Error in fetchClients:', error);
+      setClients([]);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
+  // Load recent documents and organization data
   useEffect(() => {
     const loadRecentDocuments = async () => {
       try {
@@ -86,6 +159,9 @@ export function ResearchPanel({
     };
 
     if (isOpen && organizationId) {
+      console.log("🔄 ResearchPanel: Loading organization data for:", organizationId);
+      fetchOrganizationName();
+      fetchClients();
       loadRecentDocuments();
     }
   }, [isOpen, organizationId, supabase]);
@@ -182,8 +258,40 @@ export function ResearchPanel({
 
             {/* Upload Tab */}
             <TabsContent value="upload" className="flex-1 mt-4 space-y-4 overflow-y-auto pb-4">
-              {/* Category Selection */}
+              {/* Client Assignment Section */}
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Users className="w-4 h-4 inline mr-1" />
+                    Assign to Client
+                  </label>
+                  <select
+                    value={selectedClient}
+                    onChange={(e) => setSelectedClient(e.target.value)}
+                    className={`w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                      !selectedClient ? 'border-red-300 bg-red-50' : ''
+                    }`}
+                    disabled={loadingClients}
+                  >
+                    <option value="">
+                      {loadingClients ? 'Loading clients...' : 'Select client or organization...'}
+                    </option>
+                    <option value="sponsor">
+                      {organizationName || 'Organization'} Documents (Sponsor Level)
+                    </option>
+                    {clients.map(client => (
+                      <option key={client.id} value={client.id}>
+                        {client.issuer_name} {client.status && `(${client.status})`}
+                      </option>
+                    ))}
+                  </select>
+                  {!selectedClient && (
+                    <p className="text-xs text-red-600 mt-1">
+                      ⚠️ Please assign document to a client or organization before uploading
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Document Category
@@ -191,8 +299,11 @@ export function ResearchPanel({
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className={`w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                      !selectedCategory ? 'border-red-300 bg-red-50' : ''
+                    }`}
                   >
+                    <option value="">Select document category...</option>
                     {DOCUMENT_CATEGORIES.map((category) => (
                       <option key={category.value} value={category.value}>
                         {category.label}
@@ -202,6 +313,11 @@ export function ResearchPanel({
                   {suggestedCategory && (
                     <p className="text-xs text-blue-600 mt-1">
                       ✨ Suggested by Smart Agent based on your request
+                    </p>
+                  )}
+                  {!selectedCategory && (
+                    <p className="text-xs text-red-600 mt-1">
+                      ⚠️ Please select a document category before uploading
                     </p>
                   )}
                 </div>
@@ -225,16 +341,46 @@ export function ResearchPanel({
                 </div>
               </div>
 
+              {/* Upload Validation Warning */}
+              {(!selectedClient || !selectedCategory) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-medium mb-1">Upload Requirements</p>
+                      <ul className="space-y-1 text-xs">
+                        {!selectedClient && <li>• Please assign document to a client or organization</li>}
+                        {!selectedCategory && <li>• Please select a document category</li>}
+                      </ul>
+                      <p className="text-xs mt-2">Complete these requirements to enable document upload.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Upload Component */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                <DocumentUpload
-                  category={selectedCategory as any}
-                  organizationId={organizationId}
-                  onUploadComplete={handleUploadComplete}
-                  allowedFileTypes={['pdf', 'doc', 'docx', 'txt', 'csv', 'xlsx']}
-                  maxFileSize={50 * 1024 * 1024} // 50MB
-                />
-              </div>
+              {selectedClient && selectedCategory ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                  <DocumentUpload
+                    category={selectedCategory as any}
+                    organizationId={organizationId}
+                    issuerId={selectedClient === 'sponsor' ? undefined : parseInt(selectedClient)}
+                    onUploadComplete={handleUploadComplete}
+                    allowedFileTypes={['pdf', 'doc', 'docx', 'txt', 'csv', 'xlsx']}
+                    maxFileSize={50 * 1024 * 1024} // 50MB
+                  />
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50">
+                  <div className="text-center py-8">
+                    <Upload className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 font-medium">Upload Disabled</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Complete client assignment and category selection to enable upload
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Upload Instructions */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
