@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Save, CheckCircle, MessageCircle, Lock, Hash } from 'lucide-react';
+import { Save, CheckCircle, MessageCircle, Lock, Hash, Edit3, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import type { Comment } from '@/types/documents';
@@ -96,29 +96,29 @@ export default function CanvasField({
   return (
     <div className={cn(
       "group relative transition-all duration-300",
-      "bg-white border border-gray-200 rounded-lg sm:rounded-xl shadow-sm hover:shadow-md",
-      isActive && "ring-2 ring-blue-500 ring-opacity-30 border-blue-300 shadow-lg",
-      isLocked && "bg-gray-50 border-gray-300"
+      "bg-white/80 backdrop-blur-sm border border-white/50 rounded-xl shadow-lg hover:shadow-xl",
+      isActive && "ring-2 ring-blue-500/50 border-blue-300/50 shadow-xl bg-blue-50/30",
+      isLocked && "bg-gray-50/80 border-gray-300/50"
     )}>
       {/* Field Header */}
-      <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 pb-3 sm:pb-4">
+      <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-200/30">
         <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
           {fieldIndex && (
-            <div className="flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 rounded-md sm:rounded-lg text-xs font-bold shadow-sm flex-shrink-0 mt-0.5 sm:mt-0">
+            <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg text-xs sm:text-sm font-bold shadow-lg flex-shrink-0 mt-0.5 sm:mt-0">
               {fieldIndex}
             </div>
           )}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <h3 className={cn(
               "text-base sm:text-lg font-semibold transition-colors leading-tight",
-              isActive ? "text-blue-700" : "text-gray-900",
+              isActive ? "bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent" : "text-gray-900",
               isLocked && "text-gray-600"
             )}>
               {title}
             </h3>
             {isLocked && (
-              <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-red-50 border border-red-200 rounded-md sm:rounded-lg self-start" title="This field is locked">
-                <Lock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-red-500" />
+              <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1 bg-red-100 border border-red-200/50 rounded-lg self-start backdrop-blur-sm" title="This field is locked">
+                <Lock className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
                 <span className="text-xs text-red-700 font-medium">Locked</span>
               </div>
             )}
@@ -126,42 +126,42 @@ export default function CanvasField({
         </div>
 
         {/* Header Actions */}
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-4 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-3 flex-shrink-0">
           {/* Comments Button */}
           {hasComments && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowComments(!showComments)}
-              className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md sm:rounded-lg"
+              className="h-8 px-3 text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
             >
-              <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" />
+              <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
               {comments.length}
             </Button>
           )}
 
           {/* Save Status */}
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2">
             {saveStatus === 'saving' && (
-              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-blue-600">
+              <div className="flex items-center gap-2 text-xs sm:text-sm px-2 py-1 bg-blue-100 text-blue-700 rounded-lg">
                 <div className="animate-spin h-3 w-3 sm:h-4 sm:w-4 border-2 border-current border-t-transparent rounded-full" />
                 <span className="font-medium hidden sm:inline">Saving...</span>
               </div>
             )}
             {saveStatus === 'saved' && (
-              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-green-600">
+              <div className="flex items-center gap-2 text-xs sm:text-sm px-2 py-1 bg-green-100 text-green-700 rounded-lg">
                 <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="font-medium hidden sm:inline">Saved</span>
               </div>
             )}
             {saveStatus === 'error' && (
-              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-red-600">
+              <div className="flex items-center gap-2 text-xs sm:text-sm px-2 py-1 bg-red-100 text-red-700 rounded-lg">
                 <div className="h-3 w-3 sm:h-4 sm:w-4 bg-red-500 rounded-full" />
                 <span className="font-medium hidden sm:inline">Error</span>
               </div>
             )}
             {saveStatus === 'idle' && hasChanges && (
-              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-amber-600">
+              <div className="flex items-center gap-2 text-xs sm:text-sm px-2 py-1 bg-amber-100 text-amber-700 rounded-lg">
                 <div className="h-3 w-3 sm:h-4 sm:w-4 bg-amber-500 rounded-full animate-pulse" />
                 <span className="font-medium hidden sm:inline">Unsaved</span>
               </div>
@@ -174,9 +174,9 @@ export default function CanvasField({
               variant="outline"
               size="sm"
               onClick={handleManualSave}
-              className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-blue-50 hover:border-blue-300"
+              className="h-8 px-3 text-xs sm:text-sm opacity-0 group-hover:opacity-100 transition-all duration-200 bg-white/50 border-blue-200/50 text-blue-700 hover:bg-blue-50 hover:border-blue-300 rounded-lg"
             >
-              <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" />
+              <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
               <span className="hidden sm:inline">Save</span>
             </Button>
           )}
@@ -184,7 +184,7 @@ export default function CanvasField({
       </div>
 
       {/* Field Content */}
-      <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+      <div className="p-4 sm:p-6">
         <div className="relative">
           <Textarea
             value={localContent}
@@ -194,58 +194,57 @@ export default function CanvasField({
             placeholder={isLocked ? "This field is locked and cannot be edited" : `Enter ${title.toLowerCase()}...`}
             className={cn(
               "min-h-[120px] sm:min-h-[160px] lg:min-h-[180px] resize-none transition-all duration-200 text-sm sm:text-base leading-relaxed",
-              "border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20",
-              "rounded-lg p-3 sm:p-4 w-full",
-              isLocked && "bg-gray-100 cursor-not-allowed opacity-70 text-gray-600",
-              hasChanges && !isLocked && "bg-amber-50 ring-2 ring-amber-200",
-              isActive && !isLocked && "bg-blue-50 ring-2 ring-blue-200",
-              "text-gray-900 placeholder:text-gray-500"
+              "border-0 bg-white/50 focus:bg-white focus:ring-2 focus:ring-blue-500/50 focus:ring-opacity-50",
+              "rounded-xl p-4 w-full backdrop-blur-sm",
+              isLocked && "bg-gray-100/50 cursor-not-allowed opacity-70 text-gray-600",
+              hasChanges && !isLocked && "bg-amber-50/50 ring-2 ring-amber-200/50",
+              isActive && !isLocked && "bg-blue-50/50 ring-2 ring-blue-200/50",
+              "text-gray-900 placeholder:text-gray-500 shadow-inner"
             )}
             rows={6}
           />
 
           {/* Field ID indicator (for debugging) */}
-          <div className="absolute bottom-2 right-2 sm:right-3 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity font-mono bg-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded shadow-sm">
-            {fieldId}
+          <div className="absolute bottom-3 right-3 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity font-mono bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm border border-gray-200/50">
+            <Hash className="h-3 w-3 inline mr-1" />
+            {fieldId.slice(0, 8)}...
           </div>
         </div>
       </div>
 
       {/* Comments Section */}
       {showComments && hasComments && (
-        <div className="border-t border-gray-200 bg-blue-50">
-          <div className="p-6">
+        <div className="border-t border-gray-200/30 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 backdrop-blur-sm">
+          <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-base font-semibold text-blue-900">
+              <h4 className="text-base font-semibold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
                 Comments ({comments.length})
               </h4>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowComments(false)}
-                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg"
+                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100/50 rounded-lg transition-all duration-200"
               >
                 ×
               </Button>
             </div>
             <div className="space-y-4">
               {comments.map((comment) => (
-                <div key={comment.id} className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm">
+                <div key={comment.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-white/50 shadow-lg hover:shadow-xl transition-all duration-200">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-700 font-semibold text-sm">
-                        {comment.user_name?.charAt(0).toUpperCase() || 'A'}
-                      </span>
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                      <User className="h-4 w-4 text-white" />
                     </div>
                     <div>
-                      <span className="font-semibold text-blue-800 text-sm">{comment.user_name}</span>
-                      <div className="text-blue-600 text-xs">
+                      <span className="font-semibold text-gray-900 text-sm">{comment.user_name}</span>
+                      <div className="text-gray-500 text-xs">
                         {new Date(comment.created_at).toLocaleDateString()} at{' '}
                         {new Date(comment.created_at).toLocaleTimeString()}
                       </div>
                     </div>
                   </div>
-                  <p className="text-blue-700 text-sm leading-relaxed pl-11">{comment.content}</p>
+                  <p className="text-gray-700 text-sm leading-relaxed pl-11">{comment.content}</p>
                 </div>
               ))}
             </div>

@@ -228,7 +228,7 @@ export default function Sidebar({
             {/* Mobile menu button */}
             <button
                 onClick={() => onCollapsedChange(!isCollapsed)}
-                className="md:hidden fixed top-5 left-5 z-[60] p-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm text-[#5f6368] hover:text-[#202124]"
+                className="md:hidden fixed top-5 left-5 z-[70] p-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm text-[#5f6368] hover:text-[#202124]"
                 aria-label="Toggle menu"
             >
                 <Menu size={20} />
@@ -237,15 +237,15 @@ export default function Sidebar({
             {/* Mobile overlay */}
             {!isCollapsed && (
                 <div
-                    className="md:hidden fixed inset-0 bg-black/20 z-40"
+                    className="md:hidden fixed inset-0 bg-black/20 z-50"
                     onClick={() => onCollapsedChange(true)}
                 />
             )}
 
             {/* Sidebar */}
             <aside className={`
-                md:relative md:top-0 md:left-0 md:bottom-0 md:z-0
-                fixed top-0 bottom-0 left-0 z-40
+                md:relative md:top-0 md:left-0 md:bottom-0 md:z-10
+                fixed top-0 bottom-0 left-0 z-50
                 md:w-16 bg-white border-r border-[#DADCE0] transition-transform duration-200
                 ${isCollapsed ? '-translate-x-full md:translate-x-0 md:w-16' : 'translate-x-0 w-[240px] md:w-64'}
             `}>
@@ -447,7 +447,7 @@ export default function Sidebar({
             {/* AI Assistant Dialog */}
             {aiAssistantOpen && (
                 <div 
-                    className="fixed inset-0 bg-black/20 flex items-center justify-center z-50"
+                    className="fixed inset-0 bg-black/20 flex items-center justify-center z-[80]"
                     onClick={() => setAiAssistantOpen(false)}
                 >
                     <div 
@@ -519,7 +519,7 @@ export default function Sidebar({
             {/* Command Palette Modal */}
             {commandPaletteOpen && (
                 <div 
-                    className="fixed inset-0 bg-black/20 flex items-center justify-center z-50"
+                    className="fixed inset-0 bg-black/20 flex items-center justify-center z-[80]"
                     onClick={() => setCommandPaletteOpen(false)}
                 >
                     <div 

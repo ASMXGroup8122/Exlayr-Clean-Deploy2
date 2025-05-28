@@ -166,7 +166,7 @@ const Content: React.FC<ContentProps> = ({
     }, [messages]);
     
     return (
-        <div className="fixed inset-0 pt-16 pl-0 sm:pl-64">
+        <div className="h-full w-full">
             <div className="h-full flex flex-col sm:flex-row">
                 {/* Main Chat Area */}
                 <div className="flex-1 flex flex-col bg-white relative">
@@ -238,7 +238,7 @@ const Content: React.FC<ContentProps> = ({
                 {/* Agent Selection Sidebar */}
                 <div 
                     className={cn(
-                        "fixed inset-y-0 right-0 w-full sm:w-80 bg-white border-l transform transition-transform duration-200 ease-in-out z-20",
+                        "fixed inset-y-0 right-0 w-full sm:w-80 bg-white border-l transform transition-transform duration-200 ease-in-out z-10",
                         "pt-16 pb-4",
                         isToolbarOpen ? "translate-x-0" : "translate-x-full sm:translate-x-0"
                     )}
@@ -248,7 +248,7 @@ const Content: React.FC<ContentProps> = ({
                         onClick={() => setIsToolbarOpen(!isToolbarOpen)}
                         className={cn(
                             "sm:hidden fixed top-20 right-4 p-2 bg-white rounded-full shadow-lg border",
-                            "transform transition-transform duration-200 ease-in-out z-30",
+                            "transform transition-transform duration-200 ease-in-out z-20",
                             isToolbarOpen ? "rotate-180 translate-x-0" : "translate-x-0"
                         )}
                     >
