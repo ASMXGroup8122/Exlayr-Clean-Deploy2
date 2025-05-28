@@ -1473,20 +1473,29 @@ export default function SponsorKnowledgeVaultPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-4 md:p-6">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-2 sm:p-4 md:p-6 overflow-x-hidden">
+            <style jsx>{`
+                .scrollbar-hide {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
             {/* Enhanced Header */}
-            <div className="relative mb-8">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-6 md:p-8">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                                <Brain className="h-8 w-8 text-white" />
+            <div className="relative mb-6 md:mb-8">
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl md:rounded-2xl shadow-xl border border-white/50 p-4 sm:p-6 md:p-8">
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center space-x-3 sm:space-x-4">
+                            <div className="p-2 sm:p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg sm:rounded-xl shadow-lg flex-shrink-0">
+                                <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                             </div>
-                            <div>
-                                <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
+                            <div className="min-w-0 flex-1">
+                                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent leading-tight">
                                     Knowledge Vault
                                 </h1>
-                                <p className="text-gray-600 mt-1">
+                                <p className="text-gray-600 mt-1 text-sm sm:text-base">
                                     Your AI-powered central intelligence hub
                                 </p>
                             </div>
@@ -1730,7 +1739,7 @@ export default function SponsorKnowledgeVaultPage() {
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {loading ? (
                             <div className="col-span-full flex justify-center items-center py-16">
                                 <div className="text-center">
@@ -1784,57 +1793,58 @@ export default function SponsorKnowledgeVaultPage() {
                                 </div>
                             ) : (
                                 filteredDocuments.map(doc => (
-                                    <div key={doc.id} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-6 hover:shadow-xl transition-all duration-300 group">
+                                    <div key={doc.id} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 group">
                                         <div className="flex items-start justify-between">
-                                            <div className="flex items-center flex-1">
-                                                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg mr-4 group-hover:scale-110 transition-transform duration-300">
-                                                    <File className="h-6 w-6 text-white" />
+                                            <div className="flex items-center flex-1 min-w-0">
+                                                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg mr-3 sm:mr-4 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                                                    <File className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <h3 className="text-sm font-semibold text-gray-900 truncate">{doc.file_name || doc.name}</h3>
-                                                    <p className="text-sm text-gray-600 mt-1">{doc.category}</p>
+                                                    <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">{doc.category}</p>
                                                     {doc.issuer_id && (
                                                         <div className="flex items-center mt-2">
-                                                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-2" />
-                                                            <p className="text-xs text-blue-700 font-medium">
+                                                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 flex-shrink-0" />
+                                                            <p className="text-xs text-blue-700 font-medium truncate">
                                                                 {clients.find(c => c.id === doc.issuer_id)?.issuer_name || 'Unknown Client'}
                                                             </p>
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex space-x-2 ml-4">
+                                            <div className="flex space-x-1 sm:space-x-2 ml-2 sm:ml-4 flex-shrink-0">
                                                 {doc.url?.startsWith('data:') ? (
                                                     <a
                                                         href={doc.url}
                                                         download={doc.file_name || doc.name}
-                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                                        className="p-1.5 sm:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
                                                         title="Download"
                                                     >
-                                                        <Download className="h-5 w-5" />
+                                                        <Download className="h-4 w-4 sm:h-5 sm:w-5" />
                                                     </a>
                                                 ) : doc.url?.startsWith('pending-upload://') ? (
-                                                    <div className="flex items-center px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium">
-                                                        <AlertTriangle className="h-4 w-4 mr-1" />
-                                                        Processing
+                                                    <div className="flex items-center px-2 sm:px-3 py-1 sm:py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium">
+                                                        <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                                        <span className="hidden sm:inline">Processing</span>
+                                                        <span className="sm:hidden">...</span>
                                                     </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => window.open(doc.url, '_blank')}
-                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                                        className="p-1.5 sm:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
                                                         title="Open"
                                                     >
-                                                        <Download className="h-5 w-5" />
+                                                        <Download className="h-4 w-4 sm:h-5 sm:w-5" />
                                                     </button>
                                                 )}
                                                 <button
                                                     onClick={() => {
                                                         deleteDocument(doc.id, doc.file_name || doc.name, doc.url);
                                                     }}
-                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                                    className="p-1.5 sm:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
                                                     title="Delete"
                                                 >
-                                                    <Trash2 className="h-5 w-5" />
+                                                    <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                                                 </button>
                                             </div>
                                         </div>
