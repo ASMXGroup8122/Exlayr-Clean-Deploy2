@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import { 
     LayoutDashboard, 
@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 type NavItem = {
@@ -54,8 +53,6 @@ export default function Sidebar({
     const [profileOpen, setProfileOpen] = useState(false);
     const [issuerStatus, setIssuerStatus] = useState<string | null>(null);
     const [recentPages, setRecentPages] = useState<NavItem[]>([]);
-    const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
-    const [aiMessage, setAiMessage] = useState('');
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
     const router = useRouter();
@@ -71,7 +68,6 @@ export default function Sidebar({
                 { href: '/dashboard/admin/users', label: 'Users', icon: <Users className="w-5 h-5" />, category: 'Management' },
                 { href: '/dashboard/admin/issuers', label: 'Issuers', icon: <FileText className="w-5 h-5" />, category: 'Management' },
                 { href: '/dashboard/admin/exchanges', label: 'Exchanges', icon: <BarChartHorizontal className="w-5 h-5" />, category: 'Management' },
-                { href: '/dashboard/admin/tools', label: 'Tools', icon: <Wrench className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/admin/analytics', label: 'Analytics', icon: <BarChart className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/admin/knowledge', label: 'Knowledge Vault', icon: <Brain className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/admin/billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" />, category: 'Settings' },
@@ -82,7 +78,6 @@ export default function Sidebar({
                 { href: `/dashboard/sponsor/${orgId}`, label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, category: 'Overview' },
                 { href: `/dashboard/sponsor/${orgId}/listings`, label: 'Listings', icon: <Building2 className="w-5 h-5" />, category: 'Management' },
                 { href: `/dashboard/sponsor/${orgId}/clients`, label: 'Issuers', icon: <Users className="w-5 h-5" />, category: 'Management' },
-                { href: `/dashboard/sponsor/${orgId}/tools`, label: 'Tools', icon: <Wrench className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/analytics`, label: 'Analytics', icon: <BarChart className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/knowledge-vault`, label: 'Knowledge Vault', icon: <Brain className="w-5 h-5" />, category: 'Tools' },
                 { href: `/dashboard/sponsor/${orgId}/campaigns`, label: 'Campaign Manager', icon: <Megaphone className="w-5 h-5" />, category: 'Tools' },
@@ -92,14 +87,12 @@ export default function Sidebar({
             exchange: [
                 { href: '/dashboard/exchange', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, category: 'Overview' },
                 { href: '/dashboard/exchange/listings', label: 'Listings', icon: <Building2 className="w-5 h-5" />, category: 'Management' },
-                { href: '/dashboard/exchange/tools', label: 'Tools', icon: <Wrench className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/exchange/analytics', label: 'Analytics', icon: <BarChart className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/exchange/settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, category: 'Settings' },
             ],
             issuer: [
                 { href: '/dashboard/issuer', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" />, category: 'Overview' },
                 { href: '/dashboard/issuer/listings', label: 'Listings', icon: <Building2 className="w-5 h-5" />, category: 'Management' },
-                { href: '/dashboard/issuer/tools', label: 'Tools', icon: <Wrench className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/issuer/knowledge-vault', label: 'Knowledge Vault', icon: <Brain className="w-5 h-5" />, category: 'Tools' },
                 { href: '/dashboard/issuer/settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, category: 'Settings' },
             ],
@@ -168,44 +161,6 @@ export default function Sidebar({
 
         return { filteredNavItems: filtered, groupedNavItems: grouped, sortedCategories: sorted };
     }, [navItems, userRole, issuerStatus]);
-
-    // AI Assistant suggestions based on current page
-    const aiSuggestions = useMemo(() => {
-        // Generate contextual suggestions based on current path
-        if (pathname.includes('/dashboard/admin/users')) {
-            return [
-                "Show me user growth trends",
-                "Find inactive users",
-                "Generate user activity report"
-            ];
-        } else if (pathname.includes('/dashboard/admin/sponsors')) {
-            return [
-                "List pending sponsor approvals",
-                "Show sponsor performance metrics",
-                "Generate sponsor report"
-            ];
-        } else if (pathname.includes('/exchange/listings')) {
-            return [
-                "Show recent listing activity",
-                "Find listings pending approval",
-                "Generate listing performance report"
-            ];
-        } else {
-            return [
-                "How can I use this dashboard?",
-                "Show me recent activity",
-                "Generate summary report"
-            ];
-        }
-    }, [pathname]);
-
-    const handleAiMessageSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // In a real implementation, you would send this to an AI service
-        console.log("AI message submitted:", aiMessage);
-        // Clear the input
-        setAiMessage('');
-    };
 
     // Add useEffect for keyboard shortcut
     useEffect(() => {
@@ -341,15 +296,18 @@ export default function Sidebar({
 
                     {/* Bottom section - always visible */}
                     <div className="flex-shrink-0 border-t border-[#DADCE0]">
-                        {/* AI Assistant Button */}
+                        {/* AI Assistant Button - Navigate to Tools */}
                         <div className="p-3">
-                            <button 
-                                onClick={() => setAiAssistantOpen(true)}
+                            <Link 
+                                href={userRole === 'admin' ? '/dashboard/admin/tools' : 
+                                      userRole === 'exchange_sponsor' ? `/dashboard/sponsor/${user?.organization_id}/tools` :
+                                      userRole === 'exchange' ? '/dashboard/exchange/tools' :
+                                      userRole === 'issuer' ? '/dashboard/issuer/tools' : '/dashboard/tools'}
                                 className="w-full flex items-center justify-center px-3 py-2 bg-[#1a73e8] hover:bg-[#1557B0] text-white rounded-lg transition-all duration-200"
                             >
                                 <MessageSquare className="w-5 h-5" />
                                 {!isCollapsed && <span className="ml-2">AI Assistant</span>}
-                            </button>
+                            </Link>
                         </div>
 
                         {/* Command Palette Button */}
@@ -443,78 +401,6 @@ export default function Sidebar({
                     </div>
                 </div>
             </aside>
-
-            {/* AI Assistant Dialog */}
-            {aiAssistantOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/20 flex items-center justify-center z-[80]"
-                    onClick={() => setAiAssistantOpen(false)}
-                >
-                    <div 
-                        className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4 overflow-hidden border border-[#DADCE0]"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="p-3 border-b border-[#DADCE0] flex items-center justify-between">
-                            <h3 className="text-lg font-medium text-[#202124]">AI Assistant</h3>
-                            <button 
-                                onClick={() => setAiAssistantOpen(false)}
-                                className="p-1 rounded-full hover:bg-[#E8EAED] text-[#5f6368]"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-4 h-80 overflow-y-auto bg-[#F8F9FA]">
-                            {/* AI welcome message */}
-                            <div className="flex mb-4">
-                                <div className="w-8 h-8 rounded-full bg-[#E8F0FE] flex items-center justify-center flex-shrink-0">
-                                    <MessageSquare className="w-4 h-4 text-[#1a73e8]" />
-                                </div>
-                                <div className="ml-3 bg-white p-3 rounded-lg border border-[#DADCE0] max-w-[80%]">
-                                    <p className="text-sm text-[#202124]">
-                                        Hello! I'm your AI assistant. How can I help you with Exlayr today?
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            {/* Suggestions */}
-                            <div className="mb-4">
-                                <p className="text-xs text-[#5f6368] mb-2">Try asking:</p>
-                                <div className="space-y-2">
-                                    {aiSuggestions.map((suggestion, index) => (
-                                        <button
-                                            key={index}
-                                            className="block w-full text-left text-sm bg-white hover:bg-[#E8F0FE] p-2 rounded border border-[#DADCE0] transition-colors text-[#202124]"
-                                            onClick={() => setAiMessage(suggestion)}
-                                        >
-                                            {suggestion}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Input area */}
-                        <div className="p-4 border-t border-[#DADCE0]">
-                            <form onSubmit={handleAiMessageSubmit} className="flex space-x-2">
-                                <input
-                                    type="text"
-                                    value={aiMessage}
-                                    onChange={(e) => setAiMessage(e.target.value)}
-                                    placeholder="Ask me anything..."
-                                    className="flex-1 px-3 py-2 border border-[#DADCE0] rounded-lg focus:outline-none focus:border-[#1a73e8] text-[#202124] placeholder-[#5f6368]"
-                                />
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-[#1a73e8] hover:bg-[#1557B0] text-white rounded-lg transition-colors"
-                                >
-                                    <Send className="w-5 h-5" />
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Command Palette Modal */}
             {commandPaletteOpen && (
