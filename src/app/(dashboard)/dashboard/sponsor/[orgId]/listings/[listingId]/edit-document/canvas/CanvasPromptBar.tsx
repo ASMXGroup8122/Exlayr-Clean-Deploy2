@@ -496,7 +496,7 @@ export default function CanvasPromptBar({
       {/* Side Panel */}
       <div 
         ref={panelRef}
-        className="fixed right-0 top-0 h-full bg-white shadow-2xl z-40 flex flex-col border-l border-gray-200"
+        className="fixed right-0 top-0 h-full bg-white/95 backdrop-blur-xl shadow-2xl z-40 flex flex-col border-l border-white/20"
         style={{ 
           width: isMounted && typeof window !== 'undefined' 
             ? (window.innerWidth >= 1024 ? `${panelWidth}px` : window.innerWidth >= 640 ? '400px' : '100%')
@@ -505,40 +505,42 @@ export default function CanvasPromptBar({
       >
         {/* Resize Handle - Desktop Only */}
         <div 
-          className={`absolute left-0 top-0 w-2 h-full cursor-col-resize transition-all duration-200 hidden lg:block group ${
-            isResizing ? 'bg-blue-500' : 'hover:bg-blue-500/20'
+          className={`absolute left-0 top-0 w-2 h-full cursor-col-resize transition-all duration-300 hidden lg:block group ${
+            isResizing ? 'bg-gradient-to-b from-blue-500 to-purple-600' : 'hover:bg-gradient-to-b hover:from-blue-500/20 hover:to-purple-600/20'
           }`}
           onMouseDown={handleMouseDown}
           title="Drag to resize panel"
         >
-          <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-16 transition-all duration-200 rounded-r-sm ${
-            isResizing ? 'bg-blue-600' : 'bg-gray-300 group-hover:bg-blue-500'
+          <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-16 transition-all duration-300 rounded-r-lg ${
+            isResizing ? 'bg-gradient-to-b from-blue-600 to-purple-700' : 'bg-gradient-to-b from-gray-300 to-gray-400 group-hover:from-blue-500 group-hover:to-purple-600'
           }`} />
-          <div className={`absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 transition-all duration-200 rounded-r-sm ${
-            isResizing ? 'bg-blue-400' : 'bg-gray-400 group-hover:bg-blue-300'
+          <div className={`absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 transition-all duration-300 rounded-r-lg ${
+            isResizing ? 'bg-gradient-to-b from-blue-400 to-purple-500' : 'bg-gradient-to-b from-gray-400 to-gray-500 group-hover:from-blue-300 group-hover:to-purple-400'
           }`} />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex-shrink-0">
-              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+        <div className="flex items-center justify-between p-6 border-b border-white/10 bg-gradient-to-r from-blue-50/80 to-purple-50/80 backdrop-blur-sm flex-shrink-0">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg flex-shrink-0">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="font-semibold text-gray-900 text-sm sm:text-base">AI Assistant</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="font-bold text-lg bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+                  AI Assistant
+                </h2>
                 {isLoadingContext && (
-                  <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
                 )}
               </div>
               {activeFieldId && (
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="text-xs">
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="outline" className="text-xs font-medium bg-white/60 backdrop-blur-sm border-blue-200/50">
                     {activeFieldTitle || activeFieldId}
                   </Badge>
                   {currentContext && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs font-medium bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 border-0">
                       {currentContext.mode.replace('_', ' ')}
                     </Badge>
                   )}
@@ -550,7 +552,7 @@ export default function CanvasPromptBar({
             variant="ghost"
             size="sm"
             onClick={onToggle}
-            className="flex-shrink-0 h-8 w-8 p-0"
+            className="flex-shrink-0 h-9 w-9 p-0 hover:bg-white/60 backdrop-blur-sm rounded-lg transition-all duration-200"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -558,18 +560,18 @@ export default function CanvasPromptBar({
 
         {/* Context Status */}
         {currentContext && (
-          <div className="px-4 py-3 bg-gray-50 border-b">
-            <div className="flex items-center gap-2 text-sm">
+          <div className="px-6 py-4 bg-gradient-to-r from-gray-50/80 to-blue-50/80 backdrop-blur-sm border-b border-white/10">
+            <div className="flex items-center gap-3 text-sm">
               <Info className="h-4 w-4 text-blue-500" />
-              <span className="text-gray-600">
-                Sources: {currentContext.source_trace.join(', ') || 'None'}
+              <span className="text-gray-700 font-medium">
+                Sources: <span className="font-normal">{currentContext.source_trace.join(', ') || 'None'}</span>
               </span>
             </div>
             {currentContext.missing_flags.length > 0 && (
-              <div className="flex items-center gap-2 text-sm mt-1">
+              <div className="flex items-center gap-3 text-sm mt-2">
                 <AlertTriangle className="h-4 w-4 text-orange-500" />
-                <span className="text-orange-600">
-                  Missing: {currentContext.missing_flags.join(', ')}
+                <span className="text-orange-700 font-medium">
+                  Missing: <span className="font-normal">{currentContext.missing_flags.join(', ')}</span>
                 </span>
               </div>
             )}
@@ -577,22 +579,24 @@ export default function CanvasPromptBar({
         )}
 
         {/* Smart Agent Status */}
-        <div className="p-4 sm:p-6 border-b bg-gradient-to-r from-orange-50 to-amber-50 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg">
+        <div className="p-6 border-b border-white/10 bg-gradient-to-r from-orange-50/80 to-amber-50/80 backdrop-blur-sm flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-r from-orange-500 to-amber-600 rounded-xl shadow-lg">
               <Zap className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-gray-900">Smart Agent</h3>
-                <Badge variant="secondary" className="text-xs">
+              <div className="flex items-center gap-3">
+                <h3 className="text-base font-bold bg-gradient-to-r from-orange-700 to-amber-700 bg-clip-text text-transparent">
+                  Smart Agent
+                </h3>
+                <Badge variant="secondary" className="text-xs font-medium bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border-0">
                   {currentContext?.mode ? 
                     currentContext.mode.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
                     'Autonomous Mode'
                   }
                 </Badge>
               </div>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-sm text-gray-600 mt-1 font-medium">
                 {currentContext?.mode === 'document_completion' && 'Generating content from structured data'}
                 {currentContext?.mode === 'industry_research' && 'Conducting research with citations'}
                 {currentContext?.mode === 'regulatory_guidance' && 'Ensuring regulatory compliance'}
@@ -606,29 +610,34 @@ export default function CanvasPromptBar({
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <ScrollArea className="flex-1 p-4 sm:p-6">
+        <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-b from-white/50 to-gray-50/50 backdrop-blur-sm">
+          <ScrollArea className="flex-1 p-6">
             {responses.length === 0 ? (
-              <div className="text-center py-8">
-                <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">
+              <div className="text-center py-12">
+                <div className="p-4 bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl w-fit mx-auto mb-4">
+                  <MessageSquare className="h-12 w-12 text-blue-500 mx-auto" />
+                </div>
+                <h3 className="text-lg font-bold bg-gradient-to-r from-gray-800 to-blue-700 bg-clip-text text-transparent mb-2">
+                  Ready to Assist
+                </h3>
+                <p className="text-gray-600 text-sm font-medium max-w-sm mx-auto leading-relaxed">
                   {activeFieldId 
-                    ? `Ask me anything about "${activeFieldTitle}"`
+                    ? `Ask me anything about "${activeFieldTitle}" or request content generation`
                     : "Ask me anything about this document or click on a field for specific context"
                   }
                 </p>
-                                 {currentContext?.missing_flags && currentContext.missing_flags.length > 0 && (
-                  <div className="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                {currentContext?.missing_flags && currentContext.missing_flags.length > 0 && (
+                  <div className="mt-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-200/50 backdrop-blur-sm">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-orange-700">
+                      <div className="flex items-center gap-3 text-sm text-orange-700">
                         <Upload className="h-4 w-4" />
-                        <span>Consider uploading supporting documents for better results</span>
+                        <span className="font-medium">Consider uploading supporting documents for better results</span>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => onTriggerResearchPanel && onTriggerResearchPanel()}
-                        className="h-8 text-xs"
+                        className="h-8 text-xs font-medium bg-white/80 backdrop-blur-sm hover:bg-white border-orange-200"
                       >
                         Upload Documents
                       </Button>
@@ -639,17 +648,17 @@ export default function CanvasPromptBar({
             ) : (
               <div className="space-y-4">
                 {responses.map((response) => (
-                  <Card key={response.id} className="p-4 bg-gray-50 border-gray-200">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
+                  <Card key={response.id} className="p-5 bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="secondary" className="text-xs font-medium bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 border-0">
                           {response.agentName}
                         </Badge>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 font-medium">
                           {response.timestamp.toLocaleTimeString()}
                         </span>
                         {response.sources && response.sources.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs font-medium bg-white/60 backdrop-blur-sm border-gray-200/50">
                             {response.sources.join(', ')}
                           </Badge>
                         )}
@@ -658,7 +667,7 @@ export default function CanvasPromptBar({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleCopy(response)}
-                        className="h-6 w-6 p-0"
+                        className="h-7 w-7 p-0 hover:bg-white/60 backdrop-blur-sm rounded-lg transition-all duration-200"
                       >
                         {copiedResponseId === response.id ? (
                           <Check className="h-3 w-3 text-green-500" />
@@ -668,9 +677,9 @@ export default function CanvasPromptBar({
                       </Button>
                     </div>
                     
-                    <div className="prose prose-sm max-w-none text-gray-700 mb-4">
+                    <div className="prose prose-sm max-w-none text-gray-700 mb-4 font-medium leading-relaxed">
                       {response.content.split('\n').map((line, index) => (
-                        <p key={index} className="mb-2 last:mb-0">
+                        <p key={index} className="mb-3 last:mb-0">
                           {line}
                         </p>
                       ))}
@@ -678,27 +687,27 @@ export default function CanvasPromptBar({
 
                     {/* Missing Data Warning */}
                     {response.missingData && response.missingData.length > 0 && (
-                      <div className="mb-3 p-2 bg-orange-50 rounded border border-orange-200">
-                        <div className="flex items-center gap-2 text-xs text-orange-700">
+                      <div className="mb-4 p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200/50 backdrop-blur-sm">
+                        <div className="flex items-center gap-3 text-xs text-orange-700">
                           <AlertTriangle className="h-3 w-3" />
-                          <span>Missing: {response.missingData.join(', ')}</span>
+                          <span className="font-medium">Missing: {response.missingData.join(', ')}</span>
                         </div>
                       </div>
                     )}
 
                     {/* Upload Recommendation */}
                     {response.uploadRecommendation && (
-                      <div className="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
+                      <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200/50 backdrop-blur-sm">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs text-blue-700">
+                          <div className="flex items-center gap-3 text-xs text-blue-700">
                             <Upload className="h-3 w-3" />
-                            <span>{response.uploadRecommendation}</span>
+                            <span className="font-medium">{response.uploadRecommendation}</span>
                           </div>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => onTriggerResearchPanel && onTriggerResearchPanel(response.uploadRecommendation?.split(' ')[0])}
-                            className="h-6 text-xs px-2"
+                            className="h-6 text-xs px-3 font-medium bg-white/80 backdrop-blur-sm hover:bg-white border-blue-200"
                           >
                             Upload
                           </Button>
@@ -707,11 +716,11 @@ export default function CanvasPromptBar({
                     )}
                     
                     {activeFieldId && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-3">
                         <Button
                           size="sm"
                           onClick={() => handleInsert(response, 'insert')}
-                          className="flex-1 h-8 text-xs"
+                          className="flex-1 h-9 text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300"
                         >
                           Insert
                         </Button>
@@ -719,7 +728,7 @@ export default function CanvasPromptBar({
                           size="sm"
                           variant="outline"
                           onClick={() => handleInsert(response, 'replace')}
-                          className="flex-1 h-8 text-xs"
+                          className="flex-1 h-9 text-sm font-medium bg-white/80 backdrop-blur-sm hover:bg-white border-gray-200/50 hover:border-gray-300 transition-all duration-300"
                         >
                           Replace
                         </Button>
@@ -732,8 +741,8 @@ export default function CanvasPromptBar({
           </ScrollArea>
 
           {/* Input Area */}
-          <div className="p-4 sm:p-6 border-t bg-white flex-shrink-0">
-            <div className="space-y-3">
+          <div className="p-6 border-t border-white/10 bg-gradient-to-r from-white/80 to-gray-50/80 backdrop-blur-sm flex-shrink-0">
+            <div className="space-y-4">
               <div className="relative">
                 <Textarea
                   ref={textareaRef}
@@ -745,14 +754,14 @@ export default function CanvasPromptBar({
                       ? `Ask about "${activeFieldTitle}" or request content generation...`
                       : "Ask about this document or click on a field for specific context..."
                   }
-                  className="min-h-[80px] pr-12 resize-none text-sm"
+                  className="min-h-[90px] pr-14 resize-none text-sm font-medium bg-white/80 backdrop-blur-sm border-white/20 focus:border-blue-300 focus:ring-blue-200/50 rounded-xl shadow-lg placeholder:text-gray-500"
                   disabled={isLoading}
                 />
                 <Button
                   size="sm"
                   onClick={handleSubmit}
                   disabled={!prompt.trim() || isLoading}
-                  className="absolute bottom-2 right-2 h-8 w-8 p-0"
+                  className="absolute bottom-3 right-3 h-9 w-9 p-0 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -762,14 +771,14 @@ export default function CanvasPromptBar({
                 </Button>
               </div>
               
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>
-                  Smart Agent • {currentContext?.mode ? 
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span className="font-medium">
+                  <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">Smart Agent</span> • {currentContext?.mode ? 
                     currentContext.mode.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
                     'Autonomous Mode'
                   }
                 </span>
-                <span>⌘↵ to send</span>
+                <span className="font-medium">⌘↵ to send</span>
               </div>
             </div>
           </div>
