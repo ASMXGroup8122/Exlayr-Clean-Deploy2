@@ -199,12 +199,13 @@ export default function Sidebar({
 
             {/* Sidebar */}
             <aside className={`
-                md:relative md:top-0 md:left-0 md:bottom-0 md:z-10
+                flex-shrink-0 h-full
+                md:relative md:block
                 fixed top-0 bottom-0 left-0 z-50
-                md:w-16 bg-white border-r border-[#DADCE0] transition-transform duration-200
+                bg-white border-r border-[#DADCE0] transition-transform duration-200
                 ${isCollapsed ? '-translate-x-full md:translate-x-0 md:w-16' : 'translate-x-0 w-[240px] md:w-64'}
             `}>
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="h-full flex flex-col overflow-hidden">
                     {/* Top section with logo and collapse button */}
                     <div className="flex-shrink-0 h-16 px-4 border-b border-[#DADCE0] flex items-center">
                         <div className="flex items-center justify-between w-full">
