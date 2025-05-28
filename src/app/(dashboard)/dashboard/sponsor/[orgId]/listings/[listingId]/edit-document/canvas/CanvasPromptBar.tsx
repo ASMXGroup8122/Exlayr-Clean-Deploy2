@@ -156,13 +156,6 @@ export default function CanvasPromptBar({
     }
   }, [isVisible]);
 
-  // Load context when active field changes
-  useEffect(() => {
-    if (activeFieldId && documentId) {
-      loadSectionContext();
-    }
-  }, [activeFieldId, documentId]);
-
   // Smart Agent automatically adapts to field context - no manual selection needed
 
   // Notify parent of width changes
@@ -452,6 +445,16 @@ export default function CanvasPromptBar({
       setIsLoadingContext(false);
     }
   }, [activeFieldId, documentId, toast]);
+
+  // Load context only when prompt bar becomes visible with an active field
+  // This prevents unnecessary API calls when users click fields without using AI
+  useEffect(() => {
+    if (isVisible && activeFieldId && documentId) {
+      loadSectionContext();
+    }
+    // Only trigger when prompt bar visibility changes, not when field changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible, documentId, loadSectionContext]);
 
   // Handle mouse resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
