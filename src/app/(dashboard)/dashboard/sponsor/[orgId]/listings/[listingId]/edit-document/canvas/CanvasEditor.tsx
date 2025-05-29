@@ -164,7 +164,7 @@ export default function CanvasEditor({
     }
   }, [localChanges, supabase, documentId, toast]);
 
-  // Handle navigation back to box mode
+  // Handle navigation back to blueprint mode
   const handleBackToBoxMode = useCallback(() => {
     if (hasUnsavedChanges) {
       const confirmLeave = window.confirm(
@@ -173,9 +173,9 @@ export default function CanvasEditor({
       if (!confirmLeave) return;
     }
     
-    // Navigate back to the box-mode editor
-    const boxModeUrl = window.location.pathname.replace('/canvas', '');
-    router.push(boxModeUrl);
+    // Navigate to Blueprint Mode
+    const blueprintModeUrl = window.location.pathname.replace('/canvas', '/blueprint');
+    router.push(blueprintModeUrl);
   }, [hasUnsavedChanges, router]);
 
   // Handle share functionality (placeholder for Phase 4)
@@ -295,8 +295,8 @@ export default function CanvasEditor({
                     className="flex items-center gap-2 hover:bg-blue-50 text-gray-600 hover:text-blue-700 px-3 py-2 rounded-xl transition-all duration-200"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    <span className="hidden sm:inline">Box Mode</span>
-                    <span className="sm:hidden">Box</span>
+                    <span className="hidden sm:inline">Blueprint Mode</span>
+                    <span className="sm:hidden">Blueprint</span>
                   </Button>
                   <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent" />
                   <div className="flex items-center gap-3">
