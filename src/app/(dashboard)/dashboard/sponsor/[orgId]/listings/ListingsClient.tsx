@@ -303,21 +303,21 @@ export default function ListingsClient() {
                     
                     {/* Stats Row */}
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
-                        <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
-                            <BarChart3 className="w-2 h-2 sm:w-3 sm:h-3" />
-                            <span>{listings.length} Total</span>
-                        </div>
-                        <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm font-medium">
-                            <CheckCircle className="w-2 h-2 sm:w-3 sm:h-3" />
-                            <span>{listings.filter(l => l.instrumentsecuritiesadmissionstatus === 'approved').length} Approved</span>
-                        </div>
-                        <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-amber-100 text-amber-700 rounded-full text-xs sm:text-sm font-medium">
-                            <Clock className="w-2 h-2 sm:w-3 sm:h-3" />
-                            <span>{listings.filter(l => l.instrumentsecuritiesadmissionstatus === 'pending').length} Pending</span>
+                            <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
+                                <BarChart3 className="w-2 h-2 sm:w-3 sm:h-3" />
+                                <span>{listings.length} Total</span>
+                            </div>
+                            <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm font-medium">
+                                <CheckCircle className="w-2 h-2 sm:w-3 sm:h-3" />
+                                <span>{listings.filter(l => l.instrumentsecuritiesadmissionstatus === 'approved').length} Approved</span>
+                            </div>
+                            <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-amber-100 text-amber-700 rounded-full text-xs sm:text-sm font-medium">
+                                <Clock className="w-2 h-2 sm:w-3 sm:h-3" />
+                                <span>{listings.filter(l => l.instrumentsecuritiesadmissionstatus === 'pending').length} Pending</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
             {/* Main Content Area */}
             <div className="flex flex-col md:flex-row gap-4 sm:gap-6 flex-1 min-h-0 relative">
@@ -329,240 +329,240 @@ export default function ListingsClient() {
                             <div className="max-w-md">
                                 <div className="mx-auto rounded-full w-20 h-20 flex items-center justify-center bg-gradient-to-r from-blue-100 to-indigo-100 mb-6">
                                     <FileText className="h-10 w-10 text-blue-600" />
-                                </div>
+            </div>
                                 <h3 className="text-xl font-bold text-gray-900 mb-2">Ready to Create Documents?</h3>
                                 <p className="text-gray-600 mb-6">Start by creating professional documents for your listings, or create your first listing.</p>
                                 <div className="space-y-3">
-                                    <Link
-                                        href={`/dashboard/sponsor/${orgId}/listings/generate-document`}
+                        <Link
+                            href={`/dashboard/sponsor/${orgId}/listings/generate-document`}
                                         className="w-full inline-flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-base font-semibold"
-                                    >
+                        >
                                         <Sparkles className="h-5 w-5 mr-2" />
                                         Create Document with AI
-                                    </Link>
-                                    <Link
-                                        href={`/dashboard/sponsor/${orgId}/new-listing`}
+                        </Link>
+                    <Link
+                        href={`/dashboard/sponsor/${orgId}/new-listing`}
                                         className="w-full inline-flex items-center justify-center px-6 py-3 bg-white/50 border border-gray-200/50 text-gray-700 rounded-xl shadow-sm hover:shadow-md hover:bg-white/70 transition-all duration-300"
-                                    >
-                                        <Plus className="h-5 w-5 mr-2" />
-                                        Create Your First Listing
-                                    </Link>
+                    >
+                        <Plus className="h-5 w-5 mr-2" />
+                        Create Your First Listing
+                    </Link>
                                 </div>
                             </div>
-                        </div>
-                    ) : (
-                        <>
+                </div>
+            ) : (
+                <>
                             {/* Listings Table/Cards */}
                             <div className="flex-1 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 overflow-hidden">
-                                {/* Desktop Table View */}
+                    {/* Desktop Table View */}
                                 <div className="hidden lg:block h-full">
                                     <div className="overflow-x-auto scrollbar-hide h-full">
-                                        <table className="min-w-full divide-y divide-gray-200/50">
+                                <table className="min-w-full divide-y divide-gray-200/50">
                                             <thead className="bg-gradient-to-r from-gray-50/80 to-blue-50/80 sticky top-0">
-                                                <tr>
-                                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                                        Listing Details
-                                                    </th>
-                                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                                        Category
-                                                    </th>
-                                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                                        Exchange
-                                                    </th>
-                                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                                        Status
-                                                    </th>
-                                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                                        Updated
-                                                    </th>
-                                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                                        Actions
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white/50 divide-y divide-gray-200/30">
-                                                {listings.map((listing) => (
-                                                    <tr key={listing.instrumentid} className="hover:bg-blue-50/30 transition-colors duration-200">
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center space-x-3">
-                                                                <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
-                                                                    <Building2 className="h-5 w-5 text-blue-600" />
-                                                                </div>
-                                                                <div className="min-w-0 flex-1">
-                                                                    <div className="text-sm font-semibold text-gray-900 truncate">
-                                                                        {listing.instrumentname}
-                                                                    </div>
-                                                                    <div className="text-sm text-gray-500 truncate">
-                                                                        {listing.instrumentticker} • {listing.instrumentissuername}
-                                                                    </div>
-                                                                </div>
+                                        <tr>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                                Listing Details
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                                Category
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                                Exchange
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                                Updated
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white/50 divide-y divide-gray-200/30">
+                                        {listings.map((listing) => (
+                                            <tr key={listing.instrumentid} className="hover:bg-blue-50/30 transition-colors duration-200">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+                                                            <Building2 className="h-5 w-5 text-blue-600" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="text-sm font-semibold text-gray-900 truncate">
+                                                                {listing.instrumentname}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="text-sm text-gray-900">{listing.instrumentcategory}</div>
-                                                            <div className="text-sm text-gray-500">{listing.instrumentsubcategory}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="text-sm text-gray-900">{listing.instrumentexchange}</div>
-                                                            <div className="text-sm text-gray-500">{listing.instrumentexchangeboard}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(listing.instrumentsecuritiesadmissionstatus)}`}>
-                                                                {getStatusIcon(listing.instrumentsecuritiesadmissionstatus)}
-                                                                <span>{listing.instrumentsecuritiesadmissionstatus?.charAt(0).toUpperCase() + listing.instrumentsecuritiesadmissionstatus?.slice(1).replace('_', ' ')}</span>
+                                                            <div className="text-sm text-gray-500 truncate">
+                                                                {listing.instrumentticker} • {listing.instrumentissuername}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-500">
-                                                            <div className="flex items-center space-x-1">
-                                                                <Calendar className="h-4 w-4" />
-                                                                <span>{new Date(listing.instrumentupdatedat).toLocaleDateString()}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center space-x-3">
-                                                                {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
-                                                                    <Link
-                                                                        href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
-                                                                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200"
-                                                                    >
-                                                                        <FileText className="h-3 w-3 mr-1" />
-                                                                        Edit
-                                                                    </Link>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-50 rounded-lg cursor-not-allowed">
-                                                                        <FileText className="h-3 w-3 mr-1" />
-                                                                        Edit
-                                                                    </span>
-                                                                )}
-                                                                
-                                                                {listing.instrumentsecuritiesadmissionstatus === 'draft' && (
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
-                                                                        disabled={isSubmitting === listing.instrumentid}
-                                                                        className="h-8 px-3 text-xs bg-white/50 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
-                                                                    >
-                                                                        {isSubmitting === listing.instrumentid ? (
-                                                                             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                                                        ) : (
-                                                                            <Send className="h-3 w-3 mr-1" />
-                                                                        )}
-                                                                        Submit
-                                                                    </Button>
-                                                                )}
-                                                                
-                                                                {listing.instrumentsecuritiesadmissionstatus === 'needs_revision' && (
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
-                                                                        disabled={isSubmitting === listing.instrumentid}
-                                                                        className="h-8 px-3 text-xs bg-white/50 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
-                                                                    >
-                                                                        {isSubmitting === listing.instrumentid ? (
-                                                                             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                                                        ) : (
-                                                                            <Send className="h-3 w-3 mr-1" />
-                                                                        )}
-                                                                        Resubmit
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Mobile Card View */}
-                                <div className="lg:hidden p-4 space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
-                                    {listings.map((listing) => (
-                                        <div key={listing.instrumentid} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-4 hover:shadow-xl transition-all duration-300">
-                                            <div className="flex items-start space-x-3 mb-4">
-                                                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
-                                                    <Building2 className="h-6 w-6 text-blue-600" />
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <h3 className="text-base font-semibold text-gray-900 truncate">
-                                                        {listing.instrumentname}
-                                                    </h3>
-                                                    <p className="text-sm text-gray-500 truncate">
-                                                        {listing.instrumentticker} • {listing.instrumentissuername}
-                                                    </p>
-                                                    <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium mt-2 ${getStatusColor(listing.instrumentsecuritiesadmissionstatus)}`}>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm text-gray-900">{listing.instrumentcategory}</div>
+                                                    <div className="text-sm text-gray-500">{listing.instrumentsubcategory}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm text-gray-900">{listing.instrumentexchange}</div>
+                                                    <div className="text-sm text-gray-500">{listing.instrumentexchangeboard}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(listing.instrumentsecuritiesadmissionstatus)}`}>
                                                         {getStatusIcon(listing.instrumentsecuritiesadmissionstatus)}
                                                         <span>{listing.instrumentsecuritiesadmissionstatus?.charAt(0).toUpperCase() + listing.instrumentsecuritiesadmissionstatus?.slice(1).replace('_', ' ')}</span>
                                                     </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                                                <div>
-                                                    <div className="flex items-center space-x-1 text-gray-500 mb-1">
-                                                        <Tag className="h-3 w-3" />
-                                                        <span>Category</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    <div className="flex items-center space-x-1">
+                                                        <Calendar className="h-4 w-4" />
+                                                        <span>{new Date(listing.instrumentupdatedat).toLocaleDateString()}</span>
                                                     </div>
-                                                    <div className="text-gray-900 font-medium">{listing.instrumentcategory}</div>
-                                                    <div className="text-gray-500 text-xs">{listing.instrumentsubcategory}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center space-x-1 text-gray-500 mb-1">
-                                                        <Globe className="h-3 w-3" />
-                                                        <span>Exchange</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center space-x-3">
+                                                        {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
+                                                            <Link
+                                                                        href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
+                                                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200"
+                                                            >
+                                                                <FileText className="h-3 w-3 mr-1" />
+                                                                Edit
+                                                            </Link>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-50 rounded-lg cursor-not-allowed">
+                                                                <FileText className="h-3 w-3 mr-1" />
+                                                                Edit
+                                                            </span>
+                                                        )}
+                                                        
+                                                        {listing.instrumentsecuritiesadmissionstatus === 'draft' && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
+                                                                disabled={isSubmitting === listing.instrumentid}
+                                                                className="h-8 px-3 text-xs bg-white/50 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                                                            >
+                                                                {isSubmitting === listing.instrumentid ? (
+                                                                     <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                                                ) : (
+                                                                    <Send className="h-3 w-3 mr-1" />
+                                                                )}
+                                                                Submit
+                                                            </Button>
+                                                        )}
+                                                        
+                                                        {listing.instrumentsecuritiesadmissionstatus === 'needs_revision' && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
+                                                                disabled={isSubmitting === listing.instrumentid}
+                                                                className="h-8 px-3 text-xs bg-white/50 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                                                            >
+                                                                {isSubmitting === listing.instrumentid ? (
+                                                                     <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                                                ) : (
+                                                                    <Send className="h-3 w-3 mr-1" />
+                                                                )}
+                                                                Resubmit
+                                                            </Button>
+                                                        )}
                                                     </div>
-                                                    <div className="text-gray-900 font-medium">{listing.instrumentexchange}</div>
-                                                    <div className="text-gray-500 text-xs">{listing.instrumentexchangeboard}</div>
-                                                </div>
-                                            </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                        </div>
+                    </div>
 
-                                            <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
-                                                <div className="flex items-center space-x-1 text-xs text-gray-500">
-                                                    <Calendar className="h-3 w-3" />
-                                                    <span>Updated {new Date(listing.instrumentupdatedat).toLocaleDateString()}</span>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
-                                                        <Link
-                                                            href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
-                                                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200"
-                                                        >
-                                                            <FileText className="h-3 w-3 mr-1" />
-                                                            Edit
-                                                        </Link>
-                                                    ) : (
-                                                        <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-50 rounded-lg cursor-not-allowed">
-                                                            <FileText className="h-3 w-3 mr-1" />
-                                                            Edit
-                                                        </span>
-                                                    )}
-                                                    
-                                                    {(listing.instrumentsecuritiesadmissionstatus === 'draft' || listing.instrumentsecuritiesadmissionstatus === 'needs_revision') && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
-                                                            disabled={isSubmitting === listing.instrumentid}
-                                                            className="h-8 px-3 text-xs bg-white/50 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
-                                                        >
-                                                            {isSubmitting === listing.instrumentid ? (
-                                                                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                                            ) : (
-                                                                <Send className="h-3 w-3 mr-1" />
-                                                            )}
-                                                            {listing.instrumentsecuritiesadmissionstatus === 'draft' ? 'Submit' : 'Resubmit'}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
+                    {/* Mobile Card View */}
+                                <div className="lg:hidden p-4 space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
+                        {listings.map((listing) => (
+                            <div key={listing.instrumentid} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-4 hover:shadow-xl transition-all duration-300">
+                                <div className="flex items-start space-x-3 mb-4">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+                                        <Building2 className="h-6 w-6 text-blue-600" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="text-base font-semibold text-gray-900 truncate">
+                                            {listing.instrumentname}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 truncate">
+                                            {listing.instrumentticker} • {listing.instrumentissuername}
+                                        </p>
+                                        <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium mt-2 ${getStatusColor(listing.instrumentsecuritiesadmissionstatus)}`}>
+                                            {getStatusIcon(listing.instrumentsecuritiesadmissionstatus)}
+                                            <span>{listing.instrumentsecuritiesadmissionstatus?.charAt(0).toUpperCase() + listing.instrumentsecuritiesadmissionstatus?.slice(1).replace('_', ' ')}</span>
                                         </div>
-                                    ))}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                                    <div>
+                                        <div className="flex items-center space-x-1 text-gray-500 mb-1">
+                                            <Tag className="h-3 w-3" />
+                                            <span>Category</span>
+                                        </div>
+                                        <div className="text-gray-900 font-medium">{listing.instrumentcategory}</div>
+                                        <div className="text-gray-500 text-xs">{listing.instrumentsubcategory}</div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center space-x-1 text-gray-500 mb-1">
+                                            <Globe className="h-3 w-3" />
+                                            <span>Exchange</span>
+                                        </div>
+                                        <div className="text-gray-900 font-medium">{listing.instrumentexchange}</div>
+                                        <div className="text-gray-500 text-xs">{listing.instrumentexchangeboard}</div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
+                                    <div className="flex items-center space-x-1 text-xs text-gray-500">
+                                        <Calendar className="h-3 w-3" />
+                                        <span>Updated {new Date(listing.instrumentupdatedat).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
+                                            <Link
+                                                            href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
+                                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200"
+                                            >
+                                                <FileText className="h-3 w-3 mr-1" />
+                                                Edit
+                                            </Link>
+                                        ) : (
+                                            <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-50 rounded-lg cursor-not-allowed">
+                                                <FileText className="h-3 w-3 mr-1" />
+                                                Edit
+                                            </span>
+                                        )}
+                                        
+                                        {(listing.instrumentsecuritiesadmissionstatus === 'draft' || listing.instrumentsecuritiesadmissionstatus === 'needs_revision') && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => triggerSubmitConfirmation(listing.instrumentid)}
+                                                disabled={isSubmitting === listing.instrumentid}
+                                                className="h-8 px-3 text-xs bg-white/50 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                                            >
+                                                {isSubmitting === listing.instrumentid ? (
+                                                     <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                                ) : (
+                                                    <Send className="h-3 w-3 mr-1" />
+                                                )}
+                                                {listing.instrumentsecuritiesadmissionstatus === 'draft' ? 'Submit' : 'Resubmit'}
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </>
-                    )}
+                        ))}
+                                </div>
+                    </div>
+                </>
+            )}
                 </div>
 
                 {/* Quick Actions Sidebar */}

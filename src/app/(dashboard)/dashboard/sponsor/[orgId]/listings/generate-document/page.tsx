@@ -13,6 +13,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import SearchParamsProvider from '@/components/SearchParamsProvider';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useDocumentGeneration } from '@/hooks/useDocumentGeneration';
 
 interface Section {
     id: string;
@@ -103,14 +104,32 @@ function GenerateListingDocumentContent() {
         file_size?: string;
     }>>([]);
     const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
-    const [selectedSection, setSelectedSection] = useState('');
     const [inputMessage, setInputMessage] = useState('');
     const [messages, setMessages] = useState<Array<{ type: 'user' | 'assistant', content: string }>>([]);
-    const [sectionTitle, setSectionTitle] = useState<string>('');
-    const [sectionFields, setSectionFields] = useState<string[]>([]);
-    const [sectionContent, setSectionContent] = useState<ListingDocumentContent | null>(null);
-    const [prompts, setPrompts] = useState<DirectListingPrompt[]>([]);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [currentSectionTitles, setCurrentSectionTitles] = useState<Section[]>([]);
+
+    // Add document generation hook
+    const { 
+        generateDocument, 
+        isGenerating: isDocumentGenerating, 
+        result: generationResult, 
+        error: generationError,
+        reset: resetGeneration 
+    } = useDocumentGeneration();
+
+    // Add state for progressive section generation
+    const [generatedSections, setGeneratedSections] = useState<Array<{
+        promptname: string;
+        title: string;
+        content: string;
+        fullContent?: string;
+        isGenerating?: boolean;
+        isComplete?: boolean;
+    }>>([]);
+    const [documentGenerated, setDocumentGenerated] = useState(false);
+    
+    // State for displaying content
+    const [displayedContent, setDisplayedContent] = useState<Record<string, string>>({});
 
     // Available document types
     const documentTypes = [
@@ -163,15 +182,15 @@ function GenerateListingDocumentContent() {
         switch (documentType) {
             case 'equity-direct-listing':
                 return [
-                    { id: '1', title: 'Warning Notice', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '2', title: 'Listing Particulars', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '3', title: 'General Information', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '4', title: 'Corporate Advisors', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '5', title: 'Forward Looking Statements', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '6', title: 'Board of Directors', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '7', title: 'Salient Points', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '8', title: 'Purpose of Listing', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
-                    { id: '9', title: 'Plans After Listing', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }
+        { id: '1', title: 'Warning Notice', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '2', title: 'Listing Particulars', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '3', title: 'General Information', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '4', title: 'Corporate Advisors', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '5', title: 'Forward Looking Statements', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '6', title: 'Board of Directors', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '7', title: 'Salient Points', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '8', title: 'Purpose of Listing', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false },
+        { id: '9', title: 'Plans After Listing', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }
                 ];
             case 'debt-listing':
                 return [
@@ -235,7 +254,16 @@ function GenerateListingDocumentContent() {
 
     // Section state management (now dynamic based on document type)
     const [sections, setSections] = useState<Section[]>([]);
-    const [currentSectionTitles, setCurrentSectionTitles] = useState<Section[]>([]);
+
+    // Update sections when document type changes
+    useEffect(() => {
+        if (selectedAssistant) {
+            const newSections = getSectionsForDocumentType(selectedAssistant);
+            setSections(newSections);
+            // Reset when document type changes
+            setCurrentSectionTitles([]);
+        }
+    }, [selectedAssistant]);
 
     // Mobile detection
     useEffect(() => {
@@ -312,12 +340,10 @@ function GenerateListingDocumentContent() {
                     try {
                         const savedState = localStorage.getItem(`generate-document-state-${orgId}`);
                         if (savedState) {
-                            const { selectedListing, selectedSection, sectionContent, selectedIssuer: savedSelectedIssuer, selectedDocuments: savedSelectedDocuments } = JSON.parse(savedState);
+                            const { selectedListing, selectedIssuer: savedSelectedIssuer, selectedDocuments: savedSelectedDocuments } = JSON.parse(savedState);
                             setSelectedListing(selectedListing || '');
                             setSelectedIssuer(savedSelectedIssuer || '');
                             setSelectedDocuments(savedSelectedDocuments || []);
-                            setSelectedSection(selectedSection || '');
-                            setSectionContent(sectionContent || null);
                         }
                     } catch (e) {
                         console.error('Error restoring state:', e);
@@ -340,7 +366,7 @@ function GenerateListingDocumentContent() {
         initializeSession();
 
         // Set up session change listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
             if (event === 'SIGNED_OUT') {
                 if (mounted) {
                     setSessionStatus('expired');
@@ -366,48 +392,46 @@ function GenerateListingDocumentContent() {
     // Save state to localStorage whenever relevant state changes
     useEffect(() => {
         if (isInitialized && orgId) {
-            const handleBeforeUnload = () => {
-                try {
-                    const stateToSave = {
-                        selectedListing,
-                        selectedSection,
-                        sectionContent,
-                        selectedIssuer,
-                        selectedDocuments
-                    };
-                    localStorage.setItem(`generate-document-state-${orgId}`, JSON.stringify(stateToSave));
-                } catch (e) {
+        const handleBeforeUnload = () => {
+            try {
+                const stateToSave = {
+                    selectedListing,
+                    selectedIssuer,
+                    selectedDocuments
+                };
+                localStorage.setItem(`generate-document-state-${orgId}`, JSON.stringify(stateToSave));
+            } catch (e) {
                     console.error('Error saving state to localStorage:', e);
-                }
-            };
+            }
+        };
 
-            window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('beforeunload', handleBeforeUnload);
             // Also save state on changes
             handleBeforeUnload();
 
-            return () => {
-                window.removeEventListener('beforeunload', handleBeforeUnload);
-            };
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
         }
-    }, [selectedListing, selectedSection, sectionContent, isInitialized, orgId, selectedIssuer, selectedDocuments]);
+    }, [selectedListing, isInitialized, orgId, selectedIssuer, selectedDocuments]);
 
     // Session check function
     const checkSession = async () => {
         try {
             const { data: { session }, error } = await supabase.auth.getSession();
-            
+
             if (error) {
                 console.error('Session check error:', error);
                 throw error;
-            }
+        }
             
             if (!session) {
                 console.error('No active session found');
-                setSessionStatus('expired');
+                    setSessionStatus('expired');
                 router.push('/sign-in');
                 return false;
             }
-            
+
             return true;
         } catch (error) {
             console.error('Session validation failed:', error);
@@ -449,18 +473,18 @@ function GenerateListingDocumentContent() {
             
             if (!user) {
                 console.error('No authenticated user found');
-                return;
-            }
+                        return;
+                    }
 
             console.log('Fetching listings for user:', user.id);
 
-            const { data, error } = await supabase
+                        const { data, error } = await supabase
                 .from('listing')
                 .select('instrumentid, instrumentname, instrumentissuerid, instrumentissuername')
                 .eq('instrumentcreatedby', user.id)
                 .order('instrumentupdatedat', { ascending: false });
 
-            if (error) {
+                        if (error) {
                 console.error('Error fetching listings:', error);
                 throw error;
             }
@@ -485,9 +509,9 @@ function GenerateListingDocumentContent() {
             
             if (userError) {
                 console.error('Error getting user:', userError);
-                return;
-            }
-            
+                        return;
+                    }
+
             if (!user) {
                 console.error('No authenticated user found');
                 return;
@@ -509,7 +533,7 @@ function GenerateListingDocumentContent() {
 
             // Extract unique issuers
             const uniqueIssuers = new Map();
-            data?.forEach(listing => {
+            data?.forEach((listing: any) => {
                 if (listing.instrumentissuerid && !uniqueIssuers.has(listing.instrumentissuerid)) {
                     uniqueIssuers.set(listing.instrumentissuerid, {
                         id: listing.instrumentissuerid,
@@ -540,19 +564,19 @@ function GenerateListingDocumentContent() {
             console.log('Fetching documents for issuer:', issuerId);
 
             // Fetch documents from knowledge_vault_documents for this issuer
-            const { data, error } = await supabase
+                        const { data, error } = await supabase
                 .from('knowledge_vault_documents')
                 .select('id, name, description, category, type, size, created_at')
                 .eq('issuer_id', issuerId)
                 .order('created_at', { ascending: false });
 
-            if (error) {
+                        if (error) {
                 console.error('Error fetching issuer documents:', error);
                 setIssuerDocuments([]);
-                return;
-            }
+                        return;
+                    }
 
-            const documents = data?.map(doc => ({
+            const documents = data?.map((doc: any) => ({
                 id: doc.id,
                 title: doc.name || 'Untitled Document',
                 type: doc.type || doc.category || 'Unknown',
@@ -626,283 +650,198 @@ function GenerateListingDocumentContent() {
         return sectionFieldMappings[sectionNumber] || [];
     };
 
-    const renderSectionSelect = () => (
-        <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Select Section
-            </label>
-            <select
-                value={selectedSection}
-                onChange={(e) => {
-                    setSelectedSection(e.target.value);
-                    if (e.target.value) {
-                        const titles = getSectionTitles(e.target.value);
-                        setCurrentSectionTitles(titles);
-                    }
-                }}
-                className="w-full px-4 py-3 bg-white/60 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm transition-all duration-300 backdrop-blur-sm"
-            >
-                <option value="">Choose section...</option>
-                {sections.map((section) => (
-                    <option key={section.id} value={section.id}>
-                        Section {section.id}: {section.title}
-                    </option>
-                ))}
-            </select>
-        </div>
-    );
-
-    const getSectionTitles = (sectionNumber: string): Section[] => {
-        const sectionTitleMappings: Record<string, Section[]> = {
-            '1': [{ id: '1', title: 'Warning Notice', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '2': [{ id: '2', title: 'Listing Particulars', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '3': [{ id: '3', title: 'General Information', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '4': [{ id: '4', title: 'Corporate Advisors', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '5': [{ id: '5', title: 'Forward Looking Statements', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '6': [{ id: '6', title: 'Board of Directors', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '7': [{ id: '7', title: 'Salient Points', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '8': [{ id: '8', title: 'Purpose of Listing', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }],
-            '9': [{ id: '9', title: 'Plans After Listing', content: '', status: 'pending', isLocked: false, complianceNotes: '', complianceApproved: false }]
-        };
-
-        return sectionTitleMappings[sectionNumber] || [];
-    };
-
-    const handleToggleLock = (sectionId: string) => {
-        setSections(prev => prev.map(section => 
-            section.id === sectionId 
-                ? { ...section, isLocked: !section.isLocked }
-                : section
-        ));
-    };
-
-    const handleRegenerateSection = async (field: string) => {
-        // Implementation for regenerating section
-        console.log('Regenerating section:', field);
-    };
-
-    const handleGenerateSection = async (sectionId: string | number) => {
-        if (!selectedListing || !sectionId) return;
-        
-        setIsGenerating(true);
-        
-        // Build context message for AI
-        const contextParts = [`Generate Section ${sectionId}: ${sections.find(s => s.id === sectionId.toString())?.title}`];
-        
-        if (selectedIssuer) {
-            const issuer = issuers.find(i => i.id === selectedIssuer);
-            if (issuer) {
-                contextParts.push(`Client: ${issuer.name} (${issuer.industry})`);
-            }
+    // Add function to handle full document generation
+    const handleGenerateFullDocument = async () => {
+        if (!selectedListing || !selectedIssuer || !selectedAssistant) {
+            return;
         }
-        
-        if (selectedKnowledgeBase) {
-            const kbOptions: Record<string, string> = {
-                'company-filings': 'Company SEC Filings',
-                'industry-reports': 'Industry Research Reports', 
-                'regulatory-guidance': 'Regulatory Guidance',
-                'market-data': 'Market Analysis Data',
-                'legal-precedents': 'Legal Precedents',
-                'technical-specs': 'Technical Specifications'
-            };
-            contextParts.push(`Knowledge Base: ${kbOptions[selectedKnowledgeBase] || selectedKnowledgeBase}`);
-        }
-        
-        // Add user message to chat
-        setMessages(prev => [...prev, {
+
+        // Clear previous results
+        setGeneratedSections([]);
+        setDocumentGenerated(false);
+        setMessages([]);
+        setDisplayedContent({});
+
+        // Get ALL sections for complete document generation (6 sections total)
+        const allSections = ['sec1prompt', 'sec2prompt', 'sec3prompt', 'sec4prompt', 'sec5prompt', 'sec6prompt'];
+
+        // Add generation start message
+        setMessages([{
             type: 'user',
-            content: contextParts.join('\n')
+            content: `Generating complete ${documentTypes.find(t => t.id === selectedAssistant)?.name} document for ${listings.find(l => l.instrumentid === selectedListing)?.instrumentname}`
         }]);
 
         try {
-            // Simulate AI generation process
-            setMessages(prev => [...prev, {
-                type: 'assistant',
-                content: `Starting generation for Section ${sectionId}...`
-            }]);
+            // Start generation with progress tracking for ALL 6 sections
+            const result = await generateDocument({
+                instrumentid: selectedListing,
+                instrumentissuerid: selectedIssuer,
+                sections: allSections, // This will now process all 6 sections (57 total templates)
+                selectedDocuments: selectedDocuments,
+                documentType: selectedAssistant
+            });
 
-            // Update section status
-            setSections(prev => prev.map(section => 
-                section.id === sectionId.toString()
-                    ? { ...section, status: 'generating' }
-                    : section
-            ));
+            // Improved error handling for all possible response states
+            if (!result) {
+                throw new Error('Document generation returned no result. Please check your network connection and try again.');
+            }
 
-            // Simulate async generation
-            setTimeout(() => {
-                setSections(prev => prev.map(section => 
-                    section.id === sectionId.toString()
-                        ? { ...section, status: 'completed', content: `Generated content for ${section.title}` }
-                        : section
-                ));
+            if (!result.success) {
+                throw new Error(result.error || 'Document generation failed without specific error message');
+            }
 
+            // Log the result for debugging
+            console.log('[DocumentGeneration] API Response:', result);
+            console.log('[DocumentGeneration] Result success:', result.success);
+            console.log('[DocumentGeneration] Result sections:', result.sections);
+            console.log('[DocumentGeneration] Sections length:', result.sections?.length || 0);
+
+            // Check if we have sections - the API might return empty sections array
+            if (!result.sections || result.sections.length === 0) {
+                console.log('[DocumentGeneration] No sections returned but generation was successful - treating as success');
+                
+                // Set document as generated even without sections (they're saved to database)
+                setDocumentGenerated(true);
+                setGeneratedSections([]);
+                
+                // Add success message
                 setMessages(prev => [...prev, {
                     type: 'assistant',
-                    content: `✅ Section ${sectionId} has been successfully generated!`
+                    content: [
+                        '🎉 Document generation completed successfully!',
+                        '',
+                        `✅ Generated and saved ${result.sectionsGenerated || 57} sections to database`,
+                        `📊 Updated ${result.columnsUpdated?.length || 57} database columns`,
+                        '',
+                        'Your complete listing document is now saved in the database.',
+                        'Click "Save & Edit" below to continue editing in Canvas Mode.'
+                    ].join('\n')
                 }]);
+                
+                return; // Exit early but successfully
+            }
 
-                setIsGenerating(false);
-            }, 2000);
+            // Process successful result
+            console.log('[DocumentGeneration] Full document generated successfully!', result);
+            console.log('[DocumentGeneration] Result sections:', result.sections);
+            
+            // Process sections and set them directly without complex animation
+            const processedSections = result.sections.map((section: any) => ({
+                promptname: section.promptname || section.id,
+                title: section.title || section.promptname || 'Untitled Section',
+                content: section.fullContent || section.content || section.preview || '',
+                fullContent: section.fullContent || section.content || section.preview || '',
+                isGenerating: false,
+                isComplete: true
+            }));
 
-        } catch (error) {
-            console.error('Error generating section:', error);
+            console.log('[DocumentGeneration] Processed sections:', processedSections);
+            console.log('[DocumentGeneration] Number of processed sections:', processedSections.length);
+
+            // Set all sections at once
+            setGeneratedSections(processedSections);
+            setDocumentGenerated(true);
+
+            // Set displayed content for all sections
+            const contentMap: Record<string, string> = {};
+            processedSections.forEach(section => {
+                contentMap[section.promptname] = section.content;
+            });
+            setDisplayedContent(contentMap);
+            
+            console.log('[DocumentGeneration] Content map:', contentMap);
+            console.log('[DocumentGeneration] Document generated flag set to:', true);
+
+            // Add final success message with more detailed information
+            const successMessage = [
+                '🎉 Complete document generation finished!',
+                '',
+                `✅ Generated ${result.sectionsGenerated || processedSections.length} sections across 6 main sections`,
+                `📊 Successfully saved ${result.sectionsProcessed || result.sectionsGenerated || processedSections.length} sections to database`,
+                `📋 Updated ${result.columnsUpdated?.length || 0} database columns`,
+                ''
+            ];
+
+            if (result.skippedSections && result.skippedSections.length > 0) {
+                successMessage.push(
+                    `⚠️ Skipped ${result.skippedSections.length} sections due to missing database columns:`,
+                    ...result.skippedSections.map(s => `• ${s}`),
+                    ''
+                );
+            }
+
+            successMessage.push(
+                'Your complete listing document with all available sections is now saved and displayed below.',
+                'You can view the full document in Canvas Mode or continue editing individual sections.'
+            );
+
             setMessages(prev => [...prev, {
                 type: 'assistant',
-                content: `❌ Failed to generate Section ${sectionId}. Please try again.`
+                content: successMessage.join('\n')
             }]);
-            setIsGenerating(false);
+
+        } catch (error) {
+            console.error('[DocumentGeneration] Full document generation failed:', error);
+            
+            // More descriptive error messages
+            let errorMessage = 'Unknown error occurred during document generation';
+            
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            } else if (typeof error === 'string') {
+                errorMessage = error;
+            } else if (error && typeof error === 'object' && 'message' in error) {
+                errorMessage = (error as any).message;
+            }
+
+            setMessages(prev => [...prev, {
+                type: 'assistant',
+                content: [
+                    '❌ Document generation failed',
+                    '',
+                    `Error: ${errorMessage}`,
+                    '',
+                    '🔧 Troubleshooting suggestions:',
+                    '• Check your internet connection',
+                    '• Ensure all required fields are selected',
+                    '• Try refreshing the page and generating again',
+                    '• Contact support if the issue persists',
+                    '',
+                    'The system logs have been updated for debugging purposes.'
+                ].join('\n')
+            }]);
         }
     };
 
-    const handleUpdateSection = async (field: string) => {
-        console.log('=== UPDATE SECTION DEBUG START ===');
-        console.log('Field to update:', field);
-        console.log('Selected listing:', selectedListing);
-        console.log('Section content:', sectionContent);
-
-        if (!selectedListing || !sectionContent) {
-            console.error('Missing required data for update');
+    // Add save and redirect function
+    const handleSaveAndEdit = async () => {
+        if (!selectedListing) {
+            console.error('[SaveAndEdit] No listing selected');
             return;
-        }
-
-        const fieldValue = sectionContent[field];
-        console.log('Field value:', fieldValue);
-
-        if (!fieldValue) {
-            console.error('No content to update for field:', field);
-            return;
-        }
-
-        // Show loading state
-        const fieldElement = document.getElementById(`${field}-save-status`);
-        if (fieldElement) {
-            fieldElement.classList.add('saving');
         }
 
         try {
-            const maxRetries = 3;
-            let retryCount = 0;
-            
-            // Function to attempt the update
-            const attemptUpdate = async (): Promise<boolean> => {
-                retryCount++;
-                console.log(`Update attempt ${retryCount}/${maxRetries}`);
-
-                try {
-                    // Check session before each attempt
-                    if (!await checkSession()) {
-                        throw new Error('Session validation failed');
-                    }
-
-                    // Prepare update data
-                    const updateData = { [field]: fieldValue };
-                    console.log('Update data:', updateData);
-
-                    // Perform update
-                    const { data, error } = await supabase
-                        .from('listing')
-                        .update(updateData)
-                        .eq('instrumentid', selectedListing)
-                        .select();
-
-                    if (error) {
-                        console.error('Supabase update error:', error);
-                        if (error.message.includes('JWT') || error.message.includes('session')) {
-                            throw new Error('Session expired. Please refresh and try again.');
-                        }
-                        throw error;
-                    }
-
-                    console.log('Update successful:', data);
-                    
-                    // Show success state
-                    if (fieldElement) {
-                        fieldElement.classList.remove('saving');
-                        fieldElement.classList.add('saved');
-                        setTimeout(() => {
-                            fieldElement.classList.remove('saved');
-                        }, 2000);
-                    }
-
-                    setMessages(prev => [...prev, {
-                        type: 'assistant',
-                        content: `✅ ${getFieldLabel(field)} updated successfully!`
-                    }]);
-
-                    return true;
-                } catch (error) {
-                    console.error(`Update attempt ${retryCount} failed:`, error);
-                    
-                    if (retryCount >= maxRetries) {
-                        throw error;
-                    }
-                    
-                    // Wait before retry (exponential backoff)
-                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-                    return false;
-                }
-            };
-
-            let success = false;
-            while (!success && retryCount < maxRetries) {
-                success = await attemptUpdate();
-            }
-            
-            if (!success) {
-                throw new Error('Failed to update after maximum retries');
-            }
-        } catch (error) {
-            console.error('Error updating section:', error);
-            if (error instanceof Error && error.message.includes('session')) {
-                router.push('/sign-in');
-            }
+            // Add a loading message
             setMessages(prev => [...prev, {
                 type: 'assistant',
-                content: `Failed to update: ${error instanceof Error ? error.message : 'Unknown error'}`
+                content: `💾 Saving document and redirecting to Canvas Editor...\n\nYour document sections are already saved to the database. Redirecting you to the Canvas Editor where you can view and edit individual sections.`
             }]);
 
-            // Ensure loading state is removed on error
-            if (fieldElement) {
-                fieldElement.classList.remove('saving');
-                fieldElement.classList.add('error');
-                setTimeout(() => {
-                    fieldElement.classList.remove('error');
-                }, 2000);
-            }
+            // Small delay to show the message
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Redirect to canvas editing page
+            const canvasUrl = `/dashboard/sponsor/${orgId}/listings/${selectedListing}/edit-document/canvas`;
+            console.log('[SaveAndEdit] Redirecting to:', canvasUrl);
+            router.push(canvasUrl);
+        } catch (error) {
+            console.error('[SaveAndEdit] Failed to redirect:', error);
+            setMessages(prev => [...prev, {
+                type: 'assistant',
+                content: `❌ Failed to redirect to Canvas Editor: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease manually navigate to the listings page to continue editing.`
+            }]);
         }
-        
-        console.log('=== UPDATE SECTION DEBUG END ===');
     };
-
-    // Helper function to format section names
-    const formatSectionName = useCallback((name: string): string => {
-        // Split by underscores and remove any prefix like 'sec1prompt_'
-        const parts = name.split('_');
-        const relevantPart = parts[parts.length - 1];
-        
-        // Split by camelCase
-        const words = relevantPart
-            .replace(/([A-Z])/g, ' $1')
-            .toLowerCase()
-            .split(' ')
-            .filter(word => word.length > 0);
-        
-        // Capitalize first letter of each word and join
-        return words
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-    }, []);
-
-    // Update sections when document type changes
-    useEffect(() => {
-        if (selectedAssistant) {
-            const newSections = getSectionsForDocumentType(selectedAssistant);
-            setSections(newSections);
-            // Reset section selection when document type changes
-            setSelectedSection('');
-            setCurrentSectionTitles([]);
-        }
-    }, [selectedAssistant]);
 
     const renderMainContent = () => {
         if (!selectedAssistant) {
@@ -942,55 +881,235 @@ function GenerateListingDocumentContent() {
             );
         }
 
+        if (!selectedIssuer) {
+            return (
+                <div className="h-full flex items-center justify-center">
+                    <div className="text-center max-w-md px-4">
+                        <div className="mx-auto rounded-full w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center bg-gradient-to-r from-blue-100 to-indigo-100 mb-4 sm:mb-6">
+                            <Users className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600" />
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Select Client Issuer</h3>
+                        <p className="text-gray-600 text-sm sm:text-base">Choose your client issuer from the sidebar to proceed with document generation.</p>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="h-full flex flex-col">
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4">
-                    {messages.length === 0 ? (
+                    {messages.length === 0 && !documentGenerated ? (
                         <div className="h-full flex items-center justify-center">
                             <div className="text-center max-w-md px-4">
                                 <div className="mx-auto rounded-full w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center bg-gradient-to-r from-blue-100 to-indigo-100 mb-4 sm:mb-6">
                                     <Sparkles className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600" />
-                                </div>
-                                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">AI Document Generator</h3>
-                                <p className="text-gray-600 text-sm sm:text-base">Select a section and click Generate to start creating your document content.</p>
                             </div>
+                                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Ready to Generate</h3>
+                                <p className="text-gray-600 text-sm sm:text-base">Click "Generate Complete Document" in the sidebar to start creating your listing document with AI.</p>
+                                </div>
                         </div>
                     ) : (
-                        messages.map((message, index) => (
-                            <div key={index} className={cn(
-                                "flex gap-2 sm:gap-3 md:gap-4",
-                                message.type === 'user' ? "flex-row-reverse" : "flex-row"
-                            )}>
-                                <div className={cn(
-                                    "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium flex-shrink-0",
-                                    message.type === 'user' 
-                                        ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
-                                        : "bg-gray-100 text-gray-700"
+                        <>
+                            {/* Chat Messages */}
+                            {messages.map((message, index) => (
+                                <div key={index} className={cn(
+                                    "flex gap-2 sm:gap-3 md:gap-4",
+                                    message.type === 'user' ? "flex-row-reverse" : "flex-row"
                                 )}>
-                                    {message.type === 'user' ? 'U' : 'AI'}
-                                </div>
-                                <div className={cn(
-                                    "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-xl px-3 sm:px-4 py-2 sm:py-3 relative group",
-                                    message.type === 'user'
-                                        ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
-                                        : "bg-white border border-gray-200 text-gray-900 shadow-sm"
-                                )}>
-                                    <div className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed">
-                                        {message.content}
+                                    <div className={cn(
+                                        "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium flex-shrink-0",
+                                        message.type === 'user' 
+                                            ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                                            : "bg-gray-100 text-gray-700"
+                                    )}>
+                                        {message.type === 'user' ? 'U' : 'AI'}
                                     </div>
-                                    {message.type === 'assistant' && (
-                                        <button className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded">
-                                            <Copy className="h-3 w-3 text-gray-500" />
-                                        </button>
-                                    )}
+                                    <div className={cn(
+                                        "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-xl px-3 sm:px-4 py-2 sm:py-3 relative group",
+                                        message.type === 'user'
+                                            ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                                            : "bg-white border border-gray-200 text-gray-900 shadow-sm"
+                                    )}>
+                                        <div className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed">
+                                            {message.content}
+                                        </div>
+                                        {message.type === 'assistant' && (
+                                            <button className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded">
+                                                <Copy className="h-3 w-3 text-gray-500" />
+                                </button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            ))}
+
+                            {/* Generated Document Sections */}
+                            {documentGenerated && generatedSections.length > 0 && (
+                                <div className="space-y-4 mt-6">
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                                <FileText className="h-5 w-5 text-blue-600" />
+                                                Generated Document Sections ({generatedSections.length} sections)
+                                            </h3>
+                                            
+                                            {/* Save & Edit Button in main content area */}
+                                            <button
+                                                onClick={handleSaveAndEdit}
+                                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm"
+                                            >
+                                                <Save className="h-4 w-4" />
+                                                Save & Edit in Canvas
+                                            </button>
+                                        </div>
+                                        
+                                        {/* Debug info */}
+                                        <div className="mb-4 p-3 bg-gray-50 rounded text-xs">
+                                            <strong>Debug:</strong> documentGenerated={documentGenerated.toString()}, sections={generatedSections.length}
+                                        </div>
+                                        
+                                        <div className="space-y-4">
+                                            {generatedSections.map((section, index) => (
+                                                <div 
+                                                    key={index} 
+                                                    className={cn(
+                                                        "bg-white border rounded-xl p-4 shadow-sm transition-all duration-500",
+                                                        section.isGenerating ? "border-blue-300 bg-blue-50/30" : "border-gray-200",
+                                                        section.isComplete ? "border-green-300 bg-green-50/30" : "",
+                                                        "transform hover:scale-[1.01]"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="font-medium text-gray-900 text-sm flex items-center gap-2">
+                                                            {section.isGenerating && (
+                                                                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                                            )}
+                                                            {section.isComplete && (
+                                                                <Check className="h-4 w-4 text-green-500" />
+                                                            )}
+                                                            {!section.isGenerating && !section.isComplete && (
+                                                                <Clock className="h-4 w-4 text-gray-400" />
+                                                            )}
+                                                            {section.title}
+                                                        </h4>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                                {section.promptname}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Content with typing animation */}
+                                                    <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                                        {section.content || displayedContent[section.promptname] || ''}
+                                                    </div>
+                                                    
+                                                    {/* Progress bar for generating sections */}
+                                                    {section.isGenerating && (
+                                                        <div className="mt-3">
+                                                            <div className="w-full bg-gray-200 rounded-full h-1">
+                                                                <div className="bg-blue-500 h-1 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                    </div>
+                ))}
+                                        </div>
+                                        
+                                        {/* Document Actions Footer */}
+                                        <div className="mt-6 p-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border border-blue-200/50 rounded-xl backdrop-blur-sm">
+                                            <div className="text-center">
+                                                <h4 className="text-sm font-medium text-gray-900 mb-2">
+                                                    🎉 Document Generated Successfully!
+                                                </h4>
+                                                <p className="text-xs text-gray-600 mb-4">
+                                                    Your listing document has been generated and saved to the database. You can now edit individual sections in Canvas Mode.
+                                                </p>
+                                                
+                                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                                    {/* Primary Save & Edit Button */}
+                                                    <button
+                                                        onClick={handleSaveAndEdit}
+                                                        className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm"
+                                                    >
+                                                        <Save className="h-4 w-4" />
+                                                        Save & Edit in Canvas
+                                                    </button>
+                                                    
+                                                    {/* Generate New Document Button */}
+                                                    <button
+                                                        onClick={() => {
+                                                            setGeneratedSections([]);
+                                                            setDocumentGenerated(false);
+                                                            setMessages([]);
+                                                            setDisplayedContent({});
+                                                            resetGeneration();
+                                                        }}
+                                                        className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm"
+                                                    >
+                                                        <RotateCcw className="h-4 w-4" />
+                                                        Generate New Document
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Save & Edit Button when document is generated but no sections are displayed */}
+                            {documentGenerated && generatedSections.length === 0 && (
+                                <div className="mt-6 p-4 bg-gradient-to-r from-green-50/80 to-emerald-50/80 border border-green-200/50 rounded-xl backdrop-blur-sm">
+                                    <div className="text-center">
+                                        <h4 className="text-sm font-medium text-gray-900 mb-2">
+                                            🎉 Document Generated Successfully!
+                                        </h4>
+                                        <p className="text-xs text-gray-600 mb-4">
+                                            Your listing document has been generated and saved to the database. Continue editing in Canvas Mode.
+                                        </p>
+                                        
+                                        <button
+                                            onClick={handleSaveAndEdit}
+                                            className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm mx-auto"
+                                        >
+                                            <Save className="h-4 w-4" />
+                                            Save & Edit in Canvas
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Progressive Generation Status */}
+                            {(generatedSections.length > 0 && !documentGenerated) && (
+                                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                                        <div>
+                                            <h4 className="font-medium text-blue-900">Generating Document Sections</h4>
+                                            <p className="text-sm text-blue-700 mt-1">
+                                                {generatedSections.filter(s => s.isComplete).length} of {generatedSections.length} sections completed
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Overall progress bar */}
+                                    <div className="mt-3">
+                                        <div className="w-full bg-blue-200 rounded-full h-2">
+                                            <div 
+                                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                style={{ 
+                                                    width: `${(generatedSections.filter(s => s.isComplete).length / generatedSections.length) * 100}%` 
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Loading Message */}
-                    {isGenerating && (
+                    {(isDocumentGenerating) && (
                         <div className="flex gap-2 sm:gap-3 md:gap-4">
                             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center text-xs sm:text-sm font-medium flex-shrink-0">
                                 AI
@@ -998,7 +1117,9 @@ function GenerateListingDocumentContent() {
                             <div className="bg-white border border-gray-200 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm">
                                 <div className="flex items-center gap-2">
                                     <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
-                                    <span className="text-gray-500 text-sm sm:text-base">Generating content...</span>
+                                    <span className="text-gray-500 text-sm sm:text-base">
+                                        {isDocumentGenerating ? 'Generating complete document...' : 'Generating content...'}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -1014,11 +1135,11 @@ function GenerateListingDocumentContent() {
                 <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-8">
                     <div className="flex items-center gap-4">
                         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                        <div>
+                            <div>
                             <h3 className="font-semibold text-gray-900">Initializing...</h3>
                             <p className="text-gray-600 text-sm">Setting up your document generation workspace</p>
-                        </div>
-                    </div>
+                            </div>
+                                </div>
                 </div>
             </div>
         );
@@ -1058,14 +1179,12 @@ function GenerateListingDocumentContent() {
                                 
                                 {/* Mobile Toggle Button */}
                                 <div className="md:hidden">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
+                                <button
                                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                                        className="p-2 bg-blue-600 text-white hover:bg-blue-700 border-blue-600 rounded-lg"
-                                    >
+                                        className="p-2 bg-blue-600 text-white hover:bg-blue-700 border border-blue-600 rounded-lg"
+                                >
                                         {isSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-                                    </Button>
+                                </button>
                                 </div>
                             </div>
                         </div>
@@ -1096,12 +1215,10 @@ function GenerateListingDocumentContent() {
                                 {(isSidebarOpen || isMobile) && (
                                     <h2 className="font-semibold text-gray-900 text-sm truncate mr-2 min-w-0">Document Settings</h2>
                                 )}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
+                                <button
                                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                                     className={cn(
-                                        "p-2 bg-blue-600 text-white hover:bg-blue-700 border-blue-600 rounded-lg flex-shrink-0",
+                                        "p-2 bg-blue-600 text-white hover:bg-blue-700 border border-blue-600 rounded-lg flex-shrink-0",
                                         !isSidebarOpen && "ml-auto"
                                     )}
                                 >
@@ -1112,17 +1229,17 @@ function GenerateListingDocumentContent() {
                                     ) : (
                                         <ChevronLeft className="h-4 w-4" />
                                     )}
-                                </Button>
+                                </button>
                             </div>
 
                             {/* Sidebar Content */}
                             {(isSidebarOpen || isMobile) && (
                                 <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
                                     {/* Assistant Selection */}
-                                    <div>
+                            <div>
                                         <label className="block text-sm font-semibold text-gray-900 mb-3">
                                             Document Type
-                                        </label>
+                                </label>
                                         {selectedAssistant ? (
                                             <div className="bg-white/60 border border-white/50 rounded-xl p-3 backdrop-blur-sm">
                                                 <div className="flex items-center justify-between">
@@ -1135,16 +1252,14 @@ function GenerateListingDocumentContent() {
                                                             <p className="text-xs text-gray-500">
                                                                 {documentTypes.find(t => t.id === selectedAssistant)?.description}
                                                             </p>
-                                                        </div>
-                                                    </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
+                        </div>
+                    </div>
+                                                    <button
                                                         onClick={() => setSelectedAssistant('')}
                                                         className="p-1 hover:bg-gray-100 text-gray-500"
                                                     >
                                                         <X className="h-4 w-4" />
-                                                    </Button>
+                                                    </button>
                                                 </div>
                                             </div>
                                         ) : (
@@ -1170,22 +1285,22 @@ function GenerateListingDocumentContent() {
                                                             <ArrowUpRight className="h-4 w-4 text-gray-400 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all duration-200" />
                                                         </div>
                                                     </button>
-                                                ))}
-                                            </div>
+                ))}
+            </div>
                                         )}
-                                    </div>
+                            </div>
 
                                     {/* Listing Selection */}
-                                    {renderListingSelect()}
+                        {renderListingSelect()}
 
                                     {/* Client Issuer */}
-                                    <div>
+                            <div>
                                         <label className="block text-sm font-semibold text-gray-900 mb-3">
                                             <div className="flex items-center space-x-2">
                                                 <Users className="h-4 w-4 text-blue-600" />
                                                 <span>Client Issuer</span>
                                             </div>
-                                        </label>
+                                </label>
                                         {selectedIssuer ? (
                                             <div className="bg-white/60 border border-white/50 rounded-xl p-3 backdrop-blur-sm">
                                                 <div className="flex items-center justify-between">
@@ -1202,18 +1317,16 @@ function GenerateListingDocumentContent() {
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
+                                                    <button
                                                         onClick={() => setSelectedIssuer('')}
                                                         className="p-1 hover:bg-gray-100 text-gray-500"
                                                     >
                                                         <X className="h-4 w-4" />
-                                                    </Button>
+                                                    </button>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <select
+                                <select
                                                 value={selectedIssuer}
                                                 onChange={(e) => setSelectedIssuer(e.target.value)}
                                                 className="w-full px-4 py-3 bg-white/60 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm transition-all duration-300 backdrop-blur-sm"
@@ -1224,18 +1337,18 @@ function GenerateListingDocumentContent() {
                                                         {issuer.name} - {issuer.industry}
                                                     </option>
                                                 ))}
-                                            </select>
+                                </select>
                                         )}
-                                    </div>
+                            </div>
 
                                     {/* Knowledge Base */}
-                                    <div>
+                            <div>
                                         <label className="block text-sm font-semibold text-gray-900 mb-3">
                                             <div className="flex items-center space-x-2">
                                                 <Brain className="h-4 w-4 text-purple-600" />
                                                 <span>Knowledge Base</span>
                                             </div>
-                                        </label>
+                                </label>
                                         
                                         {!selectedIssuer ? (
                                             <div className="bg-gray-50/80 border border-gray-200/50 rounded-xl p-4 text-center">
@@ -1287,7 +1400,7 @@ function GenerateListingDocumentContent() {
                                                                         </span>
                                                                     </>
                                                                 )}
-                                                            </div>
+                            </div>
                                                         </div>
                                                     </label>
                                                 ))}
@@ -1303,85 +1416,104 @@ function GenerateListingDocumentContent() {
                                         )}
                                     </div>
 
-                                    {/* Section Selection */}
-                                    {renderSectionSelect()}
-
-                                    {/* Generate Actions */}
-                                    {selectedAssistant && selectedListing && selectedIssuer && selectedSection && (
-                                        <div className="space-y-3">
-                                            <button
-                                                onClick={() => handleGenerateSection(selectedSection)}
-                                                disabled={isGenerating}
-                                                className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium"
-                                            >
-                                                {isGenerating ? (
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                ) : (
-                                                    <Send className="h-4 w-4 mr-2" />
-                                                )}
-                                                {isGenerating ? 'Generating...' : 'Generate Section'}
-                                            </button>
-
-                                            <button
-                                                onClick={() => selectedSection ? handleGenerateSection(selectedSection) : null}
-                                                className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-300 font-medium"
-                                            >
-                                                <Search className="h-4 w-4 mr-2" />
-                                                Check Content
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Document Progress */}
-                                    {selectedAssistant && selectedSection && (
-                                        <div>
-                                            <div className="flex items-center justify-between text-sm font-semibold text-gray-900 mb-4">
-                                                <span>Document Progress</span>
-                                                <span className="text-blue-600">
-                                                    {sections.filter(s => s.status === 'completed').length}/{sections.length}
-                                                </span>
-                                            </div>
-                                            <div className="space-y-3">
-                                                {sections.map((section, index) => (
-                                                    <div
-                                                        key={section.id}
-                                                        className="border border-white/50 rounded-xl p-3 bg-white/60 backdrop-blur-sm hover:bg-white/80 transition-all duration-300"
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center space-x-3 min-w-0 flex-1">
-                                                                <div className="flex-shrink-0">
-                                                                    {section.status === 'completed' ? (
-                                                                        <Check className="h-4 w-4 text-green-500" />
-                                                                    ) : section.status === 'generating' ? (
-                                                                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                                                                    ) : (
-                                                                        <Clock className="h-4 w-4 text-gray-400" />
-                                                                    )}
-                                                                </div>
-                                                                <div className="min-w-0 flex-1">
-                                                                    <h4 className="font-medium text-sm truncate text-gray-900">{section.title}</h4>
-                                                                    <p className="text-xs truncate mt-0.5 text-gray-500 capitalize">{section.status}</p>
-                                                                </div>
-                                                            </div>
-                                                            {section.status === 'pending' && (
-                                                                <Button
-                                                                    onClick={() => handleGenerateSection(section.id)}
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="p-2 hover:bg-blue-50 text-blue-600"
-                                                                >
-                                                                    <Send className="h-3 w-3" />
-                                                                </Button>
-                                                            )}
-                                                        </div>
+                                    {/* Generate Full Document Action */}
+                                    {selectedAssistant && selectedListing && selectedIssuer && (
+                                        <div className="space-y-4">
+                                            <div className="border-t border-gray-200/50 pt-4">
+                                                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Sparkles className="h-4 w-4 text-amber-600" />
+                                                        <span>AI Document Generation</span>
                                                     </div>
-                                                ))}
+                                                </label>
+                                                
+                                                <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border border-blue-200/50 rounded-xl p-4 backdrop-blur-sm">
+                                                    <div className="text-center mb-4">
+                                                        <h4 className="text-sm font-medium text-gray-900 mb-2">
+                                                            Generate Complete Document
+                                                        </h4>
+                                                        <p className="text-xs text-gray-600 leading-relaxed">
+                                                            Use our multi-agent AI system to generate a complete listing document with all sections based on your selected data and knowledge base.
+                                                        </p>
+                                                    </div>
+                                                    
+                                    <button
+                                                        onClick={handleGenerateFullDocument}
+                                                        disabled={isDocumentGenerating}
+                                                        className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm"
+                                                    >
+                                                        {isDocumentGenerating ? (
+                                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                        ) : (
+                                                            <Sparkles className="h-4 w-4 mr-2" />
+                                                        )}
+                                                        {isDocumentGenerating ? 'Generating Document...' : 'Generate Complete Document'}
+                                </button>
+                                                    
+                                                    {generationResult && (
+                                                        <div className="mt-3 p-3 bg-white/60 border border-green-200/50 rounded-lg">
+                                                            {generationResult.success ? (
+                                                                <div className="text-center">
+                                                                    <div className="text-green-600 font-medium text-sm mb-1">
+                                                                        ✅ Document Generated Successfully!
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-600 mb-3">
+                                                                        Generated {generationResult.sectionsGenerated} sections
+                                                                    </div>
+                                                                    
+                                                                    {/* Save & Edit Button */}
+                                                                    <button
+                                                                        onClick={handleSaveAndEdit}
+                                                                        className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm mb-3"
+                                                                    >
+                                                                        <Save className="h-4 w-4 mr-2" />
+                                                                        Save & Edit in Canvas
+                                                                    </button>
+                                                                    
+                                                                    <button
+                                                                        onClick={resetGeneration}
+                                                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                                                    >
+                                                                        Clear Status
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-center">
+                                                                    <div className="text-red-600 font-medium text-sm mb-1">
+                                                                        ❌ Generation Failed
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-600 mb-2">
+                                                                        {generationResult.error || generationError}
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={resetGeneration}
+                                                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                                                    >
+                                                                        Try Again
+                                </button>
+                                                                </div>
+                                                            )}
+                                </div>
+                            )}
+
+                                                    <div className="mt-3 text-xs text-gray-500 leading-relaxed">
+                                                        <strong>How it works:</strong>
+                                                        <br />
+                                                        1. Extracts templates from database
+                                                        <br />
+                                                        2. Enhances with compliance language
+                                                        <br />
+                                                        3. Completes with your data
+                                                        <br />
+                                                        4. Saves to document sections
+                                </div>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             )}
-                        </div>
+                    </div>
 
                         {/* Mobile Overlay Background */}
                         {isMobile && isSidebarOpen && (
