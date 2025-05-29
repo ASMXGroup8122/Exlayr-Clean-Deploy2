@@ -775,12 +775,12 @@ function GenerateListingDocumentContent() {
                 'You can view the full document in Canvas Mode or continue editing individual sections.'
             );
 
-            setMessages(prev => [...prev, {
-                type: 'assistant',
+                setMessages(prev => [...prev, {
+                    type: 'assistant',
                 content: successMessage.join('\n')
             }]);
 
-        } catch (error) {
+            } catch (error) {
             console.error('[DocumentGeneration] Full document generation failed:', error);
             
             // More descriptive error messages
@@ -954,7 +954,7 @@ function GenerateListingDocumentContent() {
                                             </h3>
                                             
                                             {/* Save & Edit Button in main content area */}
-                                            <button
+                                <button
                                                 onClick={handleSaveAndEdit}
                                                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm"
                                             >
@@ -1046,10 +1046,10 @@ function GenerateListingDocumentContent() {
                                                             resetGeneration();
                                                         }}
                                                         className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm"
-                                                    >
-                                                        <RotateCcw className="h-4 w-4" />
+                                >
+                                    <RotateCcw className="h-4 w-4" />
                                                         Generate New Document
-                                                    </button>
+                                </button>
                                                 </div>
                                             </div>
                                         </div>
@@ -1068,15 +1068,15 @@ function GenerateListingDocumentContent() {
                                             Your listing document has been generated and saved to the database. Continue editing in Canvas Mode.
                                         </p>
                                         
-                                        <button
+                                <button
                                             onClick={handleSaveAndEdit}
                                             className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm mx-auto"
-                                        >
-                                            <Save className="h-4 w-4" />
+                                >
+                                    <Save className="h-4 w-4" />
                                             Save & Edit in Canvas
-                                        </button>
-                                    </div>
-                                </div>
+                                </button>
+                            </div>
+                        </div>
                             )}
 
                             {/* Progressive Generation Status */}
@@ -1101,7 +1101,7 @@ function GenerateListingDocumentContent() {
                                                     width: `${(generatedSections.filter(s => s.isComplete).length / generatedSections.length) * 100}%` 
                                                 }}
                                             ></div>
-                                        </div>
+                    </div>
                                     </div>
                                 </div>
                             )}
@@ -1462,13 +1462,13 @@ function GenerateListingDocumentContent() {
                                                                     </div>
                                                                     
                                                                     {/* Save & Edit Button */}
-                                                                    <button
+                                <button
                                                                         onClick={handleSaveAndEdit}
                                                                         className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-medium text-sm mb-3"
-                                                                    >
+                                >
                                                                         <Save className="h-4 w-4 mr-2" />
                                                                         Save & Edit in Canvas
-                                                                    </button>
+                                </button>
                                                                     
                                                                     <button
                                                                         onClick={resetGeneration}
@@ -1485,16 +1485,16 @@ function GenerateListingDocumentContent() {
                                                                     <div className="text-xs text-gray-600 mb-2">
                                                                         {generationResult.error || generationError}
                                                                     </div>
-                                                                    <button
+                                                <button
                                                                         onClick={resetGeneration}
                                                                         className="text-xs text-blue-600 hover:text-blue-800"
-                                                                    >
+                                                >
                                                                         Try Again
-                                </button>
+                                                </button>
                                                                 </div>
-                                                            )}
-                                </div>
-                            )}
+                                            )}
+                                    </div>
+                                )}
 
                                                     <div className="mt-3 text-xs text-gray-500 leading-relaxed">
                                                         <strong>How it works:</strong>
@@ -1507,11 +1507,11 @@ function GenerateListingDocumentContent() {
                                                         <br />
                                                         4. Saves to document sections
                                 </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                            </div>
+                        </div>
+                    </div>
                                     )}
-                                </div>
+                    </div>
                             )}
                     </div>
 

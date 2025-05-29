@@ -96,22 +96,22 @@ export default function CanvasField({
   return (
     <div className={cn(
       "group relative transition-all duration-300",
-      "bg-white/80 backdrop-blur-sm border border-white/50 rounded-xl shadow-lg hover:shadow-xl",
-      isActive && "ring-2 ring-blue-500/50 border-blue-300/50 shadow-xl bg-blue-50/30",
+      "bg-white/90 backdrop-blur-sm border border-green-200/50 rounded-xl shadow-lg hover:shadow-xl",
+      isActive && "ring-2 ring-green-500/50 border-green-400/50 shadow-xl bg-green-50/30",
       isLocked && "bg-gray-50/80 border-gray-300/50"
     )}>
-      {/* Field Header */}
-      <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-200/30">
+      {/* Field Header - Match Generation Section Style */}
+      <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 pb-3 sm:pb-4 border-b border-green-200/30">
         <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
           {fieldIndex && (
-            <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg text-xs sm:text-sm font-bold shadow-lg flex-shrink-0 mt-0.5 sm:mt-0">
+            <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg text-xs sm:text-sm font-bold shadow-lg flex-shrink-0 mt-0.5 sm:mt-0">
               {fieldIndex}
             </div>
           )}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <h3 className={cn(
               "text-base sm:text-lg font-semibold transition-colors leading-tight",
-              isActive ? "bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent" : "text-gray-900",
+              isActive ? "bg-gradient-to-r from-green-700 to-emerald-700 bg-clip-text text-transparent" : "text-gray-900",
               isLocked && "text-gray-600"
             )}>
               {title}
@@ -130,10 +130,8 @@ export default function CanvasField({
           {/* Comments Button */}
           {hasComments && (
             <Button
-              variant="ghost"
-              size="sm"
               onClick={() => setShowComments(!showComments)}
-              className="h-8 px-3 text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
+              className="h-8 px-3 text-xs sm:text-sm bg-white/70 border border-green-200/50 text-green-600 hover:text-green-800 hover:bg-green-50 hover:border-green-300 rounded-lg transition-all duration-200"
             >
               <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
               {comments.length}
@@ -171,10 +169,8 @@ export default function CanvasField({
           {/* Manual Save Button */}
           {!isLocked && hasChanges && (
             <Button
-              variant="outline"
-              size="sm"
               onClick={handleManualSave}
-              className="h-8 px-3 text-xs sm:text-sm opacity-0 group-hover:opacity-100 transition-all duration-200 bg-white/50 border-blue-200/50 text-blue-700 hover:bg-blue-50 hover:border-blue-300 rounded-lg"
+              className="h-8 px-3 text-xs sm:text-sm opacity-0 group-hover:opacity-100 transition-all duration-200 bg-white/50 border border-green-200/50 text-green-700 hover:bg-green-50 hover:border-green-300 rounded-lg"
             >
               <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
               <span className="hidden sm:inline">Save</span>
@@ -183,7 +179,7 @@ export default function CanvasField({
         </div>
       </div>
 
-      {/* Field Content */}
+      {/* Field Content - Enhanced Styling */}
       <div className="p-4 sm:p-6">
         <div className="relative">
           <Textarea
@@ -194,37 +190,28 @@ export default function CanvasField({
             placeholder={isLocked ? "This field is locked and cannot be edited" : `Enter ${title.toLowerCase()}...`}
             className={cn(
               "min-h-[120px] sm:min-h-[160px] lg:min-h-[180px] resize-none transition-all duration-200 text-sm sm:text-base leading-relaxed",
-              "border-0 bg-white/50 focus:bg-white focus:ring-2 focus:ring-blue-500/50 focus:ring-opacity-50",
+              "border-2 border-green-200/50 bg-white/80 focus:bg-white focus:ring-2 focus:ring-green-500/50 focus:border-green-400",
               "rounded-xl p-4 w-full backdrop-blur-sm",
-              isLocked && "bg-gray-100/50 cursor-not-allowed opacity-70 text-gray-600",
-              hasChanges && !isLocked && "bg-amber-50/50 ring-2 ring-amber-200/50",
-              isActive && !isLocked && "bg-blue-50/50 ring-2 ring-blue-200/50",
-              "text-gray-900 placeholder:text-gray-500 shadow-inner"
+              "hover:border-green-300/50 hover:bg-white/90",
+              isLocked && "bg-gray-100/50 cursor-not-allowed opacity-70 text-gray-600 border-gray-300/50",
+              hasChanges && !isLocked && "bg-green-50/50 border-green-300/50 ring-2 ring-green-200/50",
+              isActive && !isLocked && "border-green-400/50 ring-2 ring-green-300/50"
             )}
-            rows={6}
           />
-
-          {/* Field ID indicator (for debugging) */}
-          <div className="absolute bottom-3 right-3 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity font-mono bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm border border-gray-200/50">
-            <Hash className="h-3 w-3 inline mr-1" />
-            {fieldId.slice(0, 8)}...
-          </div>
         </div>
       </div>
 
       {/* Comments Section */}
       {showComments && hasComments && (
-        <div className="border-t border-gray-200/30 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 backdrop-blur-sm">
+        <div className="border-t border-gray-200/30 bg-gradient-to-r from-green-50/50 to-emerald-50/50 backdrop-blur-sm">
           <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-base font-semibold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+              <h4 className="text-base font-semibold bg-gradient-to-r from-green-700 to-emerald-700 bg-clip-text text-transparent">
                 Comments ({comments.length})
               </h4>
               <Button
-                variant="ghost"
-                size="sm"
                 onClick={() => setShowComments(false)}
-                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100/50 rounded-lg transition-all duration-200"
+                className="h-8 w-8 p-0 bg-white/70 border border-green-200/50 text-green-600 hover:text-green-800 hover:bg-green-100/50 rounded-lg transition-all duration-200"
               >
                 ×
               </Button>
@@ -233,7 +220,7 @@ export default function CanvasField({
               {comments.map((comment) => (
                 <div key={comment.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-white/50 shadow-lg hover:shadow-xl transition-all duration-200">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                    <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
                       <User className="h-4 w-4 text-white" />
                     </div>
                     <div>
