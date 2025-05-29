@@ -928,6 +928,15 @@ function GenerateListingDocumentContent() {
                         </div>
                         <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Select Your Listing</h3>
                         <p className="text-gray-600 text-sm sm:text-base">Choose a listing from the sidebar to start generating document sections.</p>
+                        <div className="mt-6 flex justify-center">
+                            <Button
+                                onClick={() => router.push(`/dashboard/sponsor/${orgId}/new-listing`)}
+                                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2"
+                            >
+                                <Plus className="h-5 w-5" />
+                                Create New Listing
+                            </Button>
+                        </div>
                     </div>
                 </div>
             );
