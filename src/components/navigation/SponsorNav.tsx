@@ -89,8 +89,7 @@ export default function SponsorNav() {
                                 ? 'bg-gray-100 text-blue-600' 
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                             }
-                        `}
-                    >
+                        `}>
                         <item.icon 
                             className={`mr-3 h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} 
                         />

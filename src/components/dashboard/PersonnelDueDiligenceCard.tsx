@@ -40,14 +40,12 @@ export default function PersonnelDueDiligenceCard({ orgId }: { orgId: string }) 
                     </div>
                     <Link
                         href={`/dashboard/sponsor/${orgId}/personnel-due-diligence`}
-                        className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium"
-                    >
+                        className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium">
                         View All
                         <ArrowRight className="ml-1.5 h-4 w-4" />
                     </Link>
                 </div>
             </div>
-
             {/* Card Content */}
             <div className="p-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

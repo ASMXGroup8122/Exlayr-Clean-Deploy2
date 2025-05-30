@@ -113,7 +113,6 @@ export const Sidebar = () => {
             >
                 <Menu className="h-6 w-6 text-white" />
             </button>
-
             {/* Mobile Menu Overlay */}
             {isMobileMenuOpen && (
                 <div
@@ -121,7 +120,6 @@ export const Sidebar = () => {
                     onClick={closeMobileMenu}
                 />
             )}
-
             {/* Sidebar */}
             <div className={cn(
                 "fixed inset-y-0 left-0 z-50 w-64 bg-[#1E3A8A] text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0",
@@ -159,8 +157,7 @@ export const Sidebar = () => {
                                     isActive(item.href)
                                         ? 'bg-blue-700 text-white'
                                         : 'text-gray-300 hover:bg-blue-800 hover:text-white'
-                                }`}
-                            >
+                                }`}>
                                 <Icon className="h-5 w-5 mr-3" />
                                 {item.name}
                             </Link>

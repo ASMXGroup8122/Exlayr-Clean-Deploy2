@@ -505,7 +505,6 @@ export default function PodcastTab({
   return (
     <>
       <FormatSelector value={podcastFormat} onChange={setPodcastFormat} isConversationComingSoon={isConversationComingSoon} />
-      
       {/* ElevenLabs Connection Check */}
       {hasElevenLabsConnection === false && (
         <ElevenLabsConnectionHelper organizationId={orgId} />
@@ -516,7 +515,6 @@ export default function PodcastTab({
           <span className="text-sm text-gray-500">Checking ElevenLabs connection...</span>
         </div>
       )}
-
       {/* Main Content Area */}
       <div className={`space-y-6 mt-6 ${hasElevenLabsConnection === false ? "opacity-50 pointer-events-none" : ""}`}>
         {/* Tone of Voice Selector - Always visible */}
@@ -539,10 +537,9 @@ export default function PodcastTab({
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <Link 
-              href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
-              className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
-            >
+            <Link
+              href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors">
               <Sparkles className="h-3.5 w-3.5" />
               Create Custom
             </Link>

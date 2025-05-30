@@ -766,7 +766,11 @@ export default function ApprovalsPage() {
                       {item.image_url && (
                         <div className="mt-2">
                           <span className="text-xs text-gray-500 block mb-1">Attached Image:</span>
-                          <Link href={item.image_url.trim()} target="_blank" rel="noopener noreferrer" className="inline-block border rounded hover:opacity-80 transition-opacity">
+                          <Link
+                            href={item.image_url.trim()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block border rounded hover:opacity-80 transition-opacity">
                             <Image src={item.image_url.trim()} alt="Post Image" width={100} height={100} className="object-cover rounded" />
                           </Link>
                         </div>
@@ -868,7 +872,9 @@ export default function ApprovalsPage() {
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
         <h1 className="text-2xl font-bold">Content Approvals</h1>
-        <Link href="/dashboard/social-media-archive" className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium">
+        <Link
+          href="/dashboard/social-media-archive"
+          className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium">
           <span>View Archived Posts</span>
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />

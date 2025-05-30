@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase';
 
 export default function SignInPage() {
   const { signIn } = useAuth();
@@ -11,35 +11,41 @@ export default function SignInPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('SignInPage: handleSubmit called');
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('SignInPage: Attempting signIn');
       await signIn(email, password);
-      
+      console.log('SignInPage: signIn completed successfully');
     } catch (error) {
-      console.error('Sign in error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to sign in');
+      console.error('SignInPage: Error during signIn:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred during sign in');
     } finally {
+      console.log('SignInPage: Setting isLoading to false');
       setIsLoading(false);
     }
   };
 
-  if (!mounted) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        <div>
+          {/* You can add a logo or heading here if you had one before */}
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Or{' '}
+            <a href="/sign-up" className="font-medium text-indigo-600 hover:text-indigo-500">
+              create a new account
+            </a>
+          </p>
+        </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
@@ -59,6 +65,7 @@ export default function SignInPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="appearance-none rounded-none relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                   placeholder="Email address"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -79,28 +86,33 @@ export default function SignInPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none rounded-none relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                   placeholder="Password"
+                  autoComplete="current-password"
                 />
               </div>
             </div>
           </div>
 
+          {error && (
+            <div className="rounded-md bg-red-50 p-4 mt-4">
+              <div className="flex">
+                {/* <div className="flex-shrink-0">
+                  <XCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                </div> */}
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-red-700">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
-          </div>
-
-          <div className="text-sm text-center">
-            <p>
-              Don't have an account?{' '}
-              <a href="/sign-up" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Create an account
-              </a>
-            </p>
           </div>
         </form>
       </div>

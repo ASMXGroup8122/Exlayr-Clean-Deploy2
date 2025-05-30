@@ -729,10 +729,9 @@ export default function NewListingPage() {
     return (
         <div className="max-w-4xl mx-auto py-8 px-4">
             <div className="mb-8">
-                <Link 
+                <Link
                     href={`/sponsor/${params.orgId}/listings`}
-                    className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4"
-                >
+                    className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Listings
                 </Link>
@@ -742,9 +741,7 @@ export default function NewListingPage() {
                     Data will be pre-filled where available but can be updated.
                 </p>
             </div>
-
             {renderProgress()}
-
             <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow rounded-lg p-6">
                 {error && (
                     <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">

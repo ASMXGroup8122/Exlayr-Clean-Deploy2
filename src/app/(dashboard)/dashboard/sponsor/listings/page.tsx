@@ -58,15 +58,13 @@ export default function ListingsPage() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">Manage Listings</h1>
-                <Link 
+                <Link
                     href="/dashboard/sponsor/listings/new"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                     <Plus className="w-5 h-5 mr-2" />
                     New Listing
                 </Link>
             </div>
-
             {/* Filters and Search */}
             <div className="flex justify-between items-center space-x-4">
                 <div className="flex-1 max-w-md relative">
@@ -100,7 +98,6 @@ export default function ListingsPage() {
                     </button>
                 </div>
             </div>
-
             {/* Listings Table */}
             <div className="bg-white shadow rounded-lg">
                 <div className="overflow-x-auto">

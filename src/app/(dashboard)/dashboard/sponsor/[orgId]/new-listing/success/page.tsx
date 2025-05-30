@@ -136,15 +136,13 @@ export default function ListingSubmissionSuccess() {
                         <div className="flex justify-between items-center">
                             <Link
                                 href={`/dashboard/sponsor/${orgId}/listings`}
-                                className="text-gray-600 hover:text-gray-900 font-medium text-sm"
-                            >
+                                className="text-gray-600 hover:text-gray-900 font-medium text-sm">
                                 Return to Listings
                             </Link>
                             <div className="animate-slide-in-right" style={{ animationDelay: '1s' }}>
                                 <Link
                                     href={`/dashboard/sponsor/${orgId}/listings`}
-                                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150"
-                                >
+                                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
                                     Continue to Listing Management
                                     <ArrowRight className="ml-2 h-5 w-5" />
                                 </Link>

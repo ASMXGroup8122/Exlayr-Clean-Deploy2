@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import SearchParamsProvider from '@/components/SearchParamsProvider';
 import { isActiveAdmin, isActiveOrgAdmin, getDashboardPath } from '@/lib/auth/helpers';
+import { supabaseWithTimeout } from '@/lib/utils/requestTimeout';
 
 type UserProfile = Database['public']['Tables']['users']['Row'] & {
   first_name?: string;
@@ -605,30 +606,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const initializeAuth = async () => {
             try {
                 setLoading(true);
-                // Get initial session first
-                const { data: { session: initialSession } } = await supabase.auth.getSession();
-                console.log('initializeAuth: Initial session obtained.', { session: initialSession, userId: initialSession?.user?.id });
-                console.log('initializeAuth: Initial session user object:', initialSession?.user);
+                
+                // Get initial session without timeout wrapper
+                const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
                 
                 if (!mounted) return;
 
-                if (initialSession) {
+                if (sessionError) {
+                    console.error('Session fetch error:', sessionError);
+                    setUser(null);
+                    setSession(null);
+                } else if (initialSession) {
+                    console.log('Initial session found:', initialSession.user.id);
                     setSession(initialSession);
-                    const { data: profile } = await supabase
-                        .from('users')
-                        .select('*')
-                        .eq('id', initialSession.user.id)
-                        .single();
-
-                    if (mounted && profile) {
-                        setUser(profile);
+                    
+                    // Fetch user profile separately, not in auth state change handler
+                    try {
+                        const { data: profile, error: profileError } = await supabase
+                            .from('users')
+                            .select('*')
+                            .eq('id', initialSession.user.id)
+                            .single();
+                        
+                        if (mounted) {
+                            if (profile) {
+                                setUser(profile);
+                            } else {
+                                console.error('Profile fetch error:', profileError);
+                                setUser(null);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Profile fetch failed:', error);
+                        if (mounted) setUser(null);
                     }
+                } else {
+                    console.log('No initial session found');
+                    setUser(null);
+                    setSession(null);
                 }
 
-                // Then set up auth state change listener
+                // Set up auth state change listener WITHOUT async operations inside
                 const { data: { subscription } } = supabase.auth.onAuthStateChange(
-                    async (event, currentSession) => {
+                    (event, currentSession) => {
                         if (!mounted) return;
+
+                        console.log('Auth state change:', event, currentSession?.user?.id);
 
                         if (event === 'SIGNED_OUT') {
                             setUser(null);
@@ -638,22 +661,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                         if (currentSession) {
                             setSession(currentSession);
-                            const { data: profile } = await supabase
-                                .from('users')
-                                .select('*')
-                                .eq('id', currentSession.user.id)
-                                .single();
-
-                            if (mounted && profile) {
-                                setUser(profile);
-                            }
+                            // DO NOT make async database calls here - this causes the deadlock bug
+                            // Profile will be fetched by the component that needs it
+                        } else {
+                            setSession(null);
+                            setUser(null);
                         }
                     }
                 );
 
                 authListener = subscription;
+
             } catch (error) {
                 console.error('Error in auth initialization:', error);
+                if (mounted) {
+                    setUser(null);
+                    setSession(null);
+                }
             } finally {
                 if (mounted) {
                     setLoading(false);

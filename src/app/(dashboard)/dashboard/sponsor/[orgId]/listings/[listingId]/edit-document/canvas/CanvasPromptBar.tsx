@@ -492,7 +492,6 @@ export default function CanvasPromptBar({
         className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
         onClick={onToggle}
       />
-      
       {/* Side Panel */}
       <div 
         ref={panelRef}
@@ -784,9 +783,8 @@ export default function CanvasPromptBar({
           </div>
         </div>
       </div>
-
       {/* Upload Modal */}
-             {/* Upload functionality now handled by ResearchPanel via onTriggerResearchPanel */}
+      {/* Upload functionality now handled by ResearchPanel via onTriggerResearchPanel */}
     </>
   );
 } 

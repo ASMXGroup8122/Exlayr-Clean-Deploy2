@@ -4,17 +4,9 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AIAssistantProvider } from "@/contexts/AIAssistantContext";
 import { Toaster } from "@/components/ui/toaster";
-import dynamic from "next/dynamic";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
-
-// Dynamically import the ClientErrorWrapper component
-const ClientErrorWrapper = dynamic(
-    () => import("@/components/ui/client-error-wrapper").then(mod => mod.ClientErrorWrapper)
-);
-
-// Known problematic chunks that we want to preload
-const CRITICAL_CHUNKS = ['4094']; // The chunk that's failing in production
 
 export const metadata: Metadata = {
     title: "Exlayr",
@@ -36,15 +28,15 @@ export default function RootLayout({
     return (
         <html lang="en" className="h-full">
             <body className={`${inter.className} h-full overflow-x-hidden`}>
-                <AuthProvider>
-                    <AIAssistantProvider>
-                        <main className="min-h-screen bg-[#F8F9FA]">
-                            <ClientErrorWrapper chunkIds={CRITICAL_CHUNKS}>
+                <ErrorBoundary>
+                    <AuthProvider>
+                        <AIAssistantProvider>
+                            <main className="min-h-screen bg-[#F8F9FA]">
                                 {children}
-                            </ClientErrorWrapper>
-                        </main>
-                    </AIAssistantProvider>
-                </AuthProvider>
+                            </main>
+                        </AIAssistantProvider>
+                    </AuthProvider>
+                </ErrorBoundary>
                 <Toaster />
             </body>
         </html>

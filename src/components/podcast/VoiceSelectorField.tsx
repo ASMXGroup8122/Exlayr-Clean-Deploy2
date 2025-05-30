@@ -238,13 +238,11 @@ export function VoiceSelectorField({
           )}
         </SelectContent>
       </Select>
-      
       {error && (
         <p className="text-xs text-red-500">
           Error: {error}
         </p>
       )}
-      
       {trulyNoVoicesAvailable && !error && (
          <p className="text-xs text-gray-500">
             No voice profiles found. Please add them in the <Link href={`/dashboard/sponsor/${organizationId}/knowledge-vault?tab=spoken-voice`} className="text-blue-600 hover:underline">Knowledge Vault</Link> or check your ElevenLabs connection.

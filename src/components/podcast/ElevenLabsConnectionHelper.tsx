@@ -18,14 +18,18 @@ export default function ElevenLabsConnectionHelper({ organizationId }: ElevenLab
             This allows us to access voices and generate audio with ElevenLabs API.
           </p>
           <div className="pt-2 flex flex-wrap gap-3">
-            <Link href={`/dashboard/sponsor/${organizationId}/settings#connections`} passHref>
+            <Link
+              href={`/dashboard/sponsor/${organizationId}/settings#connections`}
+              className="inline-block">
               <Button variant="outline" className="bg-white hover:bg-amber-100 border-amber-300 text-amber-700">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Connect ElevenLabs Account
               </Button>
             </Link>
             
-            <Link href={`/dashboard/sponsor/${organizationId}/campaigns/podcast-debug`} passHref>
+            <Link
+              href={`/dashboard/sponsor/${organizationId}/campaigns/podcast-debug`}
+              className="inline-block">
               <Button variant="outline" size="sm" className="bg-white text-gray-600 border-gray-300 hover:bg-gray-100">
                 <Bug className="h-3 w-3 mr-1.5" />
                 Troubleshoot

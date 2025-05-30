@@ -188,7 +188,7 @@ export function DocumentUpload({
                 
                 // Add timeout to prevent hanging
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds
                 
                 console.log('🌐 Making fetch request to /api/documents/upload...');
                 console.log('📦 FormData contents:', {
@@ -227,7 +227,7 @@ export function DocumentUpload({
                 
                 let errorMessage = err.message;
                 if (err.name === 'AbortError') {
-                    errorMessage = 'Upload timed out after 30 seconds. Please check your connection and try again.';
+                    errorMessage = 'Upload timed out after 15 seconds. Please check your connection and try again.';
                 }
                 
                 setError(`Failed to upload ${file.name}: ${errorMessage}`);

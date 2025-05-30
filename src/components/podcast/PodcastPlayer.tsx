@@ -216,18 +216,18 @@ export default function PodcastPlayer({ podcastId, organizationId }: PodcastPlay
               </p>
             </>
           ) : podcastFormat === 'single' ? (
-            <div className="flex items-center gap-2 text-blue-600">
+            (<div className="flex items-center gap-2 text-blue-600">
               <Loader2 className="h-4 w-4 animate-spin" />
               <p className="text-sm font-medium">Status: Processing</p>
-            </div>
+            </div>)
             // Optionally, add a more specific message for single voice processing:
             // <p className="text-xs text-gray-500 mt-1">Awaiting manual audio retrieval. Click 'Load Your Audio' above.</p>
           ) : (
             // Fallback for unknown or null format while processing (should ideally not happen)
-            <div className="flex items-center gap-2 text-gray-600">
+            (<div className="flex items-center gap-2 text-gray-600">
               <Loader2 className="h-4 w-4 animate-spin" />
               <p className="text-sm font-medium">Processing...</p>
-            </div>
+            </div>)
           )}
         </div>
       </div>

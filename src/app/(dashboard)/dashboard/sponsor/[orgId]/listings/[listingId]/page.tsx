@@ -61,8 +61,7 @@ export default function ListingDetailsPage() {
                 <div className="mb-8">
                     <Link
                         href={`/dashboard/sponsor/${orgId}/listings`}
-                        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors mb-6"
-                    >
+                        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors mb-6">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Listings
                     </Link>
@@ -78,15 +77,13 @@ export default function ListingDetailsPage() {
                         <div className="flex items-center gap-4">
                             <Link
                                 href={`/dashboard/sponsor/${orgId}/listings/${listingId}/generate-document`}
-                                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                            >
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                                 <FileText className="h-4 w-4 mr-2" />
                                 Create Listing Document
                             </Link>
                             <Link
                                 href={`/dashboard/sponsor/${orgId}/listings/${listingId}/create-token`}
-                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                            >
+                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                                 <Coins className="h-4 w-4 mr-2" />
                                 Create Token
                             </Link>

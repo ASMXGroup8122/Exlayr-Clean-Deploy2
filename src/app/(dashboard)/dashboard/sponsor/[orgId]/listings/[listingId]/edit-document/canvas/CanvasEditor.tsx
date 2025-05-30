@@ -739,7 +739,6 @@ export default function CanvasEditor({
           display: none;
         }
       `}</style>
-
       {/* Header */}
       <div className="relative mb-4 md:mb-6 flex-shrink-0">
         <div className="bg-white/80 backdrop-blur-sm rounded-xl md:rounded-2xl shadow-xl border border-white/50 p-3 sm:p-4 md:p-6">
@@ -779,7 +778,6 @@ export default function CanvasEditor({
           </div>
         </div>
       </div>
-
       {/* Main Layout */}
       <div className="flex flex-col md:flex-row gap-4 sm:gap-6 flex-1 min-h-0 relative">
         {/* Main Content Area */}
@@ -1046,7 +1044,7 @@ export default function CanvasEditor({
               </>
             ) : (
               // Collapsed state - icon only
-              <>
+              (<>
                 <button className="p-2 hover:bg-white/50 rounded-lg transition-all duration-300 w-full">
                   <Share2 className="h-4 w-4 text-gray-900 mx-auto" />
                 </button>
@@ -1065,7 +1063,7 @@ export default function CanvasEditor({
                 >
                   <Sparkles className="h-4 w-4 mx-auto" />
                 </button>
-              </>
+              </>)
             )}
           </div>
         </div>
@@ -1078,7 +1076,6 @@ export default function CanvasEditor({
           />
         )}
       </div>
-
       {/* Resizable AI Assistant Panel */}
       {aiAssistantOpen && !isMobile && (
         <div className="fixed top-0 right-0 h-full flex z-30">
@@ -1157,7 +1154,6 @@ export default function CanvasEditor({
           </div>
         </div>
       )}
-
       {/* AI Prompt Bar */}
       <CanvasPromptBar
         isVisible={isPromptBarVisible}
@@ -1171,7 +1167,6 @@ export default function CanvasEditor({
         onWidthChange={handlePromptBarWidthChange}
         onTriggerResearchPanel={handleTriggerResearchPanel}
       />
-
       {/* Share Modal */}
       {shareModalOpen && (
         <ShareModal 
@@ -1181,7 +1176,6 @@ export default function CanvasEditor({
           listingName={listingName}
         />
       )}
-
       {/* Research Panel */}
       <ResearchPanel 
         isOpen={researchPanelOpen} 

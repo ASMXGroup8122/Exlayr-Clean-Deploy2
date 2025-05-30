@@ -215,7 +215,9 @@ export default function ClientsClient({ orgId }: ClientsClientProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={`/dashboard/sponsor/${orgId}/clients/${issuer.id}`} aria-label={`View details for ${issuer.issuer_name}`}>
+                    <Link
+                      href={`/dashboard/sponsor/${orgId}/clients/${issuer.id}`}
+                      aria-label={`View details for ${issuer.issuer_name}`}>
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Link>

@@ -150,7 +150,6 @@ export default function AdminDashboard() {
                     </div>
                 ))}
             </div>
-
             {/* Recent Listings Table */}
             <div className="bg-white shadow rounded-lg">
                 <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
@@ -214,7 +213,6 @@ export default function AdminDashboard() {
                     </table>
                 </div>
             </div>
-
             {/* Knowledge Vault Section */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="bg-white shadow rounded-lg p-6">
@@ -306,17 +304,15 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             </div>
-
             {/* Management Sections */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {managementItems.map((item) => {
                     const Icon = item.icon;
                     return (
-                        <Link 
+                        <Link
                             key={item.title}
                             href={item.href}
-                            className={`${item.bgColor} p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow`}
-                        >
+                            className={`${item.bgColor} p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow`}>
                             <div className="flex items-center">
                                 <div className="flex-shrink-0">
                                     <Icon className="h-6 w-6 text-gray-600" />

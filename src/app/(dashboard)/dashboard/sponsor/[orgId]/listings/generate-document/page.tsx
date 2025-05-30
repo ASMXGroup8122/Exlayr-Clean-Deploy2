@@ -460,7 +460,7 @@ function GenerateListingDocumentContent() {
     }, []);
 
     const fetchListings = async () => {
-        if (!await checkSession()) return;
+        if (!(await checkSession())) return;
 
         try {
             // Get current user first
@@ -501,7 +501,7 @@ function GenerateListingDocumentContent() {
     };
 
     const fetchIssuers = async () => {
-        if (!await checkSession()) return;
+        if (!(await checkSession())) return;
 
         try {
             // Get current user first
@@ -558,7 +558,7 @@ function GenerateListingDocumentContent() {
     };
 
     const fetchIssuerDocuments = async (issuerId: string) => {
-        if (!await checkSession() || !issuerId) return;
+        if (!(await checkSession()) || !issuerId) return;
 
         try {
             console.log('Fetching documents for issuer:', issuerId);

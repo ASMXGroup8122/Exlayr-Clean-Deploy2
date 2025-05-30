@@ -131,13 +131,11 @@ export default function IndustryBackgroundPage() {
                 </div>
                 <Link
                     href={`/dashboard/sponsor/${orgId}/listings`}
-                    className="flex items-center text-gray-600 hover:text-gray-900"
-                >
+                    className="flex items-center text-gray-600 hover:text-gray-900">
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back to Listings
                 </Link>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
                 {/* Market Size */}
                 <div>

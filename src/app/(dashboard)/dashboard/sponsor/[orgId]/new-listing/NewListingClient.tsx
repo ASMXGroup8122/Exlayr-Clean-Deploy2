@@ -127,10 +127,9 @@ export default function NewListingClient() {
     return (
         <div className="max-w-4xl mx-auto py-8 px-4">
             <div className="mb-8">
-                <Link 
+                <Link
                     href={`/dashboard/sponsor/${orgId}/listings`}
-                    className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4"
-                >
+                    className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Listings
                 </Link>
@@ -140,7 +139,6 @@ export default function NewListingClient() {
                     Data will be pre-filled where available but can be updated.
                 </p>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow rounded-lg p-6">
                 <div className="space-y-4">
                     <div>

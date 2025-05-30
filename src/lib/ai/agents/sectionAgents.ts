@@ -188,14 +188,13 @@ class RiskAnalysisAgent implements SectionAgent {
     // Look for actual specific risk information, not just keywords
     return (
       // Has specific trigger or cause
-      content.includes('due to') || 
-      content.includes('because of') ||
-      // Has specific impact
-      content.includes('could result in') ||
-      content.includes('may lead to') ||
-      // Has quantification or specific example
-      /\d+%/.test(content) ||
-      content.includes('for example')
+      (content.includes('due to') || 
+              content.includes('because of') ||
+              // Has specific impact
+              content.includes('could result in') ||
+              content.includes('may lead to') ||
+              // Has quantification or specific example
+              /\d+%/.test(content) || content.includes('for example'))
     );
   }
 
@@ -233,9 +232,8 @@ class RiskAnalysisAgent implements SectionAgent {
     
     return sentences.some(sentence => (
       // Has both a risk factor and potential consequence
-      (sentence.includes('could') || sentence.includes('may')) &&
-      sentence.includes('if') || sentence.includes('when') ||
-      sentence.includes('due to')
+      ((sentence.includes('could') || sentence.includes('may')) &&
+      sentence.includes('if') || sentence.includes('when') || sentence.includes('due to'))
     ));
   }
 
@@ -444,14 +442,11 @@ class RiskAnalysisAgent implements SectionAgent {
     const lower = content.toLowerCase();
     
     // Look for specific terms, numbers, or detailed descriptions
-    return (
-      /\d+%/.test(content) || // Percentages
-      /\b(?:USD|EUR|GBP|JPY)\b/.test(content) || // Currency codes
-      /\b(?:increase|decrease|change|fluctuation)\b/i.test(content) || // Change indicators
-      content.includes('due to') || // Causal relationships
-      content.includes('because') ||
-      content.includes('as a result of')
-    );
+    return (/\d+%/.test(content) || // Percentages
+    /\b(?:USD|EUR|GBP|JPY)\b/.test(content) || // Currency codes
+    /\b(?:increase|decrease|change|fluctuation)\b/i.test(content) || // Change indicators
+    content.includes('due to') || // Causal relationships
+    content.includes('because') || content.includes('as a result of'));
   }
 
   private getRiskTypeFromTitle(sectionTitle: string): string {
@@ -561,9 +556,10 @@ class RiskAnalysisAgent implements SectionAgent {
   private isWellFormed(components: any): boolean {
     // Don't be overly strict - check if it makes sense as a risk warning
     return (
-      components.riskFactor && // Has a clear risk statement
-      (components.trigger || components.impact) && // Has either what causes it or what it causes
-      components.specificity.isSpecific // Is specific enough for its type
+      // Is specific enough for its type
+      // Has either what causes it or what it causes
+      (components.riskFactor && // Has a clear risk statement
+      (components.trigger || components.impact) && components.specificity.isSpecific)
     );
   }
 

@@ -98,7 +98,6 @@ export default function DocumentReviewList({
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
-
       {!collapsed ? (
         <>
           <div className="p-4 border-b">
@@ -184,7 +183,7 @@ export default function DocumentReviewList({
         </>
       ) : (
         /* Collapsed view - just show status indicators for selected document */
-        <div className="flex flex-col h-full items-center pt-4 border-r border-gray-200">
+        (<div className="flex flex-col h-full items-center pt-4 border-r border-gray-200">
           {selectedDocumentId && filteredDocuments.find(doc => doc.id === selectedDocumentId) && (
             <div className="flex items-center mb-4">
               <span className="vertical-text">
@@ -206,7 +205,7 @@ export default function DocumentReviewList({
               />
             ))}
           </div>
-        </div>
+        </div>)
       )}
     </div>
   );

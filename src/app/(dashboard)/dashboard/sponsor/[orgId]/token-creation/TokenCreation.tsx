@@ -70,10 +70,9 @@ export default function TokenCreation() {
     return (
         <div className="max-w-6xl mx-auto py-8 px-4">
             <div className="mb-8">
-                <Link 
+                <Link
                     href={`/dashboard/sponsor/${orgId}/listings`}
-                    className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4"
-                >
+                    className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Listings
                 </Link>
@@ -82,7 +81,6 @@ export default function TokenCreation() {
                     Select the blockchain and review the smart contract for your security token.
                 </p>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Blockchain Selection */}
                 <div className="lg:col-span-1">

@@ -97,8 +97,7 @@ export default function PersonnelDueDiligencePage() {
                         </div>
                         <Link
                             href={`/dashboard/sponsor/${orgId}`}
-                            className="text-sm text-gray-600 hover:text-gray-900 flex items-center"
-                        >
+                            className="text-sm text-gray-600 hover:text-gray-900 flex items-center">
                             <ArrowLeft className="h-4 w-4 mr-1" />
                             Back to Dashboard
                         </Link>

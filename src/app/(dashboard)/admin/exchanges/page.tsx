@@ -36,13 +36,11 @@ export default function ExchangeManagement() {
                 <h1 className="text-2xl font-semibold">Exchange Dashboard</h1>
                 <Link
                     href="/dashboard/admin/exchanges/add"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                     <Plus className="w-5 h-5 mr-2" />
                     Add Exchange
                 </Link>
             </div>
-
             {/* Stats Grid */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {stats.map((stat) => (
@@ -56,7 +54,6 @@ export default function ExchangeManagement() {
                     </div>
                 ))}
             </div>
-
             {/* Pending Reviews Table */}
             <div className="bg-white rounded-lg shadow">
                 <div className="p-6">
@@ -119,7 +116,6 @@ export default function ExchangeManagement() {
                     </div>
                 </div>
             </div>
-
             {/* Action Cards */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 {/* Market Surveillance */}

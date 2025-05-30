@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     LayoutDashboard, 
     Settings, 
@@ -49,13 +49,43 @@ export default function Sidebar({
     onCollapsedChange: (collapsed: boolean) => void;
 }) {
     const pathname = usePathname();
+    const router = useRouter();
     const { user, signOut } = useAuth();
     const [profileOpen, setProfileOpen] = useState(false);
     const [issuerStatus, setIssuerStatus] = useState<string | null>(null);
     const [recentPages, setRecentPages] = useState<NavItem[]>([]);
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
-    const router = useRouter();
+    const [notificationCount, setNotificationCount] = useState(0);
+
+    // Notifications completely disabled - removed all code to prevent any execution
+    const notifications: any[] = [];
+    const notificationsLoading = false;
+    const fetchNotifications = useCallback(() => {
+        // Notifications disabled - no table available
+    }, []);
+
+    // Update notification count
+    useEffect(() => {
+        if (notifications) {
+            setNotificationCount(notifications.length);
+        }
+    }, [notifications]);
+
+    // Handle navigation with timeout protection
+    const handleNavigation = useCallback((href: string) => {
+        try {
+            // Close command palette if open
+            setCommandPaletteOpen(false);
+            
+            // Use replace for better navigation experience
+            router.push(href);
+        } catch (error) {
+            console.error('Navigation error:', error);
+            // Fallback to window location
+            window.location.href = href;
+        }
+    }, [router]);
 
     // Use useMemo to prevent recalculation on every render
     const navItems = useMemo(() => {
@@ -103,7 +133,7 @@ export default function Sidebar({
 
     // Track recent pages - fixed to prevent infinite loop
     useEffect(() => {
-        if (pathname !== '/') {
+        if (pathname !== '/' && navItems.length > 0) {
             const currentPage = navItems.find(item => item.href === pathname);
             if (currentPage) {
                 setRecentPages(prev => {
@@ -116,7 +146,7 @@ export default function Sidebar({
                 });
             }
         }
-    }, [pathname, userRole]); // Only depend on pathname and userRole
+    }, [pathname, navItems]);
 
     useEffect(() => {
         if (userRole === 'issuer') {
@@ -188,7 +218,6 @@ export default function Sidebar({
             >
                 <Menu size={20} />
             </button>
-
             {/* Mobile overlay */}
             {!isCollapsed && (
                 <div
@@ -196,7 +225,6 @@ export default function Sidebar({
                     onClick={() => onCollapsedChange(true)}
                 />
             )}
-
             {/* Sidebar */}
             <aside className={`
                 flex-shrink-0 h-full
@@ -245,12 +273,13 @@ export default function Sidebar({
                                                 key={`recent-${item.href}`}
                                                 href={item.href}
                                                 onClick={() => onCollapsedChange(true)}
-                                                className="flex items-center px-3 py-1.5 text-sm rounded-md text-[#202124] hover:bg-[#E8EAED] transition-colors duration-200"
-                                            >
-                                                <span className="text-[#5f6368] group-hover:text-[#202124]">
-                                                    {item.icon}
-                                                </span>
-                                                <span className="ml-3 truncate">{item.label}</span>
+                                                className="flex items-center px-3 py-1.5 text-sm rounded-md text-[#202124] hover:bg-[#E8EAED] transition-colors duration-200">
+                                                <div className="flex items-center">
+                                                    <span className="text-[#5f6368] group-hover:text-[#202124]">
+                                                        {item.icon}
+                                                    </span>
+                                                    <span className="ml-3 truncate">{item.label}</span>
+                                                </div>
                                             </Link>
                                         ))}
                                     </div>
@@ -277,15 +306,16 @@ export default function Sidebar({
                                                         isActive
                                                             ? 'bg-[#E8F0FE] text-[#1a73e8]'
                                                             : 'text-[#202124] hover:bg-[#E8EAED]'
-                                                    }`}
-                                                >
-                                                    <div className={`flex items-center justify-center ${isActive ? 'text-[#1a73e8]' : 'text-[#5f6368] group-hover:text-[#202124]'} transition-colors duration-200`}>
-                                                        {item.icon}
+                                                    }`}>
+                                                    <div className="flex items-center w-full relative">
+                                                        <div className={`flex items-center justify-center ${isActive ? 'text-[#1a73e8]' : 'text-[#5f6368] group-hover:text-[#202124]'} transition-colors duration-200`}>
+                                                            {item.icon}
+                                                        </div>
+                                                        {!isCollapsed && <span className="ml-3 transition-opacity duration-200">{item.label}</span>}
+                                                        {isActive && (
+                                                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-2/3 bg-[#1a73e8] rounded-r-full" />
+                                                        )}
                                                     </div>
-                                                    {!isCollapsed && <span className="ml-3 transition-opacity duration-200">{item.label}</span>}
-                                                    {isActive && (
-                                                        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-2/3 bg-[#1a73e8] rounded-r-full" />
-                                                    )}
                                                 </Link>
                                             );
                                         })}
@@ -299,15 +329,16 @@ export default function Sidebar({
                     <div className="flex-shrink-0 border-t border-[#DADCE0]">
                         {/* AI Assistant Button - Navigate to Tools */}
                         <div className="p-3">
-                            <Link 
+                            <Link
                                 href={userRole === 'admin' ? '/dashboard/admin/tools' : 
                                       userRole === 'exchange_sponsor' ? `/dashboard/sponsor/${user?.organization_id}/tools` :
                                       userRole === 'exchange' ? '/dashboard/exchange/tools' :
                                       userRole === 'issuer' ? '/dashboard/issuer/tools' : '/dashboard/tools'}
-                                className="w-full flex items-center justify-center px-3 py-2 bg-[#1a73e8] hover:bg-[#1557B0] text-white rounded-lg transition-all duration-200"
-                            >
-                                <MessageSquare className="w-5 h-5" />
-                                {!isCollapsed && <span className="ml-2">AI Assistant</span>}
+                                className="w-full flex items-center justify-center px-3 py-2 bg-[#1a73e8] hover:bg-[#1557B0] text-white rounded-lg transition-all duration-200">
+                                <div className="flex items-center">
+                                    <MessageSquare className="w-5 h-5" />
+                                    {!isCollapsed && <span className="ml-2">AI Assistant</span>}
+                                </div>
                             </Link>
                         </div>
 
@@ -352,10 +383,11 @@ export default function Sidebar({
                                             setProfileOpen(false);
                                             onCollapsedChange(true);
                                         }}
-                                        className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-[#202124] hover:text-[#1a73e8] hover:bg-[#E8EAED] transition-colors duration-200"
-                                    >
-                                        <UserCircle className="mr-3 h-5 w-5 text-[#5f6368]" />
-                                        Profile
+                                        className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-[#202124] hover:text-[#1a73e8] hover:bg-[#E8EAED] transition-colors duration-200">
+                                        <div className="flex items-center">
+                                            <UserCircle className="mr-3 h-5 w-5 text-[#5f6368]" />
+                                            Profile
+                                        </div>
                                     </Link>
                                     <Link
                                         href={`/dashboard/${userRole}/settings`}
@@ -363,10 +395,11 @@ export default function Sidebar({
                                             setProfileOpen(false);
                                             onCollapsedChange(true);
                                         }}
-                                        className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-[#202124] hover:text-[#1a73e8] hover:bg-[#E8EAED] transition-colors duration-200"
-                                    >
-                                        <Settings className="mr-3 h-5 w-5 text-[#5f6368]" />
-                                        Settings
+                                        className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-[#202124] hover:text-[#1a73e8] hover:bg-[#E8EAED] transition-colors duration-200">
+                                        <div className="flex items-center">
+                                            <Settings className="mr-3 h-5 w-5 text-[#5f6368]" />
+                                            Settings
+                                        </div>
                                     </Link>
                                     
                                     <div className="text-xs text-[#5f6368] mb-1">Theme</div>
@@ -402,7 +435,6 @@ export default function Sidebar({
                     </div>
                 </div>
             </aside>
-
             {/* Command Palette Modal */}
             {commandPaletteOpen && (
                 <div 
@@ -436,8 +468,7 @@ export default function Sidebar({
                                     key={item.href}
                                     className="flex items-center w-full px-2 py-2 text-sm text-[#202124] hover:bg-[#E8EAED] rounded"
                                     onClick={() => {
-                                        window.location.href = item.href;
-                                        setCommandPaletteOpen(false);
+                                        handleNavigation(item.href);
                                     }}
                                 >
                                     <span className="mr-2 text-[#1a73e8]">{item.icon}</span>

@@ -728,60 +728,57 @@ const AIFeedback = ({ subsectionId, documentId }: { subsectionId: string; docume
   if (!shouldDisplay) return null;
 
   return (
-    <div className="mt-4 p-3 border-t bg-blue-50 rounded-b-md"> 
-       <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><Bot className="h-4 w-4 text-blue-600"/> AI Feedback</h4>
-       
-       {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-gray-600 animate-pulse">
-             <Loader2 className="h-4 w-4 animate-spin" />
-             <span>Analyzing...</span>
-          </div>
-       )}
-
-       {error && !isLoading && (
-          <div className="text-sm text-red-600">
-             Error during analysis: {error}
-          </div>
-       )}
-       
-       {/* Display feedback based on the SPECIFIC subsectionResult */}
-       {subsectionResult && !isLoading && !error && (
-          <div className="text-sm text-gray-700 space-y-2">
-            {/* Compliance Status & Score */}
-            <p>
-                Status: 
-                <span className={cn("font-medium", subsectionResult.isCompliant ? "text-green-600" : "text-red-600")}>
-                   {subsectionResult.isCompliant ? "Compliant" : "Requires Attention"}
-                </span>
-                {subsectionResult.score !== undefined && ` (Score: ${subsectionResult.score})`}
-            </p>
-            {/* Suggestions / Critique List */}
-            {subsectionResult.suggestions && subsectionResult.suggestions.length > 0 ? (
-              <div>
-                <p className="font-medium">Critique:</p>
-                <ul className="list-disc list-inside space-y-1 pl-2">
-                   {subsectionResult.suggestions.map((critique: string, index: number) => (
-                      <li key={index} className="flex justify-between items-start group">
-                        <span>{critique}</span>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" onClick={() => handleCopyCritique(critique)} title="Copy critique">
-                           <Copy className="h-4 w-4 text-blue-600" />
-                        </Button>
-                      </li> 
-                   ))}
-                </ul>
-              </div>
-            // Fallback messages if no suggestions
-            ) : subsectionResult.isCompliant ? (
-                 <p className="text-green-600 italic">No specific issues found.</p>
-            ) : (
-                 <p className="text-yellow-600 italic">Requires attention, but no specific suggestions provided.</p>
-            )}
-          </div>
-       )}
-       {/* Fallback if analysis ran but this subsection's result is missing */}
-       {!subsectionResult && sectionState?.isAnalyzed && !isLoading && !error && (
-           <p className="text-sm text-gray-500 italic">Analysis complete, specific feedback unavailable.</p>
-       )}
+    <div className="mt-4 p-3 border-t bg-blue-50 rounded-b-md">
+      <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><Bot className="h-4 w-4 text-blue-600"/> AI Feedback</h4>
+      {isLoading && (
+         <div className="flex items-center gap-2 text-sm text-gray-600 animate-pulse">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Analyzing...</span>
+         </div>
+      )}
+      {error && !isLoading && (
+         <div className="text-sm text-red-600">
+            Error during analysis: {error}
+         </div>
+      )}
+      {/* Display feedback based on the SPECIFIC subsectionResult */}
+      {subsectionResult && !isLoading && !error && (
+         <div className="text-sm text-gray-700 space-y-2">
+           {/* Compliance Status & Score */}
+           <p>
+               Status: 
+               <span className={cn("font-medium", subsectionResult.isCompliant ? "text-green-600" : "text-red-600")}>
+                  {subsectionResult.isCompliant ? "Compliant" : "Requires Attention"}
+               </span>
+               {subsectionResult.score !== undefined && ` (Score: ${subsectionResult.score})`}
+           </p>
+           {/* Suggestions / Critique List */}
+           {subsectionResult.suggestions && subsectionResult.suggestions.length > 0 ? (
+             (<div>
+               <p className="font-medium">Critique:</p>
+               <ul className="list-disc list-inside space-y-1 pl-2">
+                  {subsectionResult.suggestions.map((critique: string, index: number) => (
+                     <li key={index} className="flex justify-between items-start group">
+                       <span>{critique}</span>
+                       <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" onClick={() => handleCopyCritique(critique)} title="Copy critique">
+                          <Copy className="h-4 w-4 text-blue-600" />
+                       </Button>
+                     </li> 
+                  ))}
+               </ul>
+             </div>)
+           // Fallback messages if no suggestions
+           ) : subsectionResult.isCompliant ? (
+                <p className="text-green-600 italic">No specific issues found.</p>
+           ) : (
+                <p className="text-yellow-600 italic">Requires attention, but no specific suggestions provided.</p>
+           )}
+         </div>
+      )}
+      {/* Fallback if analysis ran but this subsection's result is missing */}
+      {!subsectionResult && sectionState?.isAnalyzed && !isLoading && !error && (
+          <p className="text-sm text-gray-500 italic">Analysis complete, specific feedback unavailable.</p>
+      )}
     </div>
   );
 };

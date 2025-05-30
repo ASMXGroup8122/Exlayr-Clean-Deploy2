@@ -1448,7 +1448,6 @@ export default function CreateIssuerPage() {
                         />
                     </div>
                 </div>
-
                 {/* Navigation */}
                 <div className="flex justify-between mt-8">
                     <button

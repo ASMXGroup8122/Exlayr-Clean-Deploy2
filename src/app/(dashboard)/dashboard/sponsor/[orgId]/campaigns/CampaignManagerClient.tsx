@@ -324,7 +324,7 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
                   >
                     + New Campaign
                   </Button>
-                  <Link href="/dashboard/approvals" passHref legacyBehavior>
+                  <Link href="/dashboard/approvals">
                     <Button className="relative bg-[#1a73e8] hover:bg-[#1557B0] text-white w-full sm:w-auto">
                       <CheckSquare className="h-4 w-4 mr-2" />
                       View Approvals
@@ -338,7 +338,7 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
                       )}
                     </Button>
                   </Link>
-                  <Link href="/dashboard/social-media-archive" passHref legacyBehavior>
+                  <Link href="/dashboard/social-media-archive">
                     <Button variant="outline" className="text-[#5f6368] border-[#DADCE0] hover:bg-[#E8EAED] hover:text-[#202124] w-full sm:w-auto">
                        View Archive
                     </Button>
@@ -414,7 +414,6 @@ export default function CampaignManagerClient({ orgId }: CampaignManagerClientPr
           </div>
         </TabsContent>
       </Tabs>
-
       {/* AI Assistant Dialog */}
       {showAiAssistant && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30" onClick={() => setShowAiAssistant(false)}>

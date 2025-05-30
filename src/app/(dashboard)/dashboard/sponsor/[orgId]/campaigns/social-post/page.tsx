@@ -396,10 +396,9 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
           {tones.length === 0 && !loadingTones && !loadError && (
             <div className="p-3 text-center text-sm">
               <p className="text-gray-700 font-medium">No tones available</p>
-              <Link 
-                href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
-                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 mt-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200"
-              >
+              <Link
+                href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 mt-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
                 <Sparkles className="h-3 w-3" />
                 Create with AI
               </Link>
@@ -444,10 +443,9 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
               </Tooltip>
             </TooltipProvider>
           </div>
-          <Link 
-            href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
-            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
-          >
+          <Link
+            href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors">
             <Sparkles className="h-3.5 w-3.5" />
             Create Custom
           </Link>
@@ -728,10 +726,9 @@ export default function SocialPostPage({ params }: SocialPostPageProps) {
               </Tooltip>
             </TooltipProvider>
            </div>
-          <Link 
-             href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
-             className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
-           >
+          <Link
+            href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors">
             <Sparkles className="h-3.5 w-3.5" />
             Create Custom
           </Link>

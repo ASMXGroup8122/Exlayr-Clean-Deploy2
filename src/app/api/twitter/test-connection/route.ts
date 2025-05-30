@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { TwitterApi } from "twitter-api-v2";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = getServerClient();
+    const supabase = await createServerSupabaseClient();
     const reqData = await req.json();
     const { organizationId } = reqData;
 

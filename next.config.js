@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: 'standalone',
+    generateBuildId: async () => {
+        // This will generate a new ID on each build, helping to bust caches.
+        return `exlayr-build-${Date.now()}`;
+    },
     images: {
         remotePatterns: [
             {
@@ -17,49 +21,56 @@ const nextConfig = {
             },
         ],
     },
-    webpack: (config, { isServer }) => {
+    webpack: (config, { isServer, dev }) => {
         config.ignoreWarnings = [
             { module: /node_modules\/node-fetch\/lib\/index\.js/ },
             { file: /node_modules\/node-fetch\/lib\/index\.js/ },
         ];
+        
         config.resolve.alias = {
             ...config.resolve.alias,
             '@': require('path').resolve(__dirname, './src'),
         };
         
-        // Use Next.js default chunk optimization - more reliable
-        // Removed custom splitChunks configuration that was causing vendor chunk issues
-        
-        // Polyfill `self` for the server build
+        // Minimal, stable webpack config - let Next.js handle chunk optimization
         if (isServer) {
             config.resolve.fallback = {
                 ...config.resolve.fallback,
-                // Ensure browser globals aren't used in server builds
-                'navigator': false,
-                'window': false,
-                'document': false,
-                'localStorage': false,
-                'sessionStorage': false,
+                'fs': false,
+                'path': false,
+                'os': false,
+                'crypto': false,
             };
+        } else {
+            config.resolve.fallback = {
+                ...config.resolve.fallback,
+                'fs': false,
+                'path': false,
+                'os': false,
+                'crypto': false,
+            };
+        }
+        
+        // Simple cache configuration for development stability
+        if (dev) {
+            config.cache = false; // Disable caching to prevent corruption
         }
         
         return config;
     },
 
-    // 1) Skip TypeScript errors
+    // Skip TypeScript and ESLint errors for faster development
     typescript: {
         ignoreBuildErrors: true,
     },
-
-    // 2) Skip ESLint errors
     eslint: {
         ignoreDuringBuilds: true,
     },
     
-    // Disable react-strict mode for production
+    // Disable strict mode to prevent double-rendering issues
     reactStrictMode: false,
     
-    // Add cache control headers
+    // Simple cache headers
     async headers() {
         return [
             {
@@ -74,12 +85,13 @@ const nextConfig = {
         ];
     },
     
-    // Handle browser polyfills
+    // Minimal experimental features
     experimental: {
-        // Ensure proper isolation of server/client code
+        // Essential optimizations only
+        optimizePackageImports: ['lucide-react'],
     },
     
-    // Moved from experimental to root level as per Next.js 15+ requirements
+    // External packages for server
     serverExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone', '@supabase/ssr'],
 };
 

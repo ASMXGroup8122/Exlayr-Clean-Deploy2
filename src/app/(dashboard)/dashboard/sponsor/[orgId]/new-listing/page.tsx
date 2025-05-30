@@ -490,10 +490,9 @@ export default function NewListingPage() {
 
                 {/* Header Section */}
                 <div className="mb-8">
-                    <Link 
+                    <Link
                         href={`/dashboard/sponsor/${orgId}/listings`}
-                        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors mb-6"
-                    >
+                        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors mb-6">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Listings
                     </Link>

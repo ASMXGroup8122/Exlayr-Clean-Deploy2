@@ -2,13 +2,14 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, FileText, ArrowUpRight, Send, Loader2, Building2, Calendar, Tag, Globe, BarChart3, AlertTriangle, CheckCircle, Clock, XCircle, Menu, X, ChevronLeft, ChevronRight, Sparkles, Users, Settings, Brain, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import { useAsyncOperation } from '@/hooks/useAsyncOperation';
 
 interface Listing {
     instrumentid: string;
@@ -54,8 +55,6 @@ export default function ListingsClient() {
     const params = useParams();
     const orgId = params?.orgId as string;
 
-    const [listings, setListings] = useState<Listing[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [listingToSubmit, setListingToSubmit] = useState<string | null>(null);
@@ -80,58 +79,72 @@ export default function ListingsClient() {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    useEffect(() => {
-        let isSubscribed = true;
+    // Use async operation for listings data
+    const {
+        data: listings,
+        loading: isLoading,
+        error: listingsError,
+        execute: fetchListings
+    } = useAsyncOperation(
+        useCallback(async () => {
+            if (!user || user.account_type !== 'exchange_sponsor') {
+                throw new Error('Unauthorized access');
+            }
 
-        if (!user || user.account_type !== 'exchange_sponsor') {
+            const result = await supabase
+                .from('listing')
+                .select(`
+                    instrumentid,
+                    instrumentname,
+                    instrumentticker,
+                    instrumentexchange,
+                    instrumentexchangeboard,
+                    instrumentcategory,
+                    instrumentsubcategory,
+                    instrumentlistingtype,
+                    instrumentsecuritiesadmissionstatus,
+                    instrumentupdatedat,
+                    instrumentissuerid,
+                    instrumentissuername,
+                    instrumentsponsor
+                `)
+                .eq('instrumentcreatedby', user.id)
+                .order('instrumentupdatedat', { ascending: false })
+                .limit(50);
+                
+            if (result.error) throw result.error;
+            return result.data || [];
+        }, [user]),
+        {
+            timeout: 15000, // Reasonable 15-second timeout
+            retryCount: 2,
+            operationName: 'Fetch sponsor listings',
+            onError: useCallback((error: Error) => {
+                console.error('ListingsClient: Failed to load listings:', error);
+                if (error.message.includes('timed out')) {
+                    console.error('ListingsClient: Listings fetch specifically timed out after 15 seconds');
+                }
+                toast({
+                    title: "Error",
+                    description: "Failed to load listings. Please try again.",
+                    variant: "destructive",
+                });
+            }, [])
+        }
+    );
+
+    // Check authorization and fetch listings
+    useEffect(() => {
+        if (!user) return;
+        
+        if (user.account_type !== 'exchange_sponsor') {
             router.replace('/sign-in');
             return;
         }
 
-        const fetchListings = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('listing')
-                    .select(`
-                        instrumentid,
-                        instrumentname,
-                        instrumentticker,
-                        instrumentexchange,
-                        instrumentexchangeboard,
-                        instrumentcategory,
-                        instrumentsubcategory,
-                        instrumentlistingtype,
-                        instrumentsecuritiesadmissionstatus,
-                        instrumentupdatedat,
-                        instrumentissuerid,
-                        instrumentissuername,
-                        instrumentsponsor
-                    `)
-                    .eq('instrumentcreatedby', user.id)
-                    .order('instrumentupdatedat', { ascending: false });
-
-                if (error) throw error;
-
-                if (data && isSubscribed) {
-                    setListings(data);
-                }
-            } catch (error) {
-                if (isSubscribed) {
-                    console.error('Error fetching listings:', error);
-                }
-            } finally {
-                if (isSubscribed) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
+        // Now safe to include fetchListings in dependencies since execute function is stable
         fetchListings();
-
-        return () => {
-            isSubscribed = false;
-        };
-    }, [user, orgId, router]);
+    }, [user, router, fetchListings]); // FIXED: Can safely include fetchListings now
 
     const handleSubmitForApproval = async (listingId: string) => {
         if (!user) {
@@ -172,7 +185,7 @@ export default function ListingsClient() {
             if (fetchError) throw fetchError;
 
             if (updatedData) {
-                setListings(updatedData);
+                fetchListings();
             }
         } catch (error) {
             console.error('Error submitting listing for approval:', error);
@@ -209,13 +222,7 @@ export default function ListingsClient() {
             });
 
             // Update local state
-            setListings(currentListings => 
-                currentListings.map(l => 
-                    l.instrumentid === listingId 
-                        ? { ...l, instrumentsecuritiesadmissionstatus: 'pending' } 
-                        : l
-                )
-            );
+            fetchListings();
 
         } catch (error) {
             console.error('Error submitting/resubmitting listing for approval:', error);
@@ -269,7 +276,6 @@ export default function ListingsClient() {
                     display: none;
                 }
             `}</style>
-
             {/* Header */}
             <div className="relative mb-4 md:mb-6 flex-shrink-0">
                 <div className="bg-white/80 backdrop-blur-sm rounded-xl md:rounded-2xl shadow-xl border border-white/50 p-3 sm:p-4 md:p-6">
@@ -305,26 +311,25 @@ export default function ListingsClient() {
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
                             <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
                                 <BarChart3 className="w-2 h-2 sm:w-3 sm:h-3" />
-                                <span>{listings.length} Total</span>
+                                <span>{listings?.length || 0} Total</span>
                             </div>
                             <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm font-medium">
                                 <CheckCircle className="w-2 h-2 sm:w-3 sm:h-3" />
-                                <span>{listings.filter(l => l.instrumentsecuritiesadmissionstatus === 'approved').length} Approved</span>
+                                <span>{listings?.filter(l => l.instrumentsecuritiesadmissionstatus === 'approved').length || 0} Approved</span>
                             </div>
                             <div className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-amber-100 text-amber-700 rounded-full text-xs sm:text-sm font-medium">
                                 <Clock className="w-2 h-2 sm:w-3 sm:h-3" />
-                                <span>{listings.filter(l => l.instrumentsecuritiesadmissionstatus === 'pending').length} Pending</span>
+                                <span>{listings?.filter(l => l.instrumentsecuritiesadmissionstatus === 'pending').length || 0} Pending</span>
                             </div>
                         </div>
                     </div>
                 </div>
-
             {/* Main Content Area */}
             <div className="flex flex-col md:flex-row gap-4 sm:gap-6 flex-1 min-h-0 relative">
                 {/* Listings Content Area */}
                 <div className="flex-1 flex flex-col min-h-0">
                     {/* Hero Action - Create Document */}
-                    {listings.length === 0 ? (
+                    {!listings || listings.length === 0 ? (
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-8 sm:p-12 text-center flex-1 flex items-center justify-center">
                             <div className="max-w-md">
                                 <div className="mx-auto rounded-full w-20 h-20 flex items-center justify-center bg-gradient-to-r from-blue-100 to-indigo-100 mb-6">
@@ -335,17 +340,38 @@ export default function ListingsClient() {
                                 <div className="space-y-3">
                         <Link
                             href={`/dashboard/sponsor/${orgId}/listings/generate-document`}
-                                        className="w-full inline-flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-base font-semibold"
-                        >
-                                        <Sparkles className="h-5 w-5 mr-2" />
-                                        Create Document with AI
+                            className={cn(
+                                "block group touch-manipulation transition-all duration-300",
+                                (isSidebarOpen || isMobile)
+                                    ? "w-full rounded-xl p-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl"
+                                    : "p-2 hover:bg-blue-50 rounded-lg mx-auto flex items-center justify-center"
+                            )}>
+                            <div className="flex items-center space-x-3 w-full">
+                                {(isSidebarOpen || isMobile) ? (
+                                    <>
+                                        <div className="flex-shrink-0">
+                                            <Sparkles className="h-5 w-5 text-white" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-semibold text-base text-white">Create Document</h4>
+                                                <span className="px-2 py-1 bg-white/20 text-white rounded-full text-xs font-medium border border-white/30">AI</span>
+                                            </div>
+                                            <p className="text-sm text-blue-100 mt-1">Generate professional documents</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <Sparkles className="h-4 w-4 text-blue-600" />
+                                )}
+                            </div>
                         </Link>
                     <Link
                         href={`/dashboard/sponsor/${orgId}/new-listing`}
-                                        className="w-full inline-flex items-center justify-center px-6 py-3 bg-white/50 border border-gray-200/50 text-gray-700 rounded-xl shadow-sm hover:shadow-md hover:bg-white/70 transition-all duration-300"
-                    >
-                        <Plus className="h-5 w-5 mr-2" />
-                        Create Your First Listing
+                        className="w-full inline-flex items-center justify-center px-6 py-3 bg-white/50 border border-gray-200/50 text-gray-700 rounded-xl shadow-sm hover:shadow-md hover:bg-white/70 transition-all duration-300">
+                        <div className="flex items-center">
+                            <Plus className="h-5 w-5 mr-2" />
+                            Create Your First Listing
+                        </div>
                     </Link>
                                 </div>
                             </div>
@@ -381,7 +407,7 @@ export default function ListingsClient() {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white/50 divide-y divide-gray-200/30">
-                                        {listings.map((listing) => (
+                                        {listings?.map((listing) => (
                                             <tr key={listing.instrumentid} className="hover:bg-blue-50/30 transition-colors duration-200">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center space-x-3">
@@ -422,11 +448,12 @@ export default function ListingsClient() {
                                                     <div className="flex items-center space-x-3">
                                                         {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
                                                             <Link
-                                                                        href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
-                                                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200"
-                                                            >
-                                                                <FileText className="h-3 w-3 mr-1" />
-                                                                Edit
+                                                                href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
+                                                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200">
+                                                                <div className="flex items-center">
+                                                                    <FileText className="h-3 w-3 mr-1" />
+                                                                    Edit
+                                                                </div>
                                                             </Link>
                                                         ) : (
                                                             <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-50 rounded-lg cursor-not-allowed">
@@ -479,7 +506,7 @@ export default function ListingsClient() {
 
                     {/* Mobile Card View */}
                                 <div className="lg:hidden p-4 space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
-                        {listings.map((listing) => (
+                        {listings?.map((listing) => (
                             <div key={listing.instrumentid} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-4 hover:shadow-xl transition-all duration-300">
                                 <div className="flex items-start space-x-3 mb-4">
                                     <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
@@ -526,11 +553,12 @@ export default function ListingsClient() {
                                     <div className="flex items-center space-x-2">
                                         {['draft', 'needs_revision'].includes(listing.instrumentsecuritiesadmissionstatus) ? (
                                             <Link
-                                                            href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
-                                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200"
-                                            >
-                                                <FileText className="h-3 w-3 mr-1" />
-                                                Edit
+                                                href={`/dashboard/sponsor/${orgId}/listings/${listing.instrumentid}/edit-document/canvas`}
+                                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200">
+                                                <div className="flex items-center">
+                                                    <FileText className="h-3 w-3 mr-1" />
+                                                    Edit
+                                                </div>
                                             </Link>
                                         ) : (
                                             <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-50 rounded-lg cursor-not-allowed">
@@ -619,24 +647,25 @@ export default function ListingsClient() {
                                     (isSidebarOpen || isMobile)
                                         ? "w-full rounded-xl p-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl"
                                         : "p-2 hover:bg-blue-50 rounded-lg mx-auto flex items-center justify-center"
-                                )}
-                            >
-                                {(isSidebarOpen || isMobile) ? (
-                                    <div className="flex items-center space-x-3 w-full">
-                                        <div className="flex-shrink-0">
-                                            <Sparkles className="h-5 w-5 text-white" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-semibold text-base text-white">Create Document</h4>
-                                                <span className="px-2 py-1 bg-white/20 text-white rounded-full text-xs font-medium border border-white/30">AI</span>
+                                )}>
+                                <div className="flex items-center space-x-3 w-full">
+                                    {(isSidebarOpen || isMobile) ? (
+                                        <>
+                                            <div className="flex-shrink-0">
+                                                <Sparkles className="h-5 w-5 text-white" />
                                             </div>
-                                            <p className="text-sm text-blue-100 mt-1">Generate professional documents</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <Sparkles className="h-4 w-4 text-blue-600" />
-                                )}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="font-semibold text-base text-white">Create Document</h4>
+                                                    <span className="px-2 py-1 bg-white/20 text-white rounded-full text-xs font-medium border border-white/30">AI</span>
+                                                </div>
+                                                <p className="text-sm text-blue-100 mt-1">Generate professional documents</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <Sparkles className="h-4 w-4 text-blue-600" />
+                                    )}
+                                </div>
                             </Link>
 
                             <Link
@@ -646,21 +675,22 @@ export default function ListingsClient() {
                                     (isSidebarOpen || isMobile)
                                         ? "w-full border border-white/50 rounded-xl p-4 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg"
                                         : "p-2 hover:bg-white/50 rounded-lg mx-auto flex items-center justify-center"
-                                )}
-                            >
-                                {(isSidebarOpen || isMobile) ? (
-                                    <div className="flex items-center space-x-3 w-full">
-                                        <div className="flex-shrink-0">
-                                            <Plus className="h-4 w-4 text-gray-600" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <h4 className="font-medium text-sm text-gray-900">New Listing</h4>
-                                            <p className="text-xs text-gray-500 mt-0.5">Create exchange listing</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <Plus className="h-4 w-4 text-gray-600" />
-                                )}
+                                )}>
+                                <div className="flex items-center space-x-3 w-full">
+                                    {(isSidebarOpen || isMobile) ? (
+                                        <>
+                                            <div className="flex-shrink-0">
+                                                <Plus className="h-4 w-4 text-gray-600" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="font-medium text-sm text-gray-900">New Listing</h4>
+                                                <p className="text-xs text-gray-500 mt-0.5">Create exchange listing</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <Plus className="h-4 w-4 text-gray-600" />
+                                    )}
+                                </div>
                             </Link>
 
                             <Link
@@ -670,8 +700,7 @@ export default function ListingsClient() {
                                     (isSidebarOpen || isMobile)
                                         ? "w-full border border-white/50 rounded-xl p-4 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg"
                                         : "p-2 hover:bg-white/50 rounded-lg mx-auto flex items-center justify-center"
-                                )}
-                            >
+                                )}>
                                 {(isSidebarOpen || isMobile) ? (
                                     <div className="flex items-center space-x-3 w-full">
                                         <div className="flex-shrink-0">
@@ -697,8 +726,7 @@ export default function ListingsClient() {
                                 <div className="space-y-2">
                                     <Link
                                         href={`/dashboard/sponsor/${orgId}/clients`}
-                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300"
-                                    >
+                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300">
                                         <div className="flex items-center space-x-3">
                                             <Users className="h-4 w-4 text-gray-600" />
                                             <div>
@@ -710,8 +738,7 @@ export default function ListingsClient() {
 
                                     <Link
                                         href={`/dashboard/sponsor/${orgId}/knowledge-vault`}
-                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300"
-                                    >
+                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300">
                                         <div className="flex items-center space-x-3">
                                             <Brain className="h-4 w-4 text-gray-600" />
                                             <div>
@@ -723,8 +750,7 @@ export default function ListingsClient() {
 
                                     <Link
                                         href={`/dashboard/sponsor/${orgId}/tools`}
-                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300"
-                                    >
+                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300">
                                         <div className="flex items-center space-x-3">
                                             <Wrench className="h-4 w-4 text-gray-600" />
                                             <div>
@@ -736,8 +762,7 @@ export default function ListingsClient() {
 
                                     <Link
                                         href={`/dashboard/sponsor/${orgId}/analytics`}
-                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300"
-                                    >
+                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300">
                                         <div className="flex items-center space-x-3">
                                             <BarChart3 className="h-4 w-4 text-gray-600" />
                                             <div>
@@ -749,8 +774,7 @@ export default function ListingsClient() {
 
                                     <Link
                                         href={`/dashboard/sponsor/${orgId}/settings`}
-                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300"
-                                    >
+                                        className="block border border-white/50 rounded-xl p-3 bg-white/80 backdrop-blur-sm hover:bg-white/90 hover:shadow-lg transition-all duration-300">
                                         <div className="flex items-center space-x-3">
                                             <Settings className="h-4 w-4 text-gray-600" />
                                             <div>
@@ -773,7 +797,6 @@ export default function ListingsClient() {
                     />
                 )}
             </div>
-
             {/* Confirmation Dialog */}
             {showConfirmDialog && (
                 <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">

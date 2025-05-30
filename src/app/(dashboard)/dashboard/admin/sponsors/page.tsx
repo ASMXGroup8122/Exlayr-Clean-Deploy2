@@ -56,15 +56,13 @@ export default async function SponsorsPage() {
                             Manage and monitor sponsor organizations
                         </p>
                     </div>
-                    <Link 
+                    <Link
                         href="/dashboard/admin/sponsors/add"
-                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Sponsor
                     </Link>
                 </div>
-
                 <div className="bg-white shadow rounded-lg">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">

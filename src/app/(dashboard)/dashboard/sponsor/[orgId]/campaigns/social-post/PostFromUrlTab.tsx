@@ -608,10 +608,9 @@ export default function PostFromUrlTab({
         {tones.length === 0 && !loadingTones && !loadError && (
           <div className="p-3 text-center text-sm">
             <p className="text-gray-700 font-medium">No tones available</p>
-            <Link 
-              href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 mt-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200"
-            >
+            <Link
+              href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 mt-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
               <Sparkles className="h-3 w-3" />
               Create with AI
             </Link>
@@ -654,10 +653,9 @@ export default function PostFromUrlTab({
               </Tooltip>
             </TooltipProvider>
           </div>
-          <Link 
-            href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`} 
-            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
-          >
+          <Link
+            href={`/dashboard/sponsor/${orgId}/knowledge-vault?tab=tones-of-voice`}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors">
             <Sparkles className="h-3.5 w-3.5" />
             Create Custom
           </Link>
@@ -671,7 +669,6 @@ export default function PostFromUrlTab({
           </div>
         )}
       </div>
-
       {/* URL Input */}
       <div className="space-y-2">
         <Label htmlFor="url">URL *</Label>
@@ -684,7 +681,6 @@ export default function PostFromUrlTab({
           className="w-full"
         />
       </div>
-      
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <Switch
           id="include_source" 
@@ -693,7 +689,6 @@ export default function PostFromUrlTab({
         />
         <Label htmlFor="include_source">Include source in post</Label>
       </div>
-      
       <div className="space-y-2">
         <Label>Sentiment *</Label>
         <Select
@@ -713,7 +708,6 @@ export default function PostFromUrlTab({
           </SelectContent>
         </Select>
       </div>
-
       <div className="space-y-2">
         <Label htmlFor="thoughts">Your thoughts on this *</Label>
         <Textarea
@@ -726,7 +720,6 @@ export default function PostFromUrlTab({
           rows={4}
         />
       </div>
-
       <div className="space-y-2">
         <Label>Character Length *</Label>
         <Select
@@ -746,7 +739,6 @@ export default function PostFromUrlTab({
           </SelectContent>
         </Select>
       </div>
-      
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Label className="text-base font-medium">Image Type</Label>
@@ -781,7 +773,6 @@ export default function PostFromUrlTab({
           </SelectContent>
         </Select>
       </div>
-
       {/* --- AI Generation Section (Styled Consistently - Revision 2) --- */}
       <div className="mt-6 space-y-6 p-4 border border-blue-100 rounded-lg bg-blue-50">
         <div className="space-y-2">
@@ -828,9 +819,8 @@ export default function PostFromUrlTab({
             </p>
           </div>
         </div>
-      </div> 
+      </div>
       {/* --- End AI Generation Box --- */}
-      
       {/* "Generate with AI" Button - Moved outside/below the blue box */}
       <div className="mt-6 flex justify-center"> {/* Adjusted margin */}
         <Button
@@ -856,7 +846,6 @@ export default function PostFromUrlTab({
           )}
         </Button>
       </div>
-
       {/* Platform Selection - Position after button */}
       <div className="space-y-2">
         <Label className="text-base font-medium">Platforms *</Label>
@@ -890,7 +879,6 @@ export default function PostFromUrlTab({
           </div>
         </div>
       </div>
-      
       {formData.platforms.linkedin && (
         <div className="space-y-2">
           <Label>LinkedIn Post Type *</Label>
@@ -912,7 +900,6 @@ export default function PostFromUrlTab({
           </Select>
         </div>
       )}
-
       {formData.platforms.twitter && (
         <div className="space-y-2">
           <Label>Twitter Post Type</Label>
@@ -934,7 +921,6 @@ export default function PostFromUrlTab({
           </Select>
         </div>
       )}
-
       {formData.platforms.instagram && (
         <div className="space-y-2">
           <Label>Instagram Post Type</Label>
@@ -956,7 +942,6 @@ export default function PostFromUrlTab({
           </Select>
         </div>
       )}
-
       {Object.keys(generatedContent).length > 0 && (
         <div className="mt-10 pt-8 border-t border-gray-200 space-y-8">
           <h2 className="text-xl font-semibold text-gray-800">Generated Content & Images</h2>
@@ -1092,7 +1077,6 @@ export default function PostFromUrlTab({
           )}
         </div>
       )}
-
       {/* --- Approve and Post Button (Appears after content generation) --- */}
       {Object.keys(generatedContent).length > 0 && (
         <div className="mt-8 pt-6 border-t border-gray-300 flex justify-end">
