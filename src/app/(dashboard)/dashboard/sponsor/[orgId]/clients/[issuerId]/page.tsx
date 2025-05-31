@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import ClientDetailClient from './ClientDetailClient'; // Updated import name
 import type { Database } from '@/types/supabase'; // Assuming Database types are defined here
+import { Building2 } from 'lucide-react';
 
 /**
  * Props for the ClientDetailPage server component.
@@ -86,15 +87,22 @@ async function getIssuerData(issuerId: string) {
  * @param params - Contains the dynamic route parameters `orgId` and `issuerId`.
  */
 export default async function ClientDetailPage({ params }: PageProps) {
-    const { orgId, issuerId } = params; // Destructure both params
+    const { orgId, issuerId } = await params; // Fix: Await params before destructuring
 
     try {
         const { issuer, documents } = await getIssuerData(issuerId);
 
-        // Pass necessary data down to the Client Component
+        // Pass necessary data down to the Client Component with premium UI container
         return (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <Suspense fallback={<div>Loading client details...</div>}>
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-2 sm:p-4 md:p-6 overflow-x-hidden">
+                <Suspense fallback={
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                            <p className="text-gray-600 font-medium">Loading client details...</p>
+                        </div>
+                    </div>
+                }>
                     <ClientDetailClient
                         initialIssuer={issuer} // Pass fetched issuer data
                         initialDocuments={documents} // Pass fetched documents
@@ -112,16 +120,22 @@ export default async function ClientDetailPage({ params }: PageProps) {
             redirect('/sign-in');
         }
         
-        // Provide a user-friendly error message for other errors
+        // Provide a user-friendly error message for other errors with premium styling
         let errorMessage = 'Error loading client details. Please try refreshing the page.';
         if (error.message === 'Issuer (Client) not found') {
             errorMessage = 'The requested client could not be found.';
         }
 
         return (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                    {errorMessage}
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-2 sm:p-4 md:p-6 overflow-x-hidden">
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-red-200/50 p-6">
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Building2 className="h-8 w-8 text-red-600" />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Client</h3>
+                        <p className="text-red-700">{errorMessage}</p>
+                    </div>
                 </div>
             </div>
         );

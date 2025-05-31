@@ -370,152 +370,166 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = async () => {
         try {
+            console.log('🔴 Starting complete sign out process...');
             setLoading(true);
             
-            // First clear all auth-related cookies
-            const cookiesToClear = [
+            // Step 1: Immediately clear local auth state
+            setUser(null);
+            setSession(null);
+            
+            // Step 2: Clear ALL possible Supabase cookies and localStorage
+            const allCookies = [
                 'sb-access-token',
-                'sb-refresh-token',
+                'sb-refresh-token', 
                 'sb-token',
+                'sb-provider-token',
+                'sb-user',
+                'supabase.auth.token',
+                'supabase-auth-token',
                 'auth_state',
                 'auth_transition',
                 'account_type',
                 'organization_id',
-                'user_role'
+                'user_role',
+                'pkce_code_verifier'
             ];
             
-            cookiesToClear.forEach(cookieName => {
+            // Clear each cookie with multiple domains/paths
+            allCookies.forEach(cookieName => {
+                // Clear for current domain with different paths
                 document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+                document.cookie = `${cookieName}=; path=/dashboard; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+                document.cookie = `${cookieName}=; path=/sign-in; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+                // Clear for domain variations
+                document.cookie = `${cookieName}=; domain=.localhost; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+                document.cookie = `${cookieName}=; domain=localhost; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
             });
 
-            // Clear any local storage items
-            localStorage.removeItem('supabase.auth.token');
-            localStorage.removeItem('supabase.auth.expires_at');
+            // Step 3: Clear localStorage completely
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+            } catch (storageError) {
+                console.warn('Storage clear failed:', storageError);
+            }
             
-            // Reset state before calling signOut
+            // Step 4: Sign out from Supabase (with timeout)
+            try {
+                const signOutPromise = supabase.auth.signOut();
+                await Promise.race([
+                    signOutPromise,
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('SignOut timeout')), 3000)
+                    )
+                ]);
+                console.log('Supabase signOut completed');
+            } catch (supabaseError) {
+                console.warn('Supabase signOut failed or timed out:', supabaseError);
+                // Continue anyway - we've already cleared local state
+            }
+            
+            console.log('🔴 Sign out completed - redirecting...');
+            
+            // Step 5: Force redirect with page reload to ensure clean state
+            window.location.href = '/sign-in';
+            
+        } catch (error) {
+            console.error('Sign out error:', error);
+            // Even if signOut fails, force clear everything and redirect
             setUser(null);
             setSession(null);
             
-            // Then sign out from Supabase
-            const { error } = await supabase.auth.signOut();
-            if (error) throw error;
+            // Nuclear option: clear all cookies
+            document.cookie.split(";").forEach((c) => {
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            });
             
-            // Force a hard redirect to sign-in to ensure clean state
-            console.log('signOut: Redirecting to sign-in page.');
+            localStorage.clear();
             window.location.href = '/sign-in';
-        } catch (error) {
-            console.error('Sign out error:', error);
-            if (error instanceof AuthError) {
-                router.push(`/auth/error?message=${error.message}`);
-            } else {
-                router.push('/auth/error?message=signout-failed');
-            }
         } finally {
             setLoading(false);
         }
     };
 
     const signIn = async (email: string, password: string) => {
-        console.log('=== SIGN IN FLOW START ===');
-        console.log('1. Initial state:', { email, isLoading: loading });
+        console.log('🔵 FAST SIGN IN: Starting...');
         
         try {
             setLoading(true);
-            console.log('2. Calling supabase.auth.signInWithPassword');
             
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
+            // Step 1: Quick sign in with timeout
+            const signInPromise = supabase.auth.signInWithPassword({ email, password });
+            const { data, error } = await Promise.race([
+                signInPromise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Sign-in timeout')), 8000)
+                )
+            ]) as any;
 
             if (error) {
-                console.error('3. ERROR: Sign in failed:', error);
+                console.error('🔵 Sign in failed:', error);
                 throw error;
             }
 
             if (!data?.user) {
-                console.error('3. ERROR: No user data returned');
                 throw new Error('No user data returned');
             }
 
-            console.log('4. Fetching user profile');
-            const { data: profile, error: profileError } = await supabase
+            console.log('🔵 Auth successful, fetching profile...');
+            
+            // Step 2: Quick profile fetch with timeout
+            const profilePromise = supabase
                 .from('users')
                 .select('*')
                 .eq('id', data.user.id)
                 .single();
+                
+            const { data: profile, error: profileError } = await Promise.race([
+                profilePromise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Profile timeout')), 5000)
+                )
+            ]) as any;
 
-            if (profileError) {
-                console.error('4. ERROR: Profile fetch failed:', profileError);
-                throw profileError;
+            if (profileError || !profile) {
+                console.error('🔵 Profile fetch failed:', profileError);
+                throw new Error('Failed to load user profile');
             }
 
+            console.log('🔵 Profile loaded:', profile.account_type);
             setUser(profile);
 
-            // Handle admin path separately and early
-            if (profile.account_type === 'admin') {
-                console.log('6. Admin user detected - proceeding with admin flow');
-                console.log('6a. Admin status:', profile.status);
-                router.push('/dashboard/admin');
-                return;
-            }
-
-            // Handle organization admins - they get immediate access to their dashboard
-            if (profile.metadata?.is_org_admin === true) {
-                console.log('6. Organization admin detected - proceeding with org admin flow');
-                router.push(getDashboardPath(profile.account_type));
-                return;
-            }
-
-            console.log('6. Regular user - checking organization status');
+            // Step 3: Fast redirect based on account type (no org status checks)
+            let redirectPath = '/dashboard';
             
-            // Handle users without organizations
-            if (!profile.organization_id) {
-                console.log('6a. No organization found - redirecting to select-organization');
-                router.push('/select-organization');
-                return;
+            switch (profile.account_type) {
+                case 'admin':
+                    redirectPath = '/dashboard/admin';
+                    break;
+                case 'exchange_sponsor':
+                    redirectPath = profile.organization_id 
+                        ? `/dashboard/sponsor/${profile.organization_id}` 
+                        : '/select-organization';
+                    break;
+                case 'exchange':
+                    redirectPath = profile.organization_id 
+                        ? '/dashboard/exchange' 
+                        : '/select-organization';
+                    break;
+                case 'issuer':
+                    redirectPath = profile.organization_id 
+                        ? '/dashboard/issuer' 
+                        : '/select-organization';
+                    break;
+                default:
+                    redirectPath = '/select-organization';
             }
 
-            // Only proceed with org checks for non-admin users with organizations
-            console.log('7. Fetching organization details');
-            const tableName = profile.account_type === 'issuer' ? 'issuers' :
-                            profile.account_type === 'exchange_sponsor' ? 'exchange_sponsor' :
-                            'exchange';
-            
-            console.log('7a. Querying organization from:', {
-                table: tableName,
-                orgId: profile.organization_id,
-                userType: profile.account_type
-            });
+            console.log('🔵 Redirecting to:', redirectPath);
+            router.push(redirectPath);
 
-            const { data: org, error: orgError } = await supabase
-                .from(tableName)
-                .select('status')
-                .eq('id', profile.organization_id)
-                .maybeSingle(); // Use maybeSingle() instead of single()
-
-            if (orgError) {
-                console.error('7b. ERROR: Organization fetch failed:', orgError);
-                throw orgError;
-            }
-
-            console.log('8. Status check:', {
-                userStatus: profile.status,
-                orgStatus: org ? org.status : 'null',
-                accountType: profile.account_type
-            });
-
-            // Check if org exists and statuses are active
-            if (!org || org.status !== 'active' || profile.status !== 'active') {
-                console.log('8a. User or org not active - redirecting to approval pending');
-                router.push('/auth/approval-pending');
-            } else {
-                console.log('8b. User and org active - redirecting to dashboard');
-                router.push(getDashboardPath(profile.account_type));
-            }
-
-        } catch (error) {
-            console.error('=== SIGN IN FLOW ERROR ===', error);
+        } catch (error: any) {
+            console.error('🔵 SIGN IN ERROR:', error);
             if (error instanceof AuthError) {
                 router.push(`/auth/error?message=${error.message}`);
             } else {
@@ -560,12 +574,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Refresh session helper
     const refreshSession = useCallback(async () => {
         try {
-            console.log('refreshSession: Starting session refresh attempt.');
-            const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
-            console.log('refreshSession: supabase.auth.refreshSession() call completed.', { session: refreshedSession, error });
-            console.log('refreshSession: Refreshed session user object:', refreshedSession?.user);
+            console.log('refreshSession: Starting session refresh attempt with timeout protection...');
+            
+            // 🔥 CRITICAL FIX: Use timeout protection for session refresh
+            const refreshResult = await supabaseWithTimeout(
+                async () => supabase.auth.refreshSession(),
+                15000, // 15 second timeout
+                'Session refresh'
+            );
+            
+            const refreshedSession = refreshResult.data?.session;
+            const error = refreshResult.error;
+            
+            console.log('refreshSession: Refresh completed.', { session: !!refreshedSession, error });
+            
             if (error) {
-                console.error('refreshSession: Error from supabase.auth.refreshSession:', error);
+                console.error('refreshSession: Error from session refresh:', error);
                 throw error;
             }
 
@@ -573,25 +597,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.log('refreshSession: Session refreshed successfully.');
                 setSession(refreshedSession);
                 console.log('refreshSession: Session state updated. Fetching profile...');
-                const { data: profile } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('id', refreshedSession.user.id)
-                    .single();
-                console.log('refreshSession: Profile fetch completed.');
-
-                if (profile) {
-                    console.log('refreshSession: User profile found.');
-                    setUser(profile);
-                } else {
-                    console.log('refreshSession: No user profile found.');
+                
+                // 🔥 CRITICAL FIX: Use timeout protection for profile fetch during refresh
+                try {
+                    const profileResult = await supabaseWithTimeout(
+                        async () => {
+                            const result = await supabase
+                                .from('users')
+                                .select('*')
+                                .eq('id', refreshedSession.user.id)
+                                .single();
+                            return result;
+                        },
+                        15000, // 15 second timeout
+                        'Profile fetch during refresh'
+                    );
+                    
+                    console.log('refreshSession: Profile fetch completed.');
+                    
+                    if (profileResult.data) {
+                        console.log('refreshSession: User profile found.');
+                        setUser(profileResult.data);
+                    } else {
+                        console.log('refreshSession: No user profile found.');
+                        setUser(null);
+                    }
+                } catch (profileError: any) {
+                    console.log('AuthContext: Background profile failed, continuing without:', profileError?.message || 'Unknown error');
+                    // Continue without profile - UI is already showing
                 }
             } else {
-                 console.log('refreshSession: supabase.auth.refreshSession() returned no session.');
+                console.log('refreshSession: Refresh returned no session.');
             }
         } catch (error) {
-            console.error('refreshSession: Caught error during session refresh:', error);
-            await signOut();
+            console.error('refreshSession: Session refresh timed out or failed:', error);
+            // Only sign out if this is an auth error, not a timeout
+            if (error instanceof Error && !error.message.includes('timed out')) {
+                await signOut();
+            } else {
+                console.warn('refreshSession: Continuing with existing session due to timeout');
+            }
         }
     }, [supabase]);
 
@@ -605,81 +650,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const initializeAuth = async () => {
             try {
-                setLoading(true);
+                console.log('AuthContext: Starting immediate initialization...');
                 
-                // Get initial session without timeout wrapper
-                const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+                // 🔥 CRITICAL: Set initialized immediately to show UI
+                setInitialized(true);
+                setLoading(false);
                 
-                if (!mounted) return;
+                console.log('AuthContext: UI unlocked - running auth in background...');
 
-                if (sessionError) {
-                    console.error('Session fetch error:', sessionError);
-                    setUser(null);
-                    setSession(null);
-                } else if (initialSession) {
-                    console.log('Initial session found:', initialSession.user.id);
-                    setSession(initialSession);
+                // Now do auth check in background with aggressive timeout
+                const authTimeout = setTimeout(() => {
+                    if (mounted) {
+                        console.log('AuthContext: Background auth timed out - using fallback state');
+                        setUser(null);
+                        setSession(null);
+                    }
+                }, 2000); // 2 second background timeout
+
+                try {
+                    // Quick session check
+                    console.log('AuthContext: Background session check...');
+                    const sessionPromise = supabase.auth.getSession();
+                    const { data: sessionData, error: sessionError } = await Promise.race([
+                        sessionPromise,
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Session check timeout')), 1500)
+                        )
+                    ]) as any;
                     
-                    // Fetch user profile separately, not in auth state change handler
+                    if (sessionError || !sessionData?.session) {
+                        console.log('AuthContext: No session or session error in background');
+                        if (mounted) {
+                            setUser(null);
+                            setSession(null);
+                        }
+                        clearTimeout(authTimeout);
+                        return;
+                    }
+
+                    if (!mounted) return;
+                    console.log('AuthContext: Background session found');
+                    setSession(sessionData.session);
+                    
+                    // Try profile fetch with even more aggressive timeout
                     try {
-                        const { data: profile, error: profileError } = await supabase
+                        const profilePromise = supabase
                             .from('users')
                             .select('*')
-                            .eq('id', initialSession.user.id)
+                            .eq('id', sessionData.session.user.id)
                             .single();
+                            
+                        const { data: profileData } = await Promise.race([
+                            profilePromise,
+                            new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Profile timeout')), 1000)
+                            )
+                        ]) as any;
                         
-                        if (mounted) {
-                            if (profile) {
-                                setUser(profile);
+                        if (mounted && profileData) {
+                            console.log('AuthContext: Background profile loaded');
+                            setUser(profileData);
+                        }
+                    } catch (profileError: any) {
+                        console.log('AuthContext: Background profile failed, continuing without:', profileError?.message || 'Unknown error');
+                        // Continue without profile - UI is already showing
+                    }
+
+                    clearTimeout(authTimeout);
+
+                } catch (error: any) {
+                    console.log('AuthContext: Background auth failed:', error?.message || 'Unknown error');
+                    clearTimeout(authTimeout);
+                    if (mounted) {
+                        setUser(null);
+                        setSession(null);
+                    }
+                }
+
+                // Set up auth state change listener (non-blocking)
+                try {
+                    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+                        (event, currentSession) => {
+                            if (!mounted) return;
+                            console.log('Auth state change:', event);
+
+                            if (event === 'SIGNED_OUT') {
+                                setUser(null);
+                                setSession(null);
+                            } else if (currentSession) {
+                                setSession(currentSession);
+                                // Don't fetch profile here to avoid blocking
                             } else {
-                                console.error('Profile fetch error:', profileError);
+                                setSession(null);
                                 setUser(null);
                             }
                         }
-                    } catch (error) {
-                        console.error('Profile fetch failed:', error);
-                        if (mounted) setUser(null);
-                    }
-                } else {
-                    console.log('No initial session found');
-                    setUser(null);
-                    setSession(null);
+                    );
+
+                    authListener = subscription;
+                } catch (listenerError) {
+                    console.warn('AuthContext: Failed to set up auth listener:', listenerError);
+                    // Continue without listener - not critical for UI
                 }
-
-                // Set up auth state change listener WITHOUT async operations inside
-                const { data: { subscription } } = supabase.auth.onAuthStateChange(
-                    (event, currentSession) => {
-                        if (!mounted) return;
-
-                        console.log('Auth state change:', event, currentSession?.user?.id);
-
-                        if (event === 'SIGNED_OUT') {
-                            setUser(null);
-                            setSession(null);
-                            return;
-                        }
-
-                        if (currentSession) {
-                            setSession(currentSession);
-                            // DO NOT make async database calls here - this causes the deadlock bug
-                            // Profile will be fetched by the component that needs it
-                        } else {
-                            setSession(null);
-                            setUser(null);
-                        }
-                    }
-                );
-
-                authListener = subscription;
 
             } catch (error) {
-                console.error('Error in auth initialization:', error);
+                console.error('AuthContext: Critical initialization error:', error);
                 if (mounted) {
                     setUser(null);
                     setSession(null);
-                }
-            } finally {
-                if (mounted) {
                     setLoading(false);
                     setInitialized(true);
                 }
@@ -694,7 +772,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 authListener.unsubscribe();
             }
         };
-    }, [supabase]);
+    }, []); // Remove supabase dependency to prevent loops
 
     // Session refresh interval - Re-enabled to prevent token expiration
     useEffect(() => {

@@ -22,39 +22,57 @@ const nextConfig = {
         ],
     },
     webpack: (config, { isServer, dev }) => {
+        // Performance optimizations for development
+        if (dev) {
+            // Enable persistent caching for MASSIVE speed improvements
+            config.cache = {
+                type: 'filesystem',
+                allowCollectingMemory: true,
+                buildDependencies: {
+                    config: [__filename]
+                }
+            };
+
+            // Optimize module resolution
+            config.resolve.symlinks = false;
+            
+            // Faster source maps in development
+            config.devtool = 'eval-cheap-module-source-map';
+
+            // Exclude heavy modules from client bundle
+            if (!isServer) {
+                config.resolve.fallback = {
+                    fs: false,
+                    path: false,
+                    os: false,
+                    crypto: false,
+                    stream: false,
+                    buffer: false,
+                    util: false,
+                    url: false,
+                    querystring: false,
+                };
+            }
+
+            // Optimize for faster builds
+            config.optimization = {
+                ...config.optimization,
+                removeAvailableModules: false,
+                removeEmptyChunks: false,
+                splitChunks: false,
+            };
+        }
+
+        // Ignore warnings for faster compilation
         config.ignoreWarnings = [
-            { module: /node_modules\/node-fetch\/lib\/index\.js/ },
-            { file: /node_modules\/node-fetch\/lib\/index\.js/ },
+            { module: /node_modules/ },
+            /Critical dependency/,
         ];
         
         config.resolve.alias = {
             ...config.resolve.alias,
             '@': require('path').resolve(__dirname, './src'),
         };
-        
-        // Minimal, stable webpack config - let Next.js handle chunk optimization
-        if (isServer) {
-            config.resolve.fallback = {
-                ...config.resolve.fallback,
-                'fs': false,
-                'path': false,
-                'os': false,
-                'crypto': false,
-            };
-        } else {
-            config.resolve.fallback = {
-                ...config.resolve.fallback,
-                'fs': false,
-                'path': false,
-                'os': false,
-                'crypto': false,
-            };
-        }
-        
-        // Simple cache configuration for development stability
-        if (dev) {
-            config.cache = false; // Disable caching to prevent corruption
-        }
         
         return config;
     },
@@ -67,32 +85,46 @@ const nextConfig = {
         ignoreDuringBuilds: true,
     },
     
-    // Disable strict mode to prevent double-rendering issues
-    reactStrictMode: false,
+    // Enable React strict mode for better development experience
+    reactStrictMode: false, // Keep disabled to prevent double renders
     
-    // Simple cache headers
-    async headers() {
-        return [
-            {
-                source: '/_next/static/(.*)',
-                headers: [
-                    {
-                        key: 'Cache-Control',
-                        value: 'public, max-age=31536000, immutable',
-                    },
-                ],
-            },
-        ];
-    },
-    
-    // Minimal experimental features
+    // Optimize package imports for faster builds
     experimental: {
-        // Essential optimizations only
-        optimizePackageImports: ['lucide-react'],
+        optimizePackageImports: [
+            'lucide-react',
+            '@radix-ui/react-icons',
+            '@supabase/supabase-js',
+            'framer-motion'
+        ],
+        // Enable faster dev server
+        turbo: {
+            rules: {
+                '*.svg': {
+                    loaders: ['@svgr/webpack'],
+                    as: '*.js',
+                },
+            },
+        },
     },
     
-    // External packages for server
-    serverExternalPackages: ['node-fetch', 'openai', '@pinecone-database/pinecone', '@supabase/ssr'],
+    // External packages for server (reduces bundle size)
+    serverExternalPackages: [
+        'node-fetch', 
+        'openai', 
+        '@pinecone-database/pinecone', 
+        '@supabase/ssr',
+        'elevenlabs',
+        'twitter-api-v2',
+        'cheerio'
+    ],
+
+    // Development optimizations
+    ...(process.env.NODE_ENV === 'development' && {
+        swcMinify: false, // Disable minification in dev
+        compiler: {
+            removeConsole: false, // Keep console logs in dev
+        },
+    }),
 };
 
 module.exports = nextConfig;

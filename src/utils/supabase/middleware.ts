@@ -1,6 +1,12 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { cache } from 'react'
 import { Database } from '@/types/supabase' // Ensure this path is correct
+
+// Cache the getUser call to prevent multiple auth requests per request cycle
+const getCachedUser = cache(async (supabase: any) => {
+  return await supabase.auth.getUser()
+})
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -55,10 +61,9 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired - important to do before accessing user data
-  // It also extends the session expiry.
-  // Use getSession instead of getUser to properly refresh the session token
-  await supabase.auth.getSession()
+  // Use cached getUser call to prevent duplicate requests
+  // This follows Supabase's security requirement while optimizing performance
+  await getCachedUser(supabase)
 
   return response
 } 

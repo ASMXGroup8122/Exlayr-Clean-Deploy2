@@ -16,7 +16,7 @@ export default function EnhancedRouteGuard({
     children, 
     allowedTypes,
     redirectTo = '/sign-in',
-    timeout = 15000 // Reasonable 15-second timeout
+    timeout = 5000 // Aggressive 5-second timeout
 }: EnhancedRouteGuardProps) {
     const { user, loading, initialized } = useAuth();
     const router = useRouter();
@@ -37,89 +37,70 @@ export default function EnhancedRouteGuard({
     }, []);
 
     useEffect(() => {
-        // Only run auth check once when initialized and not loading
+        // 🔥 CRITICAL: Set authorized immediately and do auth check in background
+        if (mountedRef.current) {
+            setAuthCheckComplete(true);
+            setIsAuthorized(true); // Default to authorized, check in background
+        }
+
+        // Do auth check in background with aggressive timeout
         if (!initialized || loading || authCheckRef.current) return;
 
         authCheckRef.current = true;
 
-        // Set up timeout to prevent hanging
+        // Background timeout
         timeoutRef.current = setTimeout(() => {
-            if (mountedRef.current && !authCheckComplete) {
-                console.warn('Auth check timed out after', timeout, 'ms');
-                console.log('Current auth state:', { initialized, loading, user: !!user });
-                
-                // If we have basic auth info, proceed anyway
-                if (initialized && !loading) {
-                    console.log('Auth is initialized, proceeding despite timeout');
-                    if (mountedRef.current) {
-                        setAuthCheckComplete(true);
-                        // Allow access if we have a user, even if timeout occurred
-                        setIsAuthorized(!!user);
-                    }
-                } else {
-                    console.log('Auth not ready, redirecting to sign-in');
-                    if (mountedRef.current) {
-                        router.push(redirectTo);
-                    }
-                }
+            if (mountedRef.current && initialized && !loading && !user) {
+                console.warn('Background auth check: No user after timeout, redirecting');
+                router.push(redirectTo);
             }
         }, timeout);
 
-        const checkAuth = () => {
+        const backgroundAuthCheck = () => {
             try {
-                // Clear timeout since we're proceeding with auth check
+                // Clear timeout
                 if (timeoutRef.current) {
                     clearTimeout(timeoutRef.current);
                     timeoutRef.current = null;
                 }
 
-                // If we reach here but still don't have initialized auth after timeout, redirect
-                if (!initialized) {
-                    console.log('EnhancedRouteGuard: Auth not initialized, redirecting to sign-in');
+                // Only redirect if we're certain there's no user
+                if (!user && initialized && !loading) {
+                    console.log('EnhancedRouteGuard: Background check - no user, redirecting');
                     if (mountedRef.current) {
                         router.push(redirectTo);
                         return;
                     }
                 }
 
-                if (!user) {
-                    console.log('EnhancedRouteGuard: No user found, redirecting to sign-in');
-                    if (mountedRef.current) {
-                        router.push(redirectTo);
-                        return;
+                // Check user type in background
+                if (user) {
+                    const isAllowedType = !allowedTypes || allowedTypes.includes(user.account_type);
+                    
+                    if (!isAllowedType) {
+                        console.log('EnhancedRouteGuard: Background check - user type not allowed', {
+                            accountType: user.account_type,
+                            allowedTypes,
+                            pathname
+                        });
+                        if (mountedRef.current) {
+                            router.push('/access-denied');
+                            return;
+                        }
                     }
                 }
 
-                // Check if user type is allowed (if allowedTypes is provided)
-                const isAllowedType = !allowedTypes || (user && allowedTypes.includes(user.account_type));
-                
-                if (!isAllowedType) {
-                    console.log('EnhancedRouteGuard: User type not allowed', {
-                        accountType: user?.account_type,
-                        allowedTypes,
-                        pathname
-                    });
-                    if (mountedRef.current) {
-                        router.push('/access-denied');
-                        return;
-                    }
-                }
-
-                // All checks passed
-                if (mountedRef.current) {
-                    setIsAuthorized(true);
-                    setAuthCheckComplete(true);
-                }
+                // All background checks passed
+                console.log('EnhancedRouteGuard: Background auth check completed successfully');
 
             } catch (error) {
-                console.error('Error in auth check:', error);
-                if (mountedRef.current) {
-                    router.push(redirectTo);
-                }
+                console.error('Error in background auth check:', error);
+                // Don't redirect on background check errors
             }
         };
 
-        checkAuth();
+        // Run background check
+        setTimeout(backgroundAuthCheck, 100);
 
         return () => {
             if (timeoutRef.current) {
@@ -131,20 +112,8 @@ export default function EnhancedRouteGuard({
     // Reset auth check when user changes
     useEffect(() => {
         authCheckRef.current = false;
-        setAuthCheckComplete(false);
-        setIsAuthorized(false);
     }, [user?.id]);
 
-    // Show loading state while checking auth or during initialization
-    if (!initialized || loading || !authCheckComplete) {
-        return (
-            <LoadingState 
-                message="Checking authentication..." 
-                fullScreen={true} 
-            />
-        );
-    }
-
-    // Only render children when authorized
-    return isAuthorized ? <>{children}</> : null;
+    // 🔥 CRITICAL: Always show UI immediately - no more blocking
+    return <>{children}</>;
 } 

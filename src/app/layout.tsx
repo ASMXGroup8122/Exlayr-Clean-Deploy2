@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProviderDynamic } from "@/contexts/AuthContext";
 import { AIAssistantProvider } from "@/contexts/AIAssistantContext";
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -26,16 +26,16 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en" className="h-full">
-            <body className={`${inter.className} h-full overflow-x-hidden`}>
+        <html lang="en" className="h-full" suppressHydrationWarning>
+            <body className={`${inter.className} h-full overflow-x-hidden`} suppressHydrationWarning>
                 <ErrorBoundary>
-                    <AuthProvider>
+                    <AuthProviderDynamic>
                         <AIAssistantProvider>
                             <main className="min-h-screen bg-[#F8F9FA]">
                                 {children}
                             </main>
                         </AIAssistantProvider>
-                    </AuthProvider>
+                    </AuthProviderDynamic>
                 </ErrorBoundary>
                 <Toaster />
             </body>

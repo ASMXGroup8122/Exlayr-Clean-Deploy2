@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock } from 'lucide-react';
-// import { supabase } from '@/lib/supabase';
 
 export default function SignInPage() {
   const { signIn } = useAuth();
@@ -31,11 +30,25 @@ export default function SignInPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      const { signOut } = await import('@/contexts/AuthContext').then(mod => ({ signOut: mod.useAuth().signOut }));
+      await signOut();
+      window.location.reload();
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Force clear cookies and redirect
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      window.location.href = '/sign-in';
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          {/* You can add a logo or heading here if you had one before */}
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to your account
           </h2>
@@ -46,6 +59,17 @@ export default function SignInPage() {
             </a>
           </p>
         </div>
+
+        {/* Debug: Add sign out button to clear persistent cookies */}
+        <div className="text-center">
+          <button
+            onClick={handleSignOut}
+            className="text-sm text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear session and reload
+          </button>
+        </div>
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
@@ -95,9 +119,6 @@ export default function SignInPage() {
           {error && (
             <div className="rounded-md bg-red-50 p-4 mt-4">
               <div className="flex">
-                {/* <div className="flex-shrink-0">
-                  <XCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                </div> */}
                 <div className="ml-3">
                   <p className="text-sm font-medium text-red-700">{error}</p>
                 </div>

@@ -20,13 +20,5 @@ export default async function SponsorClientsPage({ params }: SponsorClientsPageP
     return <div>Error: Organization ID is missing.</div>;
   }
 
-  return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <h1 className="text-2xl font-semibold mb-4">Issuers</h1>
-      <p className="text-muted-foreground mb-6">
-        List of issuers associated with your managed listings.
-      </p>
-      <ClientsClient orgId={orgId} />
-    </div>
-  );
+  return <ClientsClient orgId={orgId} />;
 } 

@@ -41,9 +41,20 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * Feel free to modify this pattern to include more paths.
+         * - Static assets (svg, png, jpg, jpeg, gif, webp, ico, css, js)
+         * - API routes that don't need auth
+         * - DevTools and Chrome extension requests
+         * 
+         * Also exclude prefetch requests to prevent unnecessary auth calls
          */
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        {
+            source: '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|robots)$|api/auth|api/webhook|\\.well-known).*)',
+            missing: [
+                { type: 'header', key: 'next-router-prefetch' },
+                { type: 'header', key: 'purpose', value: 'prefetch' },
+                { type: 'header', key: 'x-middleware-prefetch' }
+            ]
+        }
     ],
 }; 
 
