@@ -10,9 +10,6 @@ interface OptimizedPageProps {
 export default async function OptimizedSponsorDashboard({ params }: OptimizedPageProps) {
   const { orgId } = await params;
 
-  // Await the async server component
-  const DashboardContent = await ServerSponsorDashboard({ orgId });
-
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 flex items-center justify-center">
@@ -22,7 +19,7 @@ export default async function OptimizedSponsorDashboard({ params }: OptimizedPag
         </div>
       </div>
     }>
-      {DashboardContent}
+      {await ServerSponsorDashboard({ orgId })}
     </Suspense>
   );
 } 
